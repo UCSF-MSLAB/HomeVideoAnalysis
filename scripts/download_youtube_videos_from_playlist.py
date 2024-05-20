@@ -30,7 +30,11 @@ def download_all_from_playlist(playlist_id, download_path):
     pass
 
 
-if __name__ == '__main__':
+def main():
 
     args = sys.argv
     download_all_from_playlist(args[1], args[2])
+
+
+if __name__ == '__main__':
+    main()
