@@ -13,9 +13,9 @@ class YoloResultHandler():
         self.boxes = sorted(yolo_results[0].boxes.xyxy,
                             key=lambda x: x[0],
                             reverse=True)
-        self.df = self.keypoints_to_df()
-        
-    def keypoints_to_df(self):
+        self.dfs = self.keypoints_to_dfs()
+
+    def keypoints_to_dfs(self):
 
         indv_pose = []
         x_means = []
@@ -31,5 +31,5 @@ class YoloResultHandler():
         # sort according to the x means, left-most first
         tups = sorted(zip(x_means, indv_pose), reverse=True)
         indv_pose = [t[1] for t in tups]
-        
+
         return indv_pose

@@ -56,8 +56,9 @@ def process_video(inFile, outFile, exportVid=True):
     cap = cv2.VideoCapture(inFile)
     if exportVid:
         fourcc = cv2.VideoWriter_fourcc('F', 'M', 'P', '4')
-        out = cv2.VideoWriter(f'./{outFile}_mpVid.mp4', fourcc, 20, (int(cap.get(3)),
-                                                                     int(cap.get(4))))
+        out = cv2.VideoWriter(f'./{outFile}_mpVid.mp4', fourcc, 20,
+                              (int(cap.get(3)),
+                               int(cap.get(4))))
     with mp_pose.Pose(
             min_detection_confidence=0.5,
             min_tracking_confidence=0.5) as pose:
