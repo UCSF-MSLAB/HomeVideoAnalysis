@@ -47,7 +47,7 @@ def extract_pose_data(vid_in_path):
     cap.release()
     print("Processing complete...")
 
-    return (yolo_pose_data, mpipe_pose_data)
+    return [yolo_pose_data, mpipe_pose_data]
 
 
 def transform_pose_data(raw_pose_data):
@@ -70,10 +70,9 @@ def transform_pose_data(raw_pose_data):
     return indv_pose_dfs
 
 
-def load_pose_data(pose_data, data_name, data_out_path):
+def load_pose_data(pose_data, data_out_prefix):
 
     for i, df in enumerate(pose_data):
-        df.to_csv(data_out_path + f'/{data_name}_{i}.csv',
-                  sep=",")
+        df.to_csv(data_out_prefix + f"{i}.csv", sep=",")
 
     pass
