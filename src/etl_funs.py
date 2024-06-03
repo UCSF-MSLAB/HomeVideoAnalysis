@@ -8,7 +8,7 @@ from src.mpipe_result_handler import MPipeResultHandler as init_mpipe_hndl
 import logging
 logger = logging.getLogger(__name__)
 
-MARGIN = 10
+MARGIN = 0
 
 yolo_pose = YOLO(os.getcwd() + '/models/yolov8m-pose.pt')
 mp_pose = mp.solutions.pose.Pose(min_detection_confidence=0.5,
@@ -39,8 +39,8 @@ def extract_pose_data(vid_in_path):
         # get bounds for the mediapipe image
         mpipe_dfs = []
         for (xmin, ymin, xmax, ymax) in yolo_handler.boxes:
-            img_crop = image[int(ymin)+MARGIN:int(ymax)+MARGIN,
-                             int(xmin)+MARGIN:int(xmax)+MARGIN:]
+            img_crop = image[int(ymin)-MARGIN:int(ymax)+MARGIN,
+                             int(xmin)-MARGIN:int(xmax)+MARGIN:]
             mpipe_results = mp_pose.process(img_crop)
             # something I'm missing here. Every once in a while
             # the model fails to return /anything/. Even if it found
@@ -55,6 +55,9 @@ def extract_pose_data(vid_in_path):
                 logger.info('Model disagreement found in ' +
                             f'{vid_in_path} frame {frame_i}')
 
+            mpipe_handler.denormalize((int(xmin), int(ymin),
+                                       int(xmax), int(ymax)),
+                                      MARGIN)
             mpipe_dfs.append(mpipe_handler.df)
 
         mpipe_pose_data.append(mpipe_dfs)

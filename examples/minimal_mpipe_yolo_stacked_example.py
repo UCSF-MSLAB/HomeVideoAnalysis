@@ -10,7 +10,7 @@ sys.path.append(os.getcwd())
 from src.yolo_result_handler import YoloResultHandler as yrh
 from src.mpipe_result_handler import MPipeResultHandler as mprh
 
-MARGIN = 0
+MARGIN = 10
 
 MP4_PATH = os.getcwd() + "/tests/fixtures/Athletic Male Standard Walk Animation Reference Body Mechanics.mp4"
 
@@ -44,17 +44,13 @@ while cap.isOpened():
     # get bounds for the mediapipe image
     mpipe_dfs = []
     for (xmin, ymin, xmax, ymax) in yolo_handle.boxes:
-        img_crop = image[int(ymin)-MARGIN:int(ymax)+MARGIN,
-                         int(xmin)-MARGIN:int(xmax)+MARGIN:]
+        img_crop = image[int(ymin)+MARGIN:int(ymax)+MARGIN,
+                         int(xmin)+MARGIN:int(xmax)+MARGIN:]
         mpipe_results = mp_pose.process(img_crop)
         if not mpipe_results.pose_landmarks:
             mpipe_results = mp_pose.process(img_crop)
         mpipe_handle = mprh(i, mpipe_results)
         if isinstance(mpipe_handle.df, pd.DataFrame):
-            mpipe_handle.denormalize((int(xmin), int(ymin),
-                                      int(xmax), int(ymax)),
-                                     MARGIN)
-            breakpoint()
             mpipe_dfs.append(mpipe_handle.df)
             good.append(i)
         else:

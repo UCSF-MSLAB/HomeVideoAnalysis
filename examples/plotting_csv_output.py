@@ -1,6 +1,7 @@
 import pandas as pd
 import seaborn as sb
 import matplotlib.pyplot as plt
+import numpy as np
 
 
 # mpipe_frontal = pd.read_csv("/home/yoni/Projects/UCSF_Pose/HomeVideoAnalysis/tmp/csv_output/Athletic Male Standard Walk Animation Reference Body Mechanics_mediapipe_0.csv")
@@ -20,7 +21,7 @@ sb.lineplot(data=mpipe_lateral[mpipe_lateral.label == 'right_wrist'],
 plt.show()
 
 wrist_diff_df = pd.concat([mpipe_lateral[mpipe_lateral.label == 'right_wrist'],
-                     yolo_lateral[yolo_lateral.label == 'right_wrist']])
+                           yolo_lateral[yolo_lateral.label == 'right_wrist']])
 
 sb.lineplot(data=wrist_diff_df, x="frame", y="Y", hue='model')
 
@@ -46,4 +47,11 @@ label_points(frame_diff_df)
 
 plt.show()
 
+# MSE across all shared points:
 
+joined_dfs = yolo_lateral.merge(mpipe_lateral,
+                                on=['label', 'frame'],
+                                how='left')
+joined_dfs['err'] = np.sqrt((joined_dfs['X_x'] - joined_dfs['X_y'])**2 +
+                            (joined_dfs['Y_x'] - joined_dfs['Y_y'])**2)
+frame_err = joined_dfs.groupby('frame')['err'].agg(['min','max','mean','median'])
