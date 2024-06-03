@@ -2,6 +2,8 @@ import cv2
 import mediapipe as mp
 import sys
 import pandas as pd
+import seaborn as sb
+import matplotlib.pyplot as plt
 import os
 
 poseDict = {
@@ -64,9 +66,29 @@ results = pose.process(image)
 tLndMrks = list(map(lambda lndMrk: (lndMrk.x, lndMrk.y,
                                     lndMrk.z, lndMrk.visibility,
                                     lndMrk.presence) if lndMrk else None,
-                    results.pose_landmarks.landmark))
+                    results.pose_world_landmarks.landmark))
 
 opose_res = pd.DataFrame(tLndMrks,
                          columns=['X', 'Y', 'Z', 'vis', 'pres'])
+opose_res['Y'] = opose_res['Y'] * (-1) + 1
 opose_res['frame'] = [0] * len(poseDict)
 opose_res['label'] = poseDict.values()
+
+ax = sb.scatterplot(data=opose_res,
+                    x='X', y='Y')
+
+
+def label_points(df):
+    for i, point in df.iterrows():
+        if point['X'] != 0 and point['Y'] != 0:
+            ax.text(point['X'] + .001,
+                    point['Y'] + .001,
+                    str(point['label']))
+
+
+label_points(opose_res)
+
+plt.show()
+
+
+

@@ -20,11 +20,12 @@ class YoloResultHandler():
         indv_pose = []
         x_means = []
         for pose in self.keypoints:
+            # return normalized coordinates
             pose_df = pd.DataFrame(pose.xy[0].numpy(),
                                    columns=['X', 'Y'])
-            pose_df['Y'] = pose_df['Y'] * (-1) + 1
+            # pose_df['Y'] = pose_df['Y'] * (-1) + 1
             x_means.append(pose_df.mean()['X'])
-            pose_df["label"] = self.LABELS.copy()
+            pose_df["label"] = pd.Series(self.LABELS.copy(), dtype='string')
             pose_df["frame"] = [self.frame]*len(self.LABELS)
             indv_pose.append(pose_df)
 
