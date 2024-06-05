@@ -1,11 +1,11 @@
 
 
-def calc_stride(pose_df, band=5):
+def calc_stride(heel_loc_df, band=5):
 
     vals = []
-    for i in range(0, int(max(pose_df.X))):
-        vals.append(pose_df[((i - band) < pose_df.X) &
-                            (pose_df.X < (i+band))].shape[0])
+    for i in range(0, int(max(heel_loc_df.X))):
+        vals.append(heel_loc_df[((i - band) < heel_loc_df.X) &
+                                (heel_loc_df.X < (i+band))].shape[0])
 
     i = 0
     j = len(vals) - 1
