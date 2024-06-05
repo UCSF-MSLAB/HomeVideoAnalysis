@@ -2,6 +2,7 @@ import pandas as pd
 import seaborn as sb
 import matplotlib.pyplot as plt
 import numpy as np
+# from whittaker_eilers import WhittakerSmoother
 
 
 # mpipe_frontal = pd.read_csv("/home/yoni/Projects/UCSF_Pose/HomeVideoAnalysis/tmp/csv_output/Athletic Male Standard Walk Animation Reference Body Mechanics_mediapipe_0.csv")
@@ -20,14 +21,14 @@ sb.lineplot(data=mpipe_lateral[mpipe_lateral.label == 'right_wrist'],
 
 plt.show()
 
-wrist_diff_df = pd.concat([mpipe_lateral[mpipe_lateral.label == 'right_wrist'],
-                           yolo_lateral[yolo_lateral.label == 'right_wrist']])
+wrist_diff_df = pd.concat([mpipe_lateral[mpipe_lateral.label == 'right_knee'],
+                           yolo_lateral[yolo_lateral.label == 'right_knee']])
 
 sb.lineplot(data=wrist_diff_df, x="frame", y="Y", hue='model')
 
 plt.show()
 
-FRAME = 100
+FRAME = 150
 frame_diff_df = pd.concat([mpipe_lateral[mpipe_lateral.frame == FRAME],
                            yolo_lateral[yolo_lateral.frame == FRAME]])
 
@@ -54,4 +55,19 @@ joined_dfs = yolo_lateral.merge(mpipe_lateral,
                                 how='left')
 joined_dfs['err'] = np.sqrt((joined_dfs['X_x'] - joined_dfs['X_y'])**2 +
                             (joined_dfs['Y_x'] - joined_dfs['Y_y'])**2)
-frame_err = joined_dfs.groupby('frame')['err'].agg(['min','max','mean','median'])
+
+frame_err = joined_dfs[joined_dfs.vis > .90].groupby('frame')['err'].agg(['min','max','mean','median'])
+label_err = joined_dfs[joined_dfs.vis > .90].groupby('label')['err'].agg(['min','max','mean','median'])
+
+sb.lineplot(data=frame_err[['mean','median']])
+
+sb.barplot(data=label_err[['mean','median']],
+           x="label", y="median")
+
+
+# #############################################
+# STRIDE LENGTH
+# #############################################
+
+sb.lineplot(data=mpipe_lateral[mpipe_lateral.label == 'right_heel'],
+            x="frame", y="Y")
