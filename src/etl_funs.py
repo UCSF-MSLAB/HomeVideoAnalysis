@@ -34,13 +34,15 @@ def extract_pose_data(vid_in_path):
         image.flags.writeable = False
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         yolo_results = yolo_pose(image)
-        yolo_handler = init_yolo_hndl(frame_i, yolo_results)
-
-        yolo_pose_data.append(yolo_handler.dfs)
-
-        # get bounds for the mediapipe image
-        mpipe_dfs = extract_mpipe_pose_data(image, yolo_handler.boxes, frame_i)
-        mpipe_pose_data.append(mpipe_dfs)
+        if len(yolo_results[0].boxes) > 0:
+            yolo_handler = init_yolo_hndl(frame_i, yolo_results)
+            if yolo_handler.box is not None:
+                yolo_pose_data.append(yolo_handler.dfs)
+                # get bounds for the mediapipe image
+                mpipe_dfs = extract_mpipe_pose_data(image,
+                                                    yolo_handler.box,
+                                                    frame_i)
+                mpipe_pose_data.append(mpipe_dfs)
 
         frame_i += 1
 
@@ -59,18 +61,17 @@ def mpipe_process(image, frame):
     return init_mpipe_hndl(frame, mpipe_results)
 
 
-def extract_mpipe_pose_data(image, boxes, frame):
+def extract_mpipe_pose_data(image, box, frame):
     mpipe_dfs = []
-    if boxes:
-        for (xmin, ymin, xmax, ymax) in boxes:
-            img_crop = image[int(ymin)-MARGIN:int(ymax)+MARGIN,
-                             int(xmin)-MARGIN:int(xmax)+MARGIN:]
-
-            mpipe_handler = mpipe_process(img_crop, frame)
-            mpipe_handler.denormalize((int(xmin), int(ymin),
-                                       int(xmax), int(ymax)),
-                                      MARGIN)
-            mpipe_dfs.append(mpipe_handler.df)
+    if len(box) > 0:
+        xmin, ymin, xmax, ymax = box
+        img_crop = image[int(ymin)-MARGIN:int(ymax)+MARGIN,
+                         int(xmin)-MARGIN:int(xmax)+MARGIN:]
+        mpipe_handler = mpipe_process(img_crop, frame)
+        mpipe_handler.denormalize((int(xmin), int(ymin),
+                                   int(xmax), int(ymax)),
+                                  MARGIN)
+        mpipe_dfs.append(mpipe_handler.df)
     else:
         ymax, xmax = image.shape[:2]
         mpipe_handler = mpipe_process(image, frame)

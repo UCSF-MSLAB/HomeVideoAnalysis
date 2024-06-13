@@ -36,12 +36,11 @@ def process_dir(dir_in_path, dir_out_path):
                 model_results = extract_pose_data(vid_in_path)
                 for i, raw_data in enumerate(model_results):
                     try:
-                        breakpoint()
                         pose_data = transform_pose_data(raw_data)
                         load_pose_data(pose_data,
                                        data_out_prefix + f"_{MODELS[i]}_")
-                    except ValueError as err:
-                        print(err.args)
+                    except Exception as e:
+                        logger.info(e.args)
 
 
 def main():

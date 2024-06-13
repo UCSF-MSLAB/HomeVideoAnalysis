@@ -21,10 +21,10 @@ sb.lineplot(data=mpipe_lateral[mpipe_lateral.label == 'right_wrist'],
 
 plt.show()
 
-wrist_diff_df = pd.concat([mpipe_lateral[mpipe_lateral.label == 'right_knee'],
-                           yolo_lateral[yolo_lateral.label == 'right_knee']])
+ankle_diff_df = pd.concat([mpipe_lateral[mpipe_lateral.label == 'left_ankle'],
+                           yolo_lateral[yolo_lateral.label == 'left_ankel']])
 
-sb.lineplot(data=wrist_diff_df, x="frame", y="Y", hue='model')
+sb.lineplot(data=ankle_diff_df, x="frame", y="Y", hue='model')
 
 plt.show()
 
