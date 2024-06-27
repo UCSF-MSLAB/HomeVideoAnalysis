@@ -1,6 +1,5 @@
 import pandas as pd
 import numpy as np
-from src.analysis_funs import get_landmark_pairs
 from scipy.ndimage import gaussian_filter1d
 
 
