@@ -108,7 +108,11 @@ def process_video(inFile, outFile, exportVid=True):
 
     cap.release()
     data.columns = [renameCols(col) for col in data.columns]
-    data.to_csv(f'./{outFile}_mpFrames.csv')
+    # Construct the output file path - megan added, trying to fix windows errors
+    outFile = os.path.join(outFile, 'mpFrames.csv')
+    outFile = os.path.normpath(outFile)
+    # Save the DataFrame to CSV
+    data.to_csv(outFile)
 
 def process_folder(inFolderPath, outFolderPath):
     for (dirpath, dirnames, filenames) in os.walk(inFolderPath):
@@ -117,7 +121,9 @@ def process_folder(inFolderPath, outFolderPath):
             ext = ext.lower()[1:]
             if (ext == "mov" or ext == "mp4"):
                  inPath = os.path.join(dirpath, filename)
+                 inPath = os.path.normpath(inPath) ## Megan added - trying to fix issue with windows file path
                  outPath = os.path.join(outFolderPath, name)
+                 outPath = os.path.normpath(outPath) ##Megan added - trying to fix issue with windows file path
                  print(f"Processing: {inPath}")
                  process_video(inPath, outPath)
                  
