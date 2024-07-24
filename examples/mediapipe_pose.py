@@ -51,12 +51,18 @@ def renameCols(col):
 
 def process_video(inFile, outFile, exportVid=True):
     
-    name = inFile.split('/')[-1].split('.')[0]
+    #megan edit name - windows 
+    # name = inFile.split('/')[-1].split('.')[0] - original 
+    inFile_split = os.path.split(inFile)
+    inFile_basename = inFile_split[1]
+    inFile_last_folder = os.path.split(inFile_split[0])
+    name = os.path.join(inFile_last_folder[1], inFile_basename)
+    
     data = pd.DataFrame()
     cap = cv2.VideoCapture(inFile)
     if exportVid:
         fourcc = cv2.VideoWriter_fourcc('F', 'M', 'P', '4')
-        out = cv2.VideoWriter(f'./{outFile}_mpVid.mp4', fourcc, 20,
+        out = cv2.VideoWriter(os.path.normpath(f'./{outFile}_mpVid.mp4'), fourcc, 20, # edited for windows 
                               (int(cap.get(3)),
                                int(cap.get(4))))
     with mp_pose.Pose(
@@ -108,11 +114,8 @@ def process_video(inFile, outFile, exportVid=True):
 
     cap.release()
     data.columns = [renameCols(col) for col in data.columns]
-    # Construct the output file path - megan added, trying to fix windows errors
-    outFile = os.path.join(outFile, 'mpFrames.csv')
-    outFile = os.path.normpath(outFile)
-    # Save the DataFrame to CSV
-    data.to_csv(outFile)
+    # megan added, trying to fix windows errors
+    data.to_csv(os.path.normpath(f'./{outFile}_mpFrames.csv'))
 
 def process_folder(inFolderPath, outFolderPath):
     for (dirpath, dirnames, filenames) in os.walk(inFolderPath):
