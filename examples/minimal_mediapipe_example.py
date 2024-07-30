@@ -46,19 +46,21 @@ mp_drawing = mp.solutions.drawing_utils
 mp_drawing_styles = mp.solutions.drawing_styles
 mp_pose = mp.solutions.pose
 
-
 def renameCols(col):
     lmNum = col.split('_')[0]
     lmVal = poseDict[int(lmNum)]
     return col.replace(lmNum, lmVal)
 
-mp4_file = os.getcwd() + "/tests/fixtures/Athletic Male Standard Walk Animation Reference Body Mechanics.mp4"
+mp4_file = os.getcwd() + "/tests/fixtures/gait_vertical_left.mov"
 cap = cv2.VideoCapture(mp4_file)
 
 pose = mp_pose.Pose(min_detection_confidence=0.5,
                     min_tracking_confidence=0.5)
-
-success, image = cap.read()
+i = 0
+while i < 100:
+    success, image = cap.read()
+    i += 1
+    
 image.flags.writeable = False
 image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 results = pose.process(image)
@@ -70,13 +72,12 @@ tLndMrks = list(map(lambda lndMrk: (lndMrk.x, lndMrk.y,
 
 opose_res = pd.DataFrame(tLndMrks,
                          columns=['X', 'Y', 'Z', 'vis', 'pres'])
-opose_res['Y'] = opose_res['Y'] * (-1) + 1
-opose_res['frame'] = [0] * len(poseDict)
+# opose_res['Y'] = opose_res['Y'] * (-1) + 1
+opose_res['frame'] = [i] * len(poseDict)
 opose_res['label'] = poseDict.values()
 
 ax = sb.scatterplot(data=opose_res,
                     x='X', y='Y')
-
 
 def label_points(df):
     for i, point in df.iterrows():
@@ -90,5 +91,11 @@ label_points(opose_res)
 
 plt.show()
 
-
+plot.figure(figsize=(2, 2))
+axes = plt.axes(projection="3d")
+axes.scatter3D(opose_res.X, opose_res.Y, opose_res.Z)
+axes.set_xlabel("x")
+axes.set_ylabel("y")
+axes.set_zlabel("z")
+plt.show()
 

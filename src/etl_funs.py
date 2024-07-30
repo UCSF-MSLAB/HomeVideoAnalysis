@@ -68,15 +68,15 @@ def extract_mpipe_pose_data(image, box, frame):
         img_crop = image[int(ymin)-MARGIN:int(ymax)+MARGIN,
                          int(xmin)-MARGIN:int(xmax)+MARGIN:]
         mpipe_handler = mpipe_process(img_crop, frame)
-        mpipe_handler.denormalize((int(xmin), int(ymin),
-                                   int(xmax), int(ymax)),
-                                  MARGIN)
+        # mpipe_handler.denormalize((int(xmin), int(ymin),
+        #                            int(xmax), int(ymax)),
+        #                           MARGIN)
         mpipe_dfs.append(mpipe_handler.df)
     else:
         ymax, xmax = image.shape[:2]
         mpipe_handler = mpipe_process(image, frame)
-        mpipe_handler.denormalize((0, 0, int(xmax), int(ymax)),
-                                  MARGIN)
+        # mpipe_handler.denormalize((0, 0, int(xmax), int(ymax)),
+        #                           MARGIN)
         mpipe_dfs.append(mpipe_handler.df)
 
     return mpipe_dfs

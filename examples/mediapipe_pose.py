@@ -50,7 +50,7 @@ def renameCols(col):
     return col.replace(lmNum, lmVal)
 
 def process_video(inFile, outFile, exportVid=True):
-    
+
     name = inFile.split('/')[-1].split('.')[0]
     data = pd.DataFrame()
     cap = cv2.VideoCapture(inFile)
@@ -120,7 +120,7 @@ def process_folder(inFolderPath, outFolderPath):
                  outPath = os.path.join(outFolderPath, name)
                  print(f"Processing: {inPath}")
                  process_video(inPath, outPath)
-                 
+
 def main():
     args = sys.argv[1:]
     if len(args) < 2 or args[0] == "--help":

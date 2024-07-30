@@ -3,7 +3,7 @@ import pandas as pd
 import os
 
 model = YOLO(os.getcwd() + '/models/yolov8m-pose.pt')
-vid_path = os.getcwd() + "/tests/fixtures/gait_horizontal_left.mov"
+vid_path = os.getcwd() + "/tests/fixtures/gait_vertical_left.mov"
 
 LABELS = [
         "nose",

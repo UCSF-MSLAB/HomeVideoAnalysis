@@ -25,7 +25,7 @@ class MPipeResultHandler():
                                                 lndMrk.z, lndMrk.visibility,
                                                 lndMrk.presence) if lndMrk else
                                 None,
-                                mpipe_results.pose_landmarks.landmark))
+                                mpipe_results.pose_world_landmarks.landmark))
         else:
             return pd.DataFrame(self.EMPTY_DICT)
 
