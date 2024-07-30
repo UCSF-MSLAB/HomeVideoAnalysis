@@ -23,11 +23,19 @@ MODELS = ["yolo", "mediapipe"]
 
 
 def process_dir(dir_in_path, dir_out_path):
+    
+    # megan added 
+    print("process_dir dir_in_path: " + dir_in_path)
+    print("process_dir dir_out_path: " + dir_out_path)
 
     for (dir_path, dir_names, file_names) in os.walk(dir_in_path):
+        print("process_dir dir_path: " + dir_path) # megan
         for file_name in file_names:
+            print("process_dir file_name: " + file_name) # megan
             name, ext = os.path.splitext(file_name)
             ext = ext.lower()[1:]
+            print("process_dir name: " + name) # megan
+            print("process_dir ext: " + ext) # megan
             if (ext in ALLOWED_VID_FORMATS):
                 vid_in_path = os.path.join(dir_path, file_name)
                 data_out_prefix = os.path.join(dir_out_path, name)
@@ -51,7 +59,7 @@ def main():
     args = sys.argv[1:]
     if len(args) < 2 or args[0] == "--help":
         # python3 -W ignore hva.py ./tmp/fixtures ./tmp/csv_output
-        print("usage: python3 hva.py <DIR_IN_PATH> <DIR_OUT_PATH>")
+        print("usage: python3 run.py <DIR_IN_PATH> <DIR_OUT_PATH>")
         exit()
 
     dir_in_path = args[0]
