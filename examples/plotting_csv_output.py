@@ -7,7 +7,11 @@ import numpy as np
 
 # mpipe_frontal = pd.read_csv("/home/yoni/Projects/UCSF_Pose/HomeVideoAnalysis/tmp/csv_output/Athletic Male Standard Walk Animation Reference Body Mechanics_mediapipe_0.csv")
 
+# basic plot of a single frame
+
 mpipe_frontal = pd.read_csv("/home/yoni/Projects/UCSF_Pose/HomeVideoAnalysis/tmp/csv_output/gait_vertical_left_mediapipe.csv")
+
+mpipe_world_frontal = pd.read_csv("/home/yoni/Projects/UCSF_Pose/HomeVideoAnalysis/tmp/csv_output/gait_vertical_left_mediapipe_world.csv")
 
 mpipe_frontal['model'] = ['mpipe'] * mpipe_frontal.shape[0]
 tmp_df = mpipe_frontal[mpipe_frontal.frame == 90]
@@ -24,6 +28,19 @@ def label_points(df):
 label_points(tmp_df)
 
 plt.show()
+
+
+# Individual features over time:
+
+# Z left hip
+mpipe_right_hip = mpipe_frontal[mpipe_frontal.label=='right_hip']
+ax = sb.lineplot(data=mpipe_right_hip, x="frame", y="Z")
+plt.show()
+
+mpipe_world_right_hip = mpipe_world_frontal[mpipe_world_frontal.label=='right_hip']
+ax = sb.lineplot(data=mpipe_world_right_hip, x="frame", y="vis")
+plt.show()
+
 
 # MSE across all shared points:
 
