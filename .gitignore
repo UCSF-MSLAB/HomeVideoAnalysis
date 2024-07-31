@@ -166,3 +166,5 @@ tests/fixtures/videos/ground_truth/
 *.csv
 
 *.mp4
+
+models/yolov8m-pose.pt
