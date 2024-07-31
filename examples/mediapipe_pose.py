@@ -50,13 +50,29 @@ def renameCols(col):
     return col.replace(lmNum, lmVal)
 
 def process_video(inFile, outFile, exportVid=True):
+    
+    #megan edit name - windows 
+    # name = inFile.split('/')[-1].split('.')[0] - original 
+    inFile_split = os.path.split(inFile)
+    inFile_basename = inFile_split[1]
+    inFile_last_folder = os.path.split(inFile_split[0])
+    name = os.path.join(inFile_last_folder[1], inFile_basename)
+    
+    #Megan debugging 
+    print("process_video inFile:" + inFile)
+    print("process_video name:" + name)
+    print("process_video outFile:" + outFile)
 
-    name = inFile.split('/')[-1].split('.')[0]
     data = pd.DataFrame()
     cap = cv2.VideoCapture(inFile)
+    # megan debugging 
+    if not cap.isOpened():
+        print(f"Error: Could not open video file {inFile}")
+        return
+
     if exportVid:
         fourcc = cv2.VideoWriter_fourcc('F', 'M', 'P', '4')
-        out = cv2.VideoWriter(f'./{outFile}_mpVid.mp4', fourcc, 20,
+        out = cv2.VideoWriter(os.path.normpath(f'./{outFile}_mpVid.mp4'), fourcc, 20, # edited for windows 
                               (int(cap.get(3)),
                                int(cap.get(4))))
     with mp_pose.Pose(
@@ -107,18 +123,36 @@ def process_video(inFile, outFile, exportVid=True):
         out.release()
 
     cap.release()
-    data.columns = [renameCols(col) for col in data.columns]
-    data.to_csv(f'./{outFile}_mpFrames.csv')
+
+    #megan added - debugging 
+    if data.empty:
+        print("No landmarks were detected.")
+    else:
+        data.columns = [renameCols(col) for col in data.columns]
+        data.to_csv(os.path.normpath(f'./{outFile}_mpFrames.csv'), index=False)
+
+    #data.columns = [renameCols(col) for col in data.columns]
+    #data.to_csv(os.path.normpath(f'./{outFile}_mpFrames.csv'))
+
 
 def process_folder(inFolderPath, outFolderPath):
+    print("process_folder, inFolderPath" + inFolderPath)
     for (dirpath, dirnames, filenames) in os.walk(inFolderPath):
+        print("process_folder, inFolderPath:" + inFolderPath)
         for filename in filenames:
+            print("process_folder, filename:" + filename)
             name, ext = os.path.splitext(filename)
+            print("process_folder:name" + name)
+            print("process_folder: ext" + ext)
             ext = ext.lower()[1:]
             if (ext == "mov" or ext == "mp4"):
                  inPath = os.path.join(dirpath, filename)
+                 inPath = os.path.normpath(inPath) ## Megan added - trying to fix issue with windows file path
                  outPath = os.path.join(outFolderPath, name)
+                 outPath = os.path.normpath(outPath) ##Megan added - trying to fix issue with windows file path
                  print(f"Processing: {inPath}")
+                 print("process_folder inPath:" + inPath)
+                 print("process_folder outPath:" + outPath)
                  process_video(inPath, outPath)
 
 def main():
@@ -129,8 +163,8 @@ def main():
     in_folder = args[0]
     out_folder = args[1]
     print(f"Starting Video Processing\nMediaPipe: {mp.__version__}")
-    # process_folder(in_folder, out_folder)
-    process_video(in_folder, out_folder)
+    process_folder(in_folder, out_folder) # megan edit - was commented out, now should run 
+   # process_video(in_folder, out_folder) 
 
 if __name__ == "__main__":
     main()
