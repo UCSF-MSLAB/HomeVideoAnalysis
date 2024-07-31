@@ -7,10 +7,10 @@ import numpy as np
 
 # mpipe_frontal = pd.read_csv("/home/yoni/Projects/UCSF_Pose/HomeVideoAnalysis/tmp/csv_output/Athletic Male Standard Walk Animation Reference Body Mechanics_mediapipe_0.csv")
 
-mpipe_frontal = pd.read_csv("/home/yoni/Projects/UCSF_Pose/HomeVideoAnalysis/tmp/csv_output/gait_vertical_left_mediapipe_0.csv")
+mpipe_frontal = pd.read_csv("/home/yoni/Projects/UCSF_Pose/HomeVideoAnalysis/tmp/csv_output/gait_vertical_left_mediapipe.csv")
 
 mpipe_frontal['model'] = ['mpipe'] * mpipe_frontal.shape[0]
-tmp_df = mpipe_frontal[mpipe_frontal.frame == 1000]
+tmp_df = mpipe_frontal[mpipe_frontal.frame == 90]
 ax = sb.scatterplot(data=tmp_df, x="X", y="Y")
 
 def label_points(df):

@@ -60,7 +60,7 @@ i = 0
 while i < 100:
     success, image = cap.read()
     i += 1
-    
+
 image.flags.writeable = False
 image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 results = pose.process(image)
@@ -78,6 +78,7 @@ opose_res['label'] = poseDict.values()
 
 ax = sb.scatterplot(data=opose_res,
                     x='X', y='Y')
+
 
 def label_points(df):
     for i, point in df.iterrows():

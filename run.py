@@ -19,7 +19,7 @@ ALLOWED_VID_FORMATS = ["asf", "avi", "gif", "m4v",
                        "mkv", "mov", "mp4", "mpeg",
                        "mpg", "ts", "wmv", "webm"]
 
-MODELS = ["yolo", "mediapipe"]
+MODELS = ["yolo", "mediapipe", "mediapipe_world"]
 
 
 def process_dir(dir_in_path, dir_out_path):
@@ -38,7 +38,7 @@ def process_dir(dir_in_path, dir_out_path):
                     try:
                         pose_data = transform_pose_data(raw_data)
                         load_pose_data(pose_data,
-                                       data_out_prefix + f"_{MODELS[i]}_")
+                                       data_out_prefix + f"_{MODELS[i]}")
                     except Exception as e:
                         logger.info(e.args)
 
@@ -51,11 +51,12 @@ def main():
     args = sys.argv[1:]
     if len(args) < 2 or args[0] == "--help":
         # python3 -W ignore hva.py ./tmp/fixtures ./tmp/csv_output
-        print("usage: python3 hva.py <DIR_IN_PATH> <DIR_OUT_PATH>")
+        print("usage: python3 run.py <DIR_IN_PATH> <DIR_OUT_PATH>")
         exit()
 
     dir_in_path = args[0]
     dir_out_path = args[1]
+
     print(f"Processing files in {dir_in_path}...")
     # process_folder(in_folder, out_folder)
     process_dir(dir_in_path, dir_out_path)
