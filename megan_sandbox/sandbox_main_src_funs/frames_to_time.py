@@ -9,14 +9,14 @@ import pandas as pd
 import os 
 
 
-# In[2]:
+# In[13]:
 
 
 # path to video 
 #vid_in_path = r'..\tests\fixtures\all_videos\DS_HC_practice videos\DS_HC_gait_vertical_left.mov' # vid_in_path set during process_dir() of run.py
 
 
-# In[3]:
+# In[14]:
 
 
 # get frames 
@@ -52,35 +52,38 @@ def add_time_column(mp_all_df, yolo_df, fps):
     return([mp_all_df, yolo_df])
 
 
-# In[6]:
+# In[11]:
 
 
 # save csv 
-def save_df_w_time(mp_all_df, yolo_df, mp_all_filepath, yolo_filepath, output_parent_folder): 
+def save_df_w_time(mp_all_df, yolo_df, vid_in_path, output_parent_folder): 
 
     output_folder = os.path.join(output_parent_folder, '002_frames_to_time')
     
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
 
+    # input file name 
+    vid_in_path_no_ext = os.path.splitext(os.path.basename(vid_in_path))[0]
+
     # save new mp df with time as .csv 
-    output_file_1 = os.path.normpath(os.path.join(output_folder, os.path.basename(mp_all_filepath)))
+    output_file_1 = os.path.normpath(os.path.join(output_folder, vid_in_path_no_ext + '_mediapipe_all_sec.csv'))
     mp_all_df.to_csv(output_file_1)
 
     # save new yolo df with time as .csv 
-    output_file_2 = os.path.normpath(os.path.join(output_folder, os.path.basename(yolo_filepath)))
+    output_file_2 = os.path.normpath(os.path.join(output_folder, vid_in_path_no_ext + '_yolo_sec.csv'))
     yolo_df.to_csv(output_file_2)
 
 
-# In[7]:
+# In[15]:
 
 
-#fps = get_frames_per_second(vid_in_path):
+#fps = get_frames_per_second(vid_in_path)
 #[mp_all_df, yolo_df] = add_time_column(mp_all_df, yolo_df, fps)
-#save_df_w_time(mp_all_df, yolo_df, mp_all_filepath, yolo_filepath, output_parent_folder)
+#save_df_w_time(mp_all_df, yolo_df, vid_in_path, output_parent_folder)
 
 
-# In[ ]:
+# In[12]:
 
 
 ## convert to .py file so functions can be used in other scripts 
