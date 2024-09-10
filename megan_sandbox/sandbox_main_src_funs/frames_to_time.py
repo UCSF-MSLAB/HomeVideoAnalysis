@@ -86,6 +86,5 @@ def save_df_w_time(mp_all_df, yolo_df, vid_in_path, output_parent_folder):
 # In[12]:
 
 
-## convert to .py file so functions can be used in other scripts 
-get_ipython().system('jupyter nbconvert --to script frames_to_time.ipynb')
+
 

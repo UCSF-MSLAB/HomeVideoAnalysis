@@ -258,6 +258,8 @@ def segment_video_walks_turn(mp_all_df, yolo_df, fps, vid_in_path, output_parent
     ax2.set_ylabel('Yolo Pixels')
     ax2.legend(loc='center left', bbox_to_anchor=(1, 0.5))
 
+    fig1.tight_layout()  # avoid plot overlap
+
     # plot 2 - hip and shoulder dist 
     # set plot with two subplots 
     fig2, (ax1, ax2) = plt.subplots(2)
@@ -282,6 +284,8 @@ def segment_video_walks_turn(mp_all_df, yolo_df, fps, vid_in_path, output_parent
     ax2.set_xlabel('Frames')
     ax2.set_ylabel('Yolo Pixels')
     ax2.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+
+    fig2.tight_layout()  # avoid plot overlap
 
     # save outputs ------------  
     output_folder = os.path.join(output_parent_folder, '004_segment_towards_away_turn')
@@ -312,9 +316,7 @@ def segment_video_walks_turn(mp_all_df, yolo_df, fps, vid_in_path, output_parent
     return([turn_df, walks_df])
 
 
-# In[ ]:
 
 
-## convert to .py file so functions can be used in other scripts 
-get_ipython().system('jupyter nbconvert --to script segment_video_walk_turn.ipynb')
+
 

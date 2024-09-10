@@ -35,7 +35,7 @@ import os
 
 
 # input = mp_pose, mp_world, and yolo df for one video  
-# output = one mediapipe df and one yolo df, both with positive and negative Y values  
+# output = one mediapipe df and one yolo df  
 def merge_mp_pose_world(mp_pose_df, mp_world_df, yolo_df):
     
     # rename mp columns 
@@ -59,9 +59,14 @@ def merge_mp_pose_world(mp_pose_df, mp_world_df, yolo_df):
     mp_all_df['Z_world'] = mp_world_df['Z_world']
     
     # take negative of Y values - when Y is negative the "stick figure" plots right side up and is more intuitive for gait calculations   
-    mp_all_df.loc[:,'Y_pose_negative'] = -mp_all_df['Y_pose']
-    mp_all_df.loc[:,'Y_world_negative'] = -(mp_all_df['Y_world'])
-    yolo_df.loc[:,'Y_negative'] = -(yolo_df['Y'])
+    #mp_all_df.loc[:,'Y_pose_negative'] = -mp_all_df['Y_pose']
+    #mp_all_df.loc[:,'Y_world_negative'] = -(mp_all_df['Y_world'])
+    #yolo_df.loc[:,'Y_negative'] = -(yolo_df['Y'])
+    
+    # if y = inf, y negative = inf; otherwise, y_negative = negative value of y at that row 
+    mp_all_df['Y_pose_negative'] = mp_all_df['Y_pose'].apply(lambda y: y if y == np.inf else -y)
+    mp_all_df['Y_world_negative'] = mp_all_df['Y_world'].apply(lambda y: y if y == np.inf else -y)
+    yolo_df['Y_negative'] = yolo_df['Y'].apply(lambda y: y if y == np.inf else -y)
 
     return([mp_all_df, yolo_df])
 
@@ -69,7 +74,40 @@ def merge_mp_pose_world(mp_pose_df, mp_world_df, yolo_df):
 # In[ ]:
 
 
-## add video direction and turn direction to data frame 
+# input = merged mp_pose and world df, one yolo df 
+# output = merged mp_pose and world df, one yolo df; 
+    # cleaned up columns with no markers tracked 
+    # add column for yolo landmark visibility 
+
+def clean_mp_yolo_missing_data(mp_all_df, yolo_df):
+    #
+
+    # mediapipe 
+    # replace inf values in vis score with 0
+    mp_all_df['vis'] = mp_all_df['vis'].replace(np.inf, 0) 
+    
+    # add column: any_markers_tracked? y/n 
+        # if XYZ and vis = inf -> no
+        # use for interpolation 
+    mp_all_df['any_markers_visible'] = np.where((mp_all_df[['X_pose', 'Y_pose', 'Z_pose']] == np.inf).all(axis=1), 'no', 'yes')
+
+    # replace nan values in label with 
+    mp_all_df['label'] = mp_all_df['label'].fillna('no_labels_tracked')
+    
+    # yolo
+    # add landmark_visible column
+        # if X + Y == 0 -> landmark_visible = 0 (missing)
+        # else -> landmark_visible = 1 (present) 
+    yolo_df['landmark_visible'] = np.where((yolo_df[['X', 'Y']] == 0).all(axis=1), 'no', 'yes')
+    
+    return([mp_all_df, yolo_df])
+
+
+# In[ ]:
+
+
+# input = merged mp_pose and world df, one yolo df 
+# output = merged mp_pose and world, one yolo df; both dfs with camera orientation and turn direction columns  
 def add_orientation_and_turn_direction(vid_in_path, mp_all_df, yolo_df):
 
     vid_in_path_basename = os.path.basename(vid_in_path)
@@ -134,6 +172,4 @@ def save_merge_mp_yolo_df(mp_all_df, yolo_df, vid_in_path, output_parent_folder)
 # In[ ]:
 
 
-## convert to .py file so functions can be used in other scripts 
-get_ipython().system('jupyter nbconvert --to script merge_mp_yolo_dfs.ipynb')
 
