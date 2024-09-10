@@ -23,6 +23,22 @@ ALLOWED_VID_FORMATS = ["asf", "avi", "gif", "m4v",
 
 MODELS = ["yolo", "mediapipe", "mediapipe_world"]
 
+# from https://www.oreilly.com/library/view/python-cookbook/0596001673/ch04s16.html
+def splitall(path):
+    allparts = []
+    while 1:
+        parts = os.path.split(path)
+        if parts[0] == path:  # sentinel for absolute paths
+            allparts.insert(0, parts[0])
+            break
+        elif parts[1] == path: # sentinel for relative paths
+            allparts.insert(0, parts[1])
+            break
+        else:
+            path = parts[0]
+            allparts.insert(0, parts[1])
+    return allparts
+
 
 def process_dir(dir_in_path, dir_out_path):
 
@@ -32,7 +48,7 @@ def process_dir(dir_in_path, dir_out_path):
         name, ext = os.path.splitext(file_name[file_name.find(dir_in_path):])
         ext = ext.lower()[1:]
         if (ext in ALLOWED_VID_FORMATS):
-            new_name = '_'.join(os.path.split(name))
+            new_name = '_'.join(splitall(name)[1:])
             data_out_prefix = os.path.join(dir_out_path, new_name)
             print(f"Processing: {file_name}")
             model_results = extract_pose_data(file_name)
