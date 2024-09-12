@@ -49,7 +49,9 @@ def merge_mp_pose_world(mp_pose_df, mp_world_df, yolo_df):
                                                  "Z" : "Z_world", 
                                                  "Unnamed: 0" : "label_num"})
 
-    yolo_df = yolo_df.rename(columns = {"Unnamed: 0" : "label_num"})
+    yolo_df = yolo_df.rename(columns = {"Unnamed: 0" : "label_num",
+                                       'X': 'X_yolo', 
+                                        'Y': 'Y_yolo'})
     
 
     # merge mp world and pose (same vis, markers)
@@ -66,7 +68,7 @@ def merge_mp_pose_world(mp_pose_df, mp_world_df, yolo_df):
     # if y = inf, y negative = inf; otherwise, y_negative = negative value of y at that row 
     mp_all_df['Y_pose_negative'] = mp_all_df['Y_pose'].apply(lambda y: y if y == np.inf else -y)
     mp_all_df['Y_world_negative'] = mp_all_df['Y_world'].apply(lambda y: y if y == np.inf else -y)
-    yolo_df['Y_negative'] = yolo_df['Y'].apply(lambda y: y if y == np.inf else -y)
+    yolo_df['Y_yolo_negative'] = yolo_df['Y_yolo'].apply(lambda y: y if y == np.inf else -y)
 
     return([mp_all_df, yolo_df])
 
@@ -93,12 +95,22 @@ def clean_mp_yolo_missing_data(mp_all_df, yolo_df):
 
     # replace nan values in label with 
     mp_all_df['label'] = mp_all_df['label'].fillna('no_labels_tracked')
+
+    # replace an inf with nan 
+    mp_all_df.replace([np.inf, -np.inf], np.nan, inplace=True)
+    
     
     # yolo
     # add landmark_visible column
-        # if X + Y == 0 -> landmark_visible = 0 (missing)
+        # if X + Y == 0 -> landmark_visible = 0 (missing) 
         # else -> landmark_visible = 1 (present) 
-    yolo_df['landmark_visible'] = np.where((yolo_df[['X', 'Y']] == 0).all(axis=1), 'no', 'yes')
+    yolo_df['landmark_visible'] = np.where((yolo_df[['X_yolo', 'Y_yolo']] == 0).all(axis=1), 'no', 'yes')
+
+    # if both x and Y = zero, replace with NaN
+    yolo_df[['X_yolo', 'Y_yolo', 'Y_yolo_negative']] = yolo_df[['X_yolo', 'Y_yolo', 'Y_yolo_negative']].mask((yolo_df['X_yolo'] == 0) & 
+                                                                               (yolo_df['Y_yolo'] == 0) & 
+                                                                               (yolo_df['Y_yolo_negative'] == 0), np.nan)
+    
     
     return([mp_all_df, yolo_df])
 

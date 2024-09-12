@@ -187,7 +187,7 @@ def yolo_vis_lineplot(yolo_df, vid_in_path, output_parent_folder):
     for current_landmark_label in labels_to_plot: 
         current_yolo_df = yolo_df.loc[yolo_df['label'] == current_landmark_label]
     
-        fig3, ax3 = plt.subplots()
+        fig3, ax3 = plt.subplots(figsize=(10, 6))
         fig3.suptitle(current_landmark_label)
         ax3.scatter(current_yolo_df['frame'], current_yolo_df['landmark_visible_num'], marker = '.')
         ax3.set_ylabel('Yolo Marker Present: 0 = No, 1 = Yes')
