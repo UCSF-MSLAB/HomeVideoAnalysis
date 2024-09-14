@@ -18,7 +18,7 @@ import os
 # output 
     # df with column for frames, original data, and interpolated data 
     # plots saved 
-def interpolate_landmark_singe_axis(df, landmark, axis_to_interpolate, max_gap_sec, fps, vid_in_path, output_parent_folder, mediapipe_or_yolo):
+def interpolate_landmark_single_axis(df, landmark, axis_to_interpolate, max_gap_sec, fps, vid_in_path, output_parent_folder, mediapipe_or_yolo):
     if mediapipe_or_yolo == 'mediapipe': 
         df_landmark = df.loc[(df['label'] == landmark)|(df['label'] == 'no_labels_tracked')]
     elif mediapipe_or_yolo == 'yolo': 
