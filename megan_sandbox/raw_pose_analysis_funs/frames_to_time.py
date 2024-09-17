@@ -11,17 +11,10 @@ import os
 
 # In[13]:
 
-
-# path to video 
-#vid_in_path = r'..\tests\fixtures\all_videos\DS_HC_practice videos\DS_HC_gait_vertical_left.mov' # vid_in_path set during process_dir() of run.py
-
-
-# In[14]:
-
-
 # get frames 
-def get_frames_per_second(vid_in_path): 
-    video = cv2.VideoCapture(vid_in_path) 
+# vid_in_path = path to video 
+def get_frames_per_second(path_to_video): 
+    video = cv2.VideoCapture(path_to_video) 
     fps = video.get(cv2.CAP_PROP_FPS)
     fps = round(fps)
     
@@ -52,8 +45,10 @@ def add_time_column(mp_all_df, yolo_df, fps):
     return([mp_all_df, yolo_df])
 
 
-# In[11]:
 
+# inputs: 
+    # string of video identifier (either video_id_date_name in analysis code or vid_in_path from run)
+    # output_parent_folder = dir_out_prefix
 
 # save csv 
 def save_df_w_time(mp_all_df, yolo_df, vid_in_path, output_parent_folder): 
@@ -74,16 +69,6 @@ def save_df_w_time(mp_all_df, yolo_df, vid_in_path, output_parent_folder):
     output_file_2 = os.path.normpath(os.path.join(output_folder, vid_in_path_no_ext + '_yolo_sec.csv'))
     yolo_df.to_csv(output_file_2)
 
-
-# In[15]:
-
-
-#fps = get_frames_per_second(vid_in_path)
-#[mp_all_df, yolo_df] = add_time_column(mp_all_df, yolo_df, fps)
-#save_df_w_time(mp_all_df, yolo_df, vid_in_path, output_parent_folder)
-
-
-# In[12]:
 
 
 

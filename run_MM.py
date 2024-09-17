@@ -1,5 +1,7 @@
 import os
 import sys
+import cv2
+import pandas as pd
 from src.etl_funs import (extract_pose_data,
                           transform_pose_data,
                           load_pose_data)
@@ -21,6 +23,13 @@ ALLOWED_VID_FORMATS = ["asf", "avi", "gif", "m4v",
 
 MODELS = ["yolo", "mediapipe", "mediapipe_world"]
 
+def get_frames_per_second(vid_in_path): 
+    video = cv2.VideoCapture(vid_in_path) 
+    fps = video.get(cv2.CAP_PROP_FPS)
+    fps = round(fps)
+    fps_df = pd.DataFrame(data = {'fps' : [fps]})
+    
+    return([fps,fps_df])
 
 def process_dir(dir_in_path, dir_out_path):
 
@@ -51,7 +60,12 @@ def process_dir(dir_in_path, dir_out_path):
                     os.makedirs(raw_data_out_folder) # make directory if it doesn't exist already
                     print('making directory: ' + raw_data_out_folder)
 
-                # run pose estimation on video
+                # get frames per second from video 
+                [fps,fps_df] = get_frames_per_second(vid_in_path)
+                print(os.path.normpath(os.path.join(raw_data_out_folder, name + '_fps.csv')))
+                fps_df.to_csv(os.path.normpath(os.path.join(raw_data_out_folder, name + '_fps.csv')))
+
+                # run pose estimation on video and save raw data as .csv file 
                 model_results = extract_pose_data(vid_in_path)
                 for i, raw_data in enumerate(model_results):
                     try:
@@ -61,11 +75,12 @@ def process_dir(dir_in_path, dir_out_path):
                     except Exception as e:
                         logger.info(e.args)
 
-
-              # analysis functions below 
-              # model_results[1] = yolo_df
-              # model_results[2] = mp_pose_df
-              # model_results[3] = mp_world_df 
+                              
+                # analysis functions below 
+                # model_results[1] = yolo_df
+                # model_results[2] = mp_pose_df
+                # model_results[3] = mp_world_df 
+                # fps from step above
                     # Three above are inputs for first function inf raw_pose_analysis main 
                     # (as of 9/12/2024, merge_mp_pose_world) 
                     # Need to double check if any differences from python variable vs loading from .csv – index, missing data, structure

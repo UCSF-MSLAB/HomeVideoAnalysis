@@ -10,59 +10,72 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt 
 import scipy.signal as sig 
+from raw_pose_analysis_funs.filter_interpolate_funs import (interpolate_landmark_single_axis, 
+filter_landmark_single_axis)
 import os 
 
+def segment_video_interp_filter(mp_all_df, yolo_df,video_id_date_name, dir_out_prefix, max_gap, fps, cutoff, order): 
+    # KEEP THIS ORDER of landmark and pose THE SAME!! 
+    # if change order of variables or for loop, need to update in later steps
+    segment_walk_landmarks = ['right_hip', 'left_hip'] 
+    segment_walk_axes = ['Z_pose', 'X_yolo']
+
+    # interpolate yolo and mp data 
+    mp_segement_walk_interp_dfs = []
+    yolo_segement_walk_interp_dfs = []
+    for landmark_i, current_landmark in enumerate(segment_walk_landmarks): 
+        for axis_i, current_axis in enumerate(segment_walk_axes): 
+            if 'pose' in current_axis: 
+                dataset = 'mediapipe'
+                df = mp_all_df
+            elif 'yolo' in current_axis: 
+                dataset = 'yolo'
+                df = yolo_df
+
+            # interpolate 
+            current_interp_dfs = interpolate_landmark_single_axis(df, # mediapipe or yolo data frame 
+                                                                  current_landmark, # marker to interpolate 
+                                                                  current_axis, # axis to interpolate
+                                                                  max_gap, # seconds, maximum gap to interpolate over
+                                                                  fps,
+                                                                  video_id_date_name,
+                                                                  dir_out_prefix,
+                                                                  mediapipe_or_yolo = dataset)
+            # add interpolation to mp or yolo dfs 
+            if 'pose' in current_axis: 
+                mp_segement_walk_interp_dfs = mp_segement_walk_interp_dfs + [current_interp_dfs]
+            elif 'yolo' in current_axis: 
+                yolo_segement_walk_interp_dfs = yolo_segement_walk_interp_dfs + [current_interp_dfs]     
+
+    # filter mp_pose interpolated data 
+    mp_segment_walk_filt_dfs = []
+    for mp_interp_i, mp_interp_df in enumerate(mp_segement_walk_interp_dfs): 
+
+        # filter interpolated data (3rd column in df)
+        current_mp_segment_walk_filt = filter_landmark_single_axis(
+            mp_segement_walk_interp_dfs[mp_interp_i].iloc[:, 2],
+            fps, # video HZ
+            cutoff, # filter cutoff 
+            order, # butterworth filter order
+            video_id_date_name,
+            dir_out_prefix
+            )
+        mp_segment_walk_filt_dfs = mp_segment_walk_filt_dfs + [current_mp_segment_walk_filt]
+
+    # save interpolated yolo X hip positions and filtered mp hip Z positions 
+    return([mp_segment_walk_filt_dfs, yolo_segement_walk_interp_dfs])
 
 
-def filter_landmark_single_axis(df, landmark, axis_to_filter, video_fps, cutoff_hz, filter_order): 
-    df_landmark = df.loc[(df['label'] == landmark)]
-    df_landmark.index = df_landmark['frame'] # set index to frame
-
-    # data = series, one landmark and one axis (column) 
-    data = df_landmark[axis_to_filter]
-       
-    # Normalized cutoff frequency (cutoff frequency divided by the Nyquist frequency)
-    nyquist = 0.5 * video_fps
-    normal_cutoff = cutoff_hz / nyquist
-
-    # Design a Butterworth low-pass filter
-    b, a = sig.butter(filter_order, normal_cutoff, btype='low', analog=False)
-
-    # filter data 
-    filtered_data = sig.filtfilt(b, a, data)
-    filtered_data = pd.Series(filtered_data)
-    
-    return ([data, filtered_data])
-
-
-# In[ ]:
-
-
-#inputs 
-def segment_video_walks_turn(mp_all_df, yolo_df, fps, vid_in_path, output_parent_folder, 
-                             cutoff, order, find_peaks_distance, find_peaks_prominence, flattening_point_atol, 
+#using yolo x hip and mp z hip positions, ID when person is walking or turning 
+def segment_video_walks_turn(mp_hip_z_filt, yolo_hip_x_interp, vid_in_path, output_parent_folder, fps,
+                             find_peaks_distance, find_peaks_prominence, flattening_point_atol, 
                              dist_turn_mid_to_flattening): 
     # -----------------------------------------------------------------------------
     # use hip z position to ID start, stop, and midpoint of turns in vertical videos 
-
-    # filter right and left hip z pose data 
-    [hip_r_mp_z, hip_r_mp_z_filt] = filter_landmark_single_axis(df = mp_all_df, 
-                                                                landmark = 'right_hip',
-                                                                axis_to_filter = 'Z_pose', 
-                                                                video_fps = fps,
-                                                                cutoff_hz = cutoff, 
-                                                                filter_order = order)
-
-    [hip_l_mp_z, hip_l_mp_z_filt] = filter_landmark_single_axis(df = mp_all_df,
-                                                                landmark = 'left_hip', 
-                                                                axis_to_filter = 'Z_pose', 
-                                                                video_fps = fps, 
-                                                                cutoff_hz = cutoff, 
-                                                                filter_order = order)
-    # frames for hip vars 
-    hip_l_mp_z_frames = hip_l_mp_z.index
-    hip_r_mp_z_frames = hip_r_mp_z.index
-
+    hip_r_mp_z_filt = mp_hip_z_filt[0]
+    hip_l_mp_z_filt = mp_hip_z_filt[1]
+    hip_l_mp_z_frames = hip_l_mp_z_filt.index
+    
     # distance between l and r z and smooth
     hip_z_diff_mp_filt = hip_l_mp_z_filt - hip_r_mp_z_filt
     hip_z_diff_mp_filt = pd.Series(hip_z_diff_mp_filt).rolling(window=15, min_periods=1).mean()
@@ -127,23 +140,20 @@ def segment_video_walks_turn(mp_all_df, yolo_df, fps, vid_in_path, output_parent
     # use start and stop of turns from hip z distance to ID walking times
 
     # create one df for r hip, one for l 
-    hip_r_yolo_df = yolo_df.loc[(yolo_df['label'] == 'right_hip')]
-    hip_r_yolo_df.index = hip_r_yolo_df['frame']
-
-    hip_l_yolo_df = yolo_df.loc[(yolo_df['label'] == 'left_hip')]
-    hip_l_yolo_df.index = hip_l_yolo_df['frame']
+    hip_r_yolo_df = yolo_hip_x_interp[0]
+    hip_l_yolo_df = yolo_hip_x_interp[1]
 
     # hip width 
-    hip_width_yolo = abs(hip_r_yolo_df['X'] - hip_l_yolo_df['X'])
+    hip_width_yolo = abs(hip_r_yolo_df['right_hip_X_yolo_interpolated'] - hip_l_yolo_df['left_hip_X_yolo_interpolated'])
     hip_width_yolo_smooth = pd.Series(hip_width_yolo).rolling(window=15, min_periods=1).mean()
 
     # frames 
-    frames = hip_r_yolo_df['frame']
+    frames = hip_r_yolo_df.index
     # walk start - start one second in to account for time for model to fit to person
         # start of entire video 
     first_walk_start_frame = frames[0] 
     # end of last walk 
-    last_walk_end_frame = frames.iloc[-1]
+    last_walk_end_frame = frames[-1]
 
     # create walk_df with start and stop of eaach walk, time per walk, and direction 
     walks_df = pd.DataFrame(index=range(len(turn_df) + 1), 
@@ -200,14 +210,14 @@ def segment_video_walks_turn(mp_all_df, yolo_df, fps, vid_in_path, output_parent
     fig1.suptitle(os.path.splitext(os.path.basename(vid_in_path))[0])
 
     # subplot 1 - mp z for each hip 
-    ax1.scatter(hip_r_mp_z_frames, hip_r_mp_z_filt, label = 'r_hip_z_filt', color = 'blue', marker = 'o', s = 1)
-    ax1.scatter(hip_l_mp_z_frames, hip_l_mp_z_filt, label = 'l_hip_z_filt', color = 'red', marker = 'o', s = 1)
+    ax1.scatter(hip_r_mp_z_filt.index, hip_r_mp_z_filt, label = 'r_hip_z_filt', color = 'blue', marker = 'o', s = 1)
+    ax1.scatter(hip_l_mp_z_filt.index, hip_l_mp_z_filt, label = 'l_hip_z_filt', color = 'red', marker = 'o', s = 1)
     ax1.set_ylabel('MP Pose')
     ax1.legend(loc='center left', bbox_to_anchor=(1, 0.5))
 
     # subplot 2 - yolo x for each hip 
-    ax2.scatter(hip_r_yolo_df['frame'], hip_r_yolo_df['X'], label = 'r_hip_yolo_x', color = 'orange', marker = 'o', s = 1)
-    ax2.scatter(hip_l_yolo_df['frame'], hip_l_yolo_df['X'], label = 'l_hip_yolo_x', color = 'green', marker = 'o', s = 1)
+    ax2.scatter(hip_r_yolo_df['frame'], hip_r_yolo_df['right_hip_X_yolo_interpolated'], label = 'r_hip_yolo_x', color = 'orange', marker = 'o', s = 1)
+    ax2.scatter(hip_l_yolo_df['frame'], hip_l_yolo_df['left_hip_X_yolo_interpolated'], label = 'l_hip_yolo_x', color = 'green', marker = 'o', s = 1)
     ax2.set_ylabel('Yolo Pixels')
     ax2.legend(loc='center left', bbox_to_anchor=(1, 0.5))
 
@@ -266,8 +276,6 @@ def segment_video_walks_turn(mp_all_df, yolo_df, fps, vid_in_path, output_parent
 
     walk_df_path = os.path.normpath(os.path.join(output_folder, (vid_in_path_no_ext + '_walk_start_stop_frames.csv'))) 
     walks_df.to_csv(walk_df_path)
-
-    # update mp_all_df and yolo_df with turns and 
     
     # outputs 
     return([turn_df, walks_df])

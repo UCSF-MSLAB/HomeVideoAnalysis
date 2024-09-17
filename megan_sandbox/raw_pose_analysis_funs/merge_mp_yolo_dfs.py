@@ -1,38 +1,9 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[ ]:
-
-
 import pandas as pd 
 import numpy as np 
 import os 
-
-
-# In[ ]:
-
-
-# input 
-# load mp, mp_world, and yolo .csv files for one video (from main branch, output of home video analysis run.py 8/29/2024)
-#mp_pose_filepath = r'..\..\temp\main_branch_outputs\000_run\DS_HC_gait_vertical_left_mediapipe.csv'
-#mp_world_filepath = r'..\..\temp\main_branch_outputs\000_run\DS_HC_gait_vertical_left_mediapipe_world.csv'
-#yolo_filepath = r'..\..\temp\main_branch_outputs\000_run\DS_HC_gait_vertical_left_yolo.csv'
-
-# path to video 
-#vid_in_path = r'..\..\tests\fixtures\all_videos\DS_HC_practice videos\DS_HC_gait_vertical_left.mov'
-
-# output folder 
-#output_parent_folder = r'..\..\temp\test_sandbox_pipeline_outputs'
-
-# read csv
-#mp_pose_df = pd.read_csv(mp_pose_filepath)
-#mp_world_df = pd.read_csv(mp_world_filepath)
-#yolo_df = pd.read_csv(yolo_filepath)
-    
-
-
-# In[ ]:
-
 
 # input = mp_pose, mp_world, and yolo df for one video  
 # output = one mediapipe df and one yolo df  
@@ -73,14 +44,10 @@ def merge_mp_pose_world(mp_pose_df, mp_world_df, yolo_df):
     return([mp_all_df, yolo_df])
 
 
-# In[ ]:
-
-
 # input = merged mp_pose and world df, one yolo df 
 # output = merged mp_pose and world df, one yolo df; 
     # cleaned up columns with no markers tracked 
     # add column for yolo landmark visibility 
-
 def clean_mp_yolo_missing_data(mp_all_df, yolo_df):
     #
 
@@ -115,10 +82,9 @@ def clean_mp_yolo_missing_data(mp_all_df, yolo_df):
     return([mp_all_df, yolo_df])
 
 
-# In[ ]:
+# input = string of video identifier (either video_id_date_name in analysis code or vid_in_path from run), 
+# merged mp_pose and world df, one yolo df 
 
-
-# input = merged mp_pose and world df, one yolo df 
 # output = merged mp_pose and world, one yolo df; both dfs with camera orientation and turn direction columns  
 def add_orientation_and_turn_direction(vid_in_path, mp_all_df, yolo_df):
 
@@ -150,9 +116,12 @@ def add_orientation_and_turn_direction(vid_in_path, mp_all_df, yolo_df):
 
 
 # In[ ]:
-
+# inputs: 
+    # string of video identifier (either video_id_date_name in analysis code or vid_in_path from run)
+    # output_parent_folder = dir_out_prefix
 
 # save outputs 
+# vid_in_path - string used to save new .csv file 
 def save_merge_mp_yolo_df(mp_all_df, yolo_df, vid_in_path, output_parent_folder):
 
     output_folder = os.path.join(output_parent_folder, '001_merge_mp_yolo_dfs')
@@ -173,15 +142,6 @@ def save_merge_mp_yolo_df(mp_all_df, yolo_df, vid_in_path, output_parent_folder)
     yolo_df.to_csv(output_file_2)
 
 
-# In[ ]:
-
-
-#[mp_all_df, yolo_df] = merge_mp_pose_world(mp_pose_df, mp_world_df, yolo_df)
-#[mp_all_df, yolo_df] = add_orientation_and_turn_direction(vid_in_path, mp_all_df, yolo_df)
-#save_merge_mp_yolo_df(mp_all_df, yolo_df, vid_in_path, output_parent_folder)
-
-
-# In[ ]:
 
 
 

@@ -71,7 +71,7 @@ def interpolate_landmark_single_axis(df, landmark, axis_to_interpolate, max_gap_
 
     # plot original data vs linterpolated data 
     fig1, ax1 = plt.subplots()
-    fig1.suptitle('Interpolated Data')
+    fig1.suptitle('vid_in_path_no_ext')
     ax1.plot(position_interp_df['frame'], position_interp_df[current_col_name + '_raw'], color = 'red', alpha = 0.5, label = 'raw')
     ax1.plot(position_interp_df['frame'], position_interp_df[current_col_name + '_interpolated'], color = 'blue', alpha = 0.5, label = 'interpolated')
     ax1.legend()
@@ -81,7 +81,12 @@ def interpolate_landmark_single_axis(df, landmark, axis_to_interpolate, max_gap_
     plt.close()
 
     vid_in_path_no_ext = os.path.splitext(os.path.basename(vid_in_path))[0]
-    fig1.savefig(os.path.join(output_parent_folder, 'interpolated_data_plots', (vid_in_path_no_ext + '_' + current_col_name + '.png')))
+
+    output_folder = os.path.join(output_parent_folder, 'interpolated_data_plots')
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+        
+    fig1.savefig(os.path.join(output_folder, (vid_in_path_no_ext + '_' + current_col_name + '.png')))
     
     return(position_interp_df)
     
@@ -103,7 +108,6 @@ def filter_landmark_single_axis(original_data, video_fps, cutoff_hz, filter_orde
 
     # remove NaN Values from original data to filter 
     original_data_no_na = original_data.dropna()
-    print(original_data_no_na.isna().sum())
     
     # filter data 
     filtered_data = sig.filtfilt(b, a, original_data_no_na)
@@ -123,7 +127,7 @@ def filter_landmark_single_axis(original_data, video_fps, cutoff_hz, filter_orde
     frame_filtered_data_w_nan = filtered_data_w_nan.index
     
     fig2, ax2 = plt.subplots()
-    fig2.suptitle('Filtered Data')
+    fig2.suptitle('vid_in_path_no_ext')
     ax2.plot(frame_original_data, original_data, color = 'red', alpha = 0.5, label = original_data_name)
     ax2.scatter(frame_filtered_data, filtered_data, color = 'blue', alpha = 0.5, marker = 'o', s = 1, label = original_data_name + '_filtered')
     ax2.scatter(frame_filtered_data_w_nan, filtered_data_w_nan, color = 'green', alpha = 0.5, marker = 'o', s = 1, label = original_data_name + '_filtered_w_nan')
@@ -131,7 +135,11 @@ def filter_landmark_single_axis(original_data, video_fps, cutoff_hz, filter_orde
     ax2.set_xlabel('Frame')
     
     vid_in_path_no_ext = os.path.splitext(os.path.basename(vid_in_path))[0]
-    fig2.savefig(os.path.join(output_parent_folder, 'filtered_data_plots', (vid_in_path_no_ext + '_'+  original_data_name + '_filtered.png')))
+    output_folder = os.path.join(output_parent_folder, 'filtered_data_plots')
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+        
+    fig2.savefig(os.path.join(output_folder, (vid_in_path_no_ext + '_'+  original_data_name + '_filtered.png')))
 
     plt.close(fig2)
     plt.close()

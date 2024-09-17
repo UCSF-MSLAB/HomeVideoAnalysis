@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[ ]:
 
 
 import matplotlib.pyplot as plt 
@@ -10,26 +9,12 @@ import numpy as np
 import seaborn as sns
 import os 
 
+# for all functions below 
+# inputs: 
+    # string of video identifier (either video_id_date_name in analysis code or vid_in_path from run)
+    # output_parent_folder = dir_out_prefix
 
-# In[ ]:
-
-
-# import mediapipe df from csv 
-# yolo doesn't have visibility confidence score 
-#mp_all_filepath = r'..\..\temp\test_sandbox_pipeline_outputs\002_frames_to_time\DS_HC_gait_vertical_left_mediapipe_all.csv'
-#mp_all_df = pd.read_csv(mp_all_filepath, index_col = 0)
-
-# path to video 
-#vid_in_path = r'..\..\tests\fixtures\all_videos\DS_HC_practice videos\DS_HC_gait_vertical_left.mov'
-
-# output folder
-#output_parent_folder = r'..\temp\test_sandbox_pipeline_outputs'
-
-
-# In[ ]:
-
-
-# plot visibility mediapipe 
+# plot and save visibility mediapipe 
 def mp_vis_all_labels_boxplot(mp_all_df, vid_in_path, output_parent_folder): 
     
     # save basename for plot title 
@@ -43,9 +28,7 @@ def mp_vis_all_labels_boxplot(mp_all_df, vid_in_path, output_parent_folder):
 
     # boxplot for each landmark label 
     for current_landmark_label in pd.unique(mp_all_df['label']):
-        if current_landmark_label == 'no_labels_tracked' or pd.isna(current_landmark_label):
-            print('label is na: skipped')
-        else: 
+        if current_landmark_label != 'no_labels_tracked':
             # filter to data frame that only includes one media pose landmark (nose, right foot, etc)
             current_label_df = mp_all_df.loc[(mp_all_df['label'] == current_landmark_label) | (mp_all_df['label'] == 'no_labels_tracked')]
             # reset all no_labels_tracked to current label to keep 0 vis scores in plot
@@ -67,13 +50,8 @@ def mp_vis_all_labels_boxplot(mp_all_df, vid_in_path, output_parent_folder):
     plt.close(fig1)
     plt.close()
 
-    return(fig1)
 
-
-# In[ ]:
-
-
-# plot mediapipe visibility - line plot 
+# plot and save mediapipe visibility - line plot 
 def mp_vis_lineplot(mp_all_df, vid_in_path, output_parent_folder): 
     # save basename for plot title 
     vid_in_path_basename = os.path.basename(vid_in_path)
@@ -96,9 +74,7 @@ def mp_vis_lineplot(mp_all_df, vid_in_path, output_parent_folder):
     # test new plot 
     #ax2 = sns.lineplot(data=mp_all_filt_df, x='frame', y='vis', hue='label', markers=True, dashes=False, estimator = None)
     for current_landmark_label in labels_to_plot:
-        if current_landmark_label == 'nan' or pd.isna(current_landmark_label):
-            print('label is na: skipped')
-        else: 
+        if current_landmark_label != 'no_labels_tracked':
             # filter to data frame that only includes one media pose landmark (nose, right foot, etc)
             current_label_df = mp_all_df.loc[(mp_all_df['label'] == current_landmark_label) | (mp_all_df['label'] == 'no_labels_tracked')]
             ax2 = sns.lineplot(data = current_label_df, x='frame', y='vis', label = current_landmark_label)
@@ -121,40 +97,27 @@ def mp_vis_lineplot(mp_all_df, vid_in_path, output_parent_folder):
     plt.close(fig2)
     plt.close()
 
-    return([fig2])
-
-
-# In[ ]:
-
-
-# save mediapipe vis score stats as df 
+# save mediapipe vis score stats as df and csv file 
 def mp_save_vis_stats_by_label(mp_all_df, vid_in_path, output_parent_folder):
     # blank df to populate 
     vis_stats_df = pd.DataFrame(columns = ['label','mean_vis','median_vis','std_vis'])
 
     # save mean, median, and standard deviation of visibility score for each mediapipe landmark 
-    for label in pd.unique(mp_all_df['label']):
-        if label == 'no_labels_tracked' or pd.isna(label):
-            print('skip: no_labels_tracked, included in each label')
-        else: 
+    for label_i, label in enumerate(pd.unique(mp_all_df['label'])):
+        if label != 'no_labels_tracked': # skip no labels tracked, included below 
+            
             # filter to data frame that only includes one media pose landmark (nose, right foot, etc)
             # label + no_labels tracked = all frames, including frames where no labels were tracked 
             current_label = mp_all_df.loc[(mp_all_df['label'] == label) | (mp_all_df['label'] == 'no_labels_tracked')]
-            #mean, median, vis
-            current_vis_stats_row = pd.DataFrame(data = {'label': [label],
-                                                         'mean_vis': current_label['vis'].mean(),
-                                                         'median_vis': current_label['vis'].median(),
-                                                         'std_vis': current_label['vis'].std()}
-                                                 )
-            # concatanate
-            vis_stats_df = pd.concat([vis_stats_df, current_vis_stats_row])
-            # drop rows with all missing data 
-            vis_stats_df = vis_stats_df.dropna(how='all')
             
+            # populate vis stats df for all labels 
+            vis_stats_df.loc[label_i, "label"] = label
+            vis_stats_df.loc[label_i, "mean_vis"] = current_label['vis'].mean()
+            vis_stats_df.loc[label_i, "median_vis"] = current_label['vis'].median()
+            vis_stats_df.loc[label_i, "std_vis"] = current_label['vis'].std()
     
     # save .csv 
     output_folder = os.path.join(output_parent_folder, '003_landmark_visibility')
-    
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
 
@@ -164,13 +127,11 @@ def mp_save_vis_stats_by_label(mp_all_df, vid_in_path, output_parent_folder):
 
     # save csv 
     vis_stats_df.to_csv(output_file_3)
-
-
     return(vis_stats_df)
     
 
 # yolo visibility ---------------------------------
-
+# plot and save yolo visibility yes/no
 def yolo_vis_lineplot(yolo_df, vid_in_path, output_parent_folder): 
     
     # add numberic value for landmark visibilty 
