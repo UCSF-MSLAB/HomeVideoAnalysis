@@ -1,10 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-
-
 # segment video into times when person is walking away from the camera, toward the camera, and turning 
-
 
 import pandas as pd 
 import numpy as np

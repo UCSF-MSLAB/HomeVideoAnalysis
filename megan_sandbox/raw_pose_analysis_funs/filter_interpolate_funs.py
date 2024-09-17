@@ -23,7 +23,7 @@ def interpolate_landmark_single_axis(df, landmark, axis_to_interpolate, max_gap_
         df_landmark = df.loc[(df['label'] == landmark)|(df['label'] == 'no_labels_tracked')]
     elif mediapipe_or_yolo == 'yolo': 
         df_landmark = df.loc[df['label'] == landmark]
-        
+
     # identify where position data is missing 
     df_landmark.index = df_landmark['frame'] # set index to frames, keep missing data  
     position_data = df_landmark[axis_to_interpolate] # select position data for axis to interpolate 
@@ -70,8 +70,9 @@ def interpolate_landmark_single_axis(df, landmark, axis_to_interpolate, max_gap_
 
 
     # plot original data vs linterpolated data 
+    vid_in_path_no_ext = os.path.splitext(os.path.basename(vid_in_path))[0]
     fig1, ax1 = plt.subplots()
-    fig1.suptitle('vid_in_path_no_ext')
+    fig1.suptitle(vid_in_path_no_ext)
     ax1.plot(position_interp_df['frame'], position_interp_df[current_col_name + '_raw'], color = 'red', alpha = 0.5, label = 'raw')
     ax1.plot(position_interp_df['frame'], position_interp_df[current_col_name + '_interpolated'], color = 'blue', alpha = 0.5, label = 'interpolated')
     ax1.legend()
@@ -80,7 +81,6 @@ def interpolate_landmark_single_axis(df, landmark, axis_to_interpolate, max_gap_
     plt.close(fig1)
     plt.close()
 
-    vid_in_path_no_ext = os.path.splitext(os.path.basename(vid_in_path))[0]
 
     output_folder = os.path.join(output_parent_folder, 'interpolated_data_plots')
     if not os.path.exists(output_folder):
@@ -125,16 +125,18 @@ def filter_landmark_single_axis(original_data, video_fps, cutoff_hz, filter_orde
     frame_original_data = original_data.index
     frame_filtered_data = filtered_data.index
     frame_filtered_data_w_nan = filtered_data_w_nan.index
+
+    vid_in_path_no_ext = os.path.splitext(os.path.basename(vid_in_path))[0]
     
     fig2, ax2 = plt.subplots()
-    fig2.suptitle('vid_in_path_no_ext')
+    fig2.suptitle(vid_in_path_no_ext)
     ax2.plot(frame_original_data, original_data, color = 'red', alpha = 0.5, label = original_data_name)
     ax2.scatter(frame_filtered_data, filtered_data, color = 'blue', alpha = 0.5, marker = 'o', s = 1, label = original_data_name + '_filtered')
     ax2.scatter(frame_filtered_data_w_nan, filtered_data_w_nan, color = 'green', alpha = 0.5, marker = 'o', s = 1, label = original_data_name + '_filtered_w_nan')
     ax2.legend()
     ax2.set_xlabel('Frame')
     
-    vid_in_path_no_ext = os.path.splitext(os.path.basename(vid_in_path))[0]
+    
     output_folder = os.path.join(output_parent_folder, 'filtered_data_plots')
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
