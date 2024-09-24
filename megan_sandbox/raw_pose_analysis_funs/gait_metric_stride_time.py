@@ -69,28 +69,28 @@ def calculate_stride_time(mp_ankle_Y_interp, fps, vid_in_path, output_parent_fol
     ank_y_diff_peaks_bySecond = ank_y_diff_peaks_byFrame/fps
     ank_y_diff_valleys_bySecond = ank_y_diff_valleys_byFrame/fps
 
-    # Time between local max - R or L gait event (TBD)
+    # Time between local max, seconds - R or L gait event (TBD)
     stride_times_peaks = pd.Series(ank_y_diff_peaks_bySecond).diff()
     
-    # Time between local min - R or L  gait event (TBD) 
+    # Time between local min, seconds - R or L  gait event (TBD) 
     stride_times_valleys = pd.Series(ank_y_diff_valleys_bySecond).diff()
    
     # Stride time stats 
-    stats = ['mean', 'median', 'std', 'cv']
+    stats = ['mean_sec', 'median_sec', 'std', 'cv']
     stride_time_stats_df = pd.DataFrame(index = stats, columns = ['leg_1_peaks', 'leg_2_valleys', 'all_strides'])
 
-    stride_time_stats_df.loc['mean', 'leg_1_peaks'] = stride_times_peaks.mean()
-    stride_time_stats_df.loc['median', 'leg_1_peaks'] = stride_times_peaks.median()
+    stride_time_stats_df.loc['mean_sec', 'leg_1_peaks'] = stride_times_peaks.mean()
+    stride_time_stats_df.loc['median_sec', 'leg_1_peaks'] = stride_times_peaks.median()
     stride_time_stats_df.loc['std', 'leg_1_peaks'] = stride_times_peaks.std()
     stride_time_stats_df.loc['cv', 'leg_1_peaks'] = (stride_times_peaks.std()/stride_times_peaks.mean()) * 100
 
-    stride_time_stats_df.loc['mean', 'leg_2_valleys'] = stride_times_valleys.mean()
-    stride_time_stats_df.loc['median', 'leg_2_valleys'] = stride_times_valleys.median()
+    stride_time_stats_df.loc['mean_sec', 'leg_2_valleys'] = stride_times_valleys.mean()
+    stride_time_stats_df.loc['median_sec', 'leg_2_valleys'] = stride_times_valleys.median()
     stride_time_stats_df.loc['std', 'leg_2_valleys'] = stride_times_valleys.std()
     stride_time_stats_df.loc['cv', 'leg_2_valleys'] = (stride_times_valleys.std()/stride_times_valleys.mean()) * 100
 
-    stride_time_stats_df.loc['mean', 'all_strides'] = pd.concat([stride_times_peaks, stride_times_valleys]).mean()
-    stride_time_stats_df.loc['median', 'all_strides'] = pd.concat([stride_times_peaks, stride_times_valleys]).median()
+    stride_time_stats_df.loc['mean_sec', 'all_strides'] = pd.concat([stride_times_peaks, stride_times_valleys]).mean()
+    stride_time_stats_df.loc['median_sec', 'all_strides'] = pd.concat([stride_times_peaks, stride_times_valleys]).median()
     stride_time_stats_df.loc['std', 'all_strides'] = pd.concat([stride_times_peaks, stride_times_valleys]).std()
     stride_time_stats_df.loc['cv', 'all_strides'] = (pd.concat([stride_times_peaks, stride_times_valleys]).std()/
                                                      pd.concat([stride_times_peaks, stride_times_valleys]).mean()) * 100
@@ -134,5 +134,5 @@ def calculate_stride_time(mp_ankle_Y_interp, fps, vid_in_path, output_parent_fol
     plt.close()
 
 
-    return(stride_time_stats_df)
+    return([stride_time_stats_df, stride_times_peaks, stride_times_valleys])
 
