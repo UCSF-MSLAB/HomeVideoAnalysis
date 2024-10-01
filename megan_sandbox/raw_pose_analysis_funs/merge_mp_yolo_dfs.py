@@ -102,12 +102,21 @@ def add_orientation_and_turn_direction(vid_in_path, mp_all_df, yolo_df):
         yolo_df['camera_orientation'] = 'UNK'
 
     # add turn direction from file name 
-    if 'left' in vid_in_path_basename:
-        mp_all_df['turn_direction'] = 'left'
-        yolo_df['turn_direction'] = 'left'
-    elif 'right' in vid_in_path_basename: 
-        mp_all_df['turn_direction'] = 'right'
-        yolo_df['turn_direction'] = 'right'
+    if 'gait_vertical_left' in vid_in_path_basename:
+        mp_all_df['task'] = 'left'
+        yolo_df['task'] = 'left'
+    elif 'gait_vertical_right' in vid_in_path_basename: 
+        mp_all_df['task'] = 'right'
+        yolo_df['task'] = 'right'
+    elif 'PWS' in vid_in_path_basename: 
+        p_all_df['task'] = 'preferred_walk_speed'
+        yolo_df['task'] = 'preferred_walk_speed'
+    elif 'FW' in vid_in_path_basename: 
+        p_all_df['task'] = 'fast_walk_speed'
+        yolo_df['task'] = 'fast_walk_speed'    
+    elif 'TUG' in vid_in_path_basename: 
+        p_all_df['task'] = 'timed_up_and_go'
+        yolo_df['task'] = 'timed_up_and_go'    
     else: 
         mp_all_df['turn_direction'] = 'UNK'
         yolo_df['turn_direction'] = 'UNK'
