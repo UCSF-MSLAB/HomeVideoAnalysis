@@ -49,17 +49,25 @@ def stride_time_interp(mp_all_df,video_id_date_name, dir_out_prefix, max_gap, fp
     return(mp_stride_time_interp_dfs)
 
 
-def calculate_stride_time(mp_ankle_Y_interp, fps, vid_in_path, output_parent_folder, find_peaks_distance, find_peaks_prominence): 
+def calculate_stride_time(mp_ankle_Y_interp, fps, vid_in_path, output_parent_folder, rolling_mean_window, find_peaks_distance, find_peaks_prominence): 
     # difference between Y values of left and right ankles 
         # min and max of this plot are gait events 
     ank_r_mp_y_interp = mp_ankle_Y_interp[0]
     ank_l_mp_y_interp = mp_ankle_Y_interp[1]
 
+    print('ank_r_mp_y_interp')
+    print(ank_r_mp_y_interp.tail())
+
+    print('ank_l_mp_y_interp')
+    print(ank_l_mp_y_interp.tail())
+
+     
+
     # vertical distance between l and r ankle; 2 = Y column 
     ank_y_diff_0 = ank_l_mp_y_interp['left_ankle_Y_pose_interpolated'] - ank_r_mp_y_interp['right_ankle_Y_pose_interpolated']
 
     # moving mean of Y difference - Stenum et al paper window = 10
-    ank_y_diff = pd.Series(ank_y_diff_0).rolling(window=15, min_periods=1).mean()
+    ank_y_diff = pd.Series(ank_y_diff_0).rolling(window=rolling_mean_window, min_periods=1).mean()
 
     # find index of local minimum and maximum of distance between right and left ankle  
     ank_y_diff_peaks_byFrame, _ = sig.find_peaks(ank_y_diff, distance = find_peaks_distance, prominence = (find_peaks_prominence, None))
