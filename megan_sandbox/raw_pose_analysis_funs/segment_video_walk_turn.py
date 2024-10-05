@@ -82,6 +82,7 @@ def segment_video_walks_turn(mp_hip_z_filt, yolo_hip_x_interp, vid_in_path, outp
     # max and min = frame of midpoint of turn 
     hip_z_diff_mp_filt_peak_frames, _ = sig.find_peaks(hip_z_diff_mp_filt, distance = find_peaks_distance, prominence = (find_peaks_prominence, None))
     hip_z_diff_mp_filt_peak_frames = hip_z_diff_mp_filt.index[hip_z_diff_mp_filt_peak_frames] # set to index, accounts for missing data where frame doesn't equal row index
+    
     hip_z_diff_mp_filt_valley_frames, _ = sig.find_peaks(-hip_z_diff_mp_filt, distance = find_peaks_distance, prominence = (find_peaks_prominence, None))
     hip_z_diff_mp_filt_valley_frames = hip_z_diff_mp_filt.index[hip_z_diff_mp_filt_valley_frames]
 
@@ -90,10 +91,7 @@ def segment_video_walks_turn(mp_hip_z_filt, yolo_hip_x_interp, vid_in_path, outp
     hip_z_diff_mp_filt_turn_midpoints = np.sort(hip_z_diff_mp_filt_turn_midpoints)
 
     # rate of change of z hip distance 
-    hip_z_diff_mp_filt_gradient = np.gradient(hip_z_diff_mp_filt)
-    # make series and set index 
-    hip_z_diff_mp_filt_gradient = pd.Series(hip_z_diff_mp_filt_gradient)
-    hip_z_diff_mp_filt_gradient.index = hip_l_mp_z_frames
+    hip_z_diff_mp_filt_gradient = hip_z_diff_mp_filt.diff()
 
     # Identify where the slope is within absolute tolerance value (atol) away from zero 
     flattening_points = np.where(np.isclose(hip_z_diff_mp_filt_gradient, 0, atol=flattening_point_atol))[0]
@@ -118,7 +116,6 @@ def segment_video_walks_turn(mp_hip_z_filt, yolo_hip_x_interp, vid_in_path, outp
         # flattening points that are after current midpoint and at least 10 frames away from midpoint (exclude midpoint itself)
         after_peak_flattening_all = flattening_points[(flattening_points > current_midpoint) & (abs(current_midpoint - flattening_points) >= dist_turn_mid_to_flattening)]
 
-        
         # select first element (closest to turn midpoint)
         if len(after_peak_flattening_all) > 0: 
             after_peak_flattening_first = after_peak_flattening_all[0]
@@ -204,16 +201,36 @@ def segment_video_walks_turn(mp_hip_z_filt, yolo_hip_x_interp, vid_in_path, outp
 
         # walk direction 
         # if hip width is bigger at walk stop than walk start, person is moving toward camera 
-        if (~np.isnan(current_walk_start) & ~np.isnan(current_walk_stop)): 
-            if (hip_width_yolo_smooth[current_walk_stop] - hip_width_yolo_smooth[current_walk_start]) > 0: 
-                walks_df.iloc[current_walk_num, 5] = 'toward'
-            elif (hip_width_yolo_smooth[current_walk_stop] - hip_width_yolo_smooth[current_walk_start]) < 0:
+        
+        # if current walk start or stop is na 
+        if (np.isnan(current_walk_start) | np.isnan(current_walk_stop)): 
+            walks_df.iloc[current_walk_num, 5] = 'unknown'
+
+        else: 
+            # if current start frame is empty in yolo data, pick next closest
+            if (np.isnan(hip_width_yolo_smooth[current_walk_start])):
+                forward_idx = hip_width_yolo_smooth[current_walk_start:].first_valid_index()
+                walk_start_w = current_walk_start[forward_idx]
+            else: 
+                walk_start_w = hip_width_yolo_smooth[current_walk_start]
+
+            # if current stop frame is empty in yolog data, pick closest point 
+            if (np.isnan(hip_width_yolo_smooth[current_walk_stop])): 
+                forward_idx = hip_width_yolo_smooth[current_walk_stop:].first_valid_index()
+                walk_stop_w = hip_width_yolo_smooth[forward_idx]
+            else: 
+                walk_stop_w = hip_width_yolo_smooth[current_walk_stop]
+
+            # if width greater at stop than start, 'toward, otherwise away 
+            if (walk_stop_w > walk_start_w): 
+               walks_df.iloc[current_walk_num, 5] = 'toward' 
+            elif (walk_stop_w < walk_start_w): 
                 walks_df.iloc[current_walk_num, 5] = 'away'
-        elif (np.isnan(current_walk_start) & np.isnan(current_walk_stop)): 
-             walks_df.iloc[current_walk_num, 5] = 'unknown'
+            else: 
+                walks_df.iloc[current_walk_num, 5] = 'unknown'
+                
 
-
-
+                
     ## plots  -------------------------------------------
     # plot #1 - hip and hip positions 
     fig1, (ax1, ax2) = plt.subplots(2, figsize=(10, 6))
