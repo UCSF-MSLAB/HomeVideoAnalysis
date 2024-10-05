@@ -55,33 +55,24 @@ def calculate_stride_time(mp_ankle_Y_interp, fps, vid_in_path, output_parent_fol
     ank_r_mp_y_interp = mp_ankle_Y_interp[0]
     ank_l_mp_y_interp = mp_ankle_Y_interp[1]
 
-    print('ank_r_mp_y_interp')
-    print(ank_r_mp_y_interp.tail())
+    diff_df = pd.DataFrame(index = ank_r_mp_y_interp.index, 
+                           data = {'frame' : ank_r_mp_y_interp.index,
+                                   'ank_y_diff' :  ank_l_mp_y_interp['left_ankle_Y_pose_interpolated'] - ank_r_mp_y_interp['right_ankle_Y_pose_interpolated']
+                                  })
 
-    print('ank_l_mp_y_interp')
-    print(ank_l_mp_y_interp.tail())
-
-     
-
-    # vertical distance between l and r ankle; 2 = Y column 
-    ank_y_diff_0 = ank_l_mp_y_interp['left_ankle_Y_pose_interpolated'] - ank_r_mp_y_interp['right_ankle_Y_pose_interpolated']
-
-    # moving mean of Y difference - Stenum et al paper window = 10
-    ank_y_diff = pd.Series(ank_y_diff_0).rolling(window=rolling_mean_window, min_periods=1).mean()
+    diff_df['ank_y_diff_smooth'] = diff_df['ank_y_diff'].rolling(window=rolling_mean_window, min_periods=1).mean()
+    diff_df['seconds'] = diff_df['frame'] / fps
 
     # find index of local minimum and maximum of distance between right and left ankle  
-    ank_y_diff_peaks_byFrame, _ = sig.find_peaks(ank_y_diff, distance = find_peaks_distance, prominence = (find_peaks_prominence, None))
-    ank_y_diff_valleys_byFrame, _ = sig.find_peaks(-ank_y_diff, distance = find_peaks_distance, prominence = (find_peaks_prominence, None))
+    ank_y_diff_peaks_i, _ = sig.find_peaks(diff_df['ank_y_diff_smooth'], distance = find_peaks_distance, prominence = (find_peaks_prominence, None))
+    ank_y_diff_valleys_i, _ = sig.find_peaks(-diff_df['ank_y_diff_smooth'], distance = find_peaks_distance, prominence = (find_peaks_prominence, None))
 
-    # divide by Hz to get position of peaks in seconds, use for plots below 
-    ank_y_diff_peaks_bySecond = ank_y_diff_peaks_byFrame/fps
-    ank_y_diff_valleys_bySecond = ank_y_diff_valleys_byFrame/fps
+    # df of only peaks and valleys 
+    peaks_df = diff_df.loc[diff_df['frame'].isin(ank_y_diff_peaks_i)]
+    valleys_df = diff_df.loc[diff_df['frame'].isin(ank_y_diff_valleys_i)]
 
-    # Time between local max, seconds - R or L gait event (TBD)
-    stride_times_peaks = pd.Series(ank_y_diff_peaks_bySecond).diff()
-    
-    # Time between local min, seconds - R or L  gait event (TBD) 
-    stride_times_valleys = pd.Series(ank_y_diff_valleys_bySecond).diff()
+    stride_times_peaks = peaks_df['seconds'].diff()
+    stride_times_valleys = valleys_df['seconds'].diff()
    
     # Stride time stats 
     stats = ['mean_sec', 'median_sec', 'std', 'cv']
@@ -128,9 +119,9 @@ def calculate_stride_time(mp_ankle_Y_interp, fps, vid_in_path, output_parent_fol
     fig1, ax1 = plt.subplots(figsize=(10, 6))
     fig1.suptitle(os.path.splitext(os.path.basename(vid_in_path_no_ext))[0] + ': Stride Time')
     # plot y difference in ankles and add labels on local min and max 
-    ax1.plot(ank_r_mp_y_interp['frame'], ank_y_diff, color = 'black', label='Y Difference between Ankles')
-    ax1.plot(ank_y_diff_peaks_byFrame, ank_y_diff.iloc[ank_y_diff_peaks_byFrame], "x", color = 'orange', label='Peak')
-    ax1.plot(ank_y_diff_valleys_byFrame, ank_y_diff.iloc[ank_y_diff_valleys_byFrame], ".", label='Local Minima')
+    ax1.plot(diff_df['frame'], diff_df['ank_y_diff_smooth'], color = 'black', label='Y Difference between Ankles')
+    ax1.plot(peaks_df['frame'], peaks_df['ank_y_diff_smooth'], ".", color = 'orange', label='Peak')
+    ax1.plot(valleys_df['frame'], valleys_df['ank_y_diff_smooth'], ".", label='Local Minima')
     ax1.set_xlabel('Frame')
     ax1.set_ylabel("L Ankle Y - R Ankle Y (Pose)")
     ax1.legend(loc='center left', bbox_to_anchor=(1, 0.5))
