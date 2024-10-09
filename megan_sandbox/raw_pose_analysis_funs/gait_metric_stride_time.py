@@ -68,8 +68,21 @@ def calculate_stride_time(mp_ankle_Y_interp, fps, vid_in_path, output_parent_fol
     ank_y_diff_valleys_i, _ = sig.find_peaks(-diff_df['ank_y_diff_smooth'], distance = find_peaks_distance, prominence = (find_peaks_prominence, None))
 
     # df of only peaks and valleys 
-    peaks_df = diff_df.loc[diff_df['frame'].isin(ank_y_diff_peaks_i)]
-    valleys_df = diff_df.loc[diff_df['frame'].isin(ank_y_diff_valleys_i)]
+    #peaks_df = diff_df.iloc[ank_y_diff_peaks_i]
+    #valleys_df = diff_df.iloc[ank_y_diff_valleys_i]
+
+    # new idea 
+    peaks_df = pd.DataFrame(data = {'frame' : diff_df.iloc[ank_y_diff_peaks_i].index,
+                                    'seconds' : diff_df.iloc[ank_y_diff_peaks_i]['seconds'],
+                                    'ank_y_diff_smooth' :  diff_df.iloc[ank_y_diff_peaks_i]['ank_y_diff_smooth']
+                                   })
+    
+    valleys_df = pd.DataFrame(data = {'frame' : diff_df.iloc[ank_y_diff_valleys_i].index,
+                                    'seconds' : diff_df.iloc[ank_y_diff_valleys_i]['seconds'],
+                                     'ank_y_diff_smooth' :  diff_df.iloc[ank_y_diff_valleys_i]['ank_y_diff_smooth']})
+
+    
+    
 
     stride_times_peaks = peaks_df['seconds'].diff()
     stride_times_valleys = valleys_df['seconds'].diff()

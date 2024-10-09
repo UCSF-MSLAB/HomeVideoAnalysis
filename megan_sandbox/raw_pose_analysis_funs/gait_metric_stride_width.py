@@ -85,7 +85,7 @@ def calculate_stride_width(mp_stride_width_interp_dfs, vid_in_path, output_paren
     common_valid_cross_indices = list(set(valid_r_cross_zero_indices).intersection(valid_r_cross_zero_indices))
     
     # df of heel x differences at valid crossing points 
-    heel_x_diff_at_cross = heel_x_diff_df.loc[heel_x_diff_df['frame'].isin(common_valid_cross_indices)]
+    heel_x_diff_at_cross = heel_x_diff_df.loc[common_valid_cross_indices]
     x_diff =  abs(heel_x_diff_at_cross['heel_x_diff_0'])
     
     x_diff_mean = heel_x_diff_at_cross['heel_x_diff_0'].mean(skipna = True)
@@ -134,7 +134,7 @@ def calculate_stride_width(mp_stride_width_interp_dfs, vid_in_path, output_paren
     # plot x distance between heels, label zero crossing values 
     fig2, ax1 = plt.subplots(figsize=(10, 6))
     fig2.suptitle(os.path.splitext(os.path.basename(vid_in_path_no_ext))[0] + ': Stride Width')
-    ax1.plot(heel_x_diff_df['frame'], heel_x_diff_df['heel_x_diff_0'], color = 'grey', label = 'X Abs Difference')
+    ax1.plot(heel_x_diff_df['frame'], abs(heel_x_diff_df['heel_x_diff_0']), color = 'grey', label = 'X Abs Difference')
     ax1.plot(heel_x_diff_at_cross['frame'], abs(heel_x_diff_at_cross['heel_x_diff_0']), "x", color = 'orange', label='Zero Crossing')
     ax1.set_xlabel("Frame")
     ax1.set_ylabel("L Heel X - R Heel X (meters)")

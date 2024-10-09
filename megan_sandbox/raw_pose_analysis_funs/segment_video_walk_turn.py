@@ -66,7 +66,7 @@ def segment_video_interp_filter(mp_all_df, yolo_df,vid_in_path, output_parent_fo
 #using yolo x hip and mp z hip positions, ID when person is walking or turning 
 def segment_video_walks_turn(mp_hip_z_filt, yolo_hip_x_interp, vid_in_path, output_parent_folder, fps,
                              find_peaks_distance, find_peaks_prominence, flattening_point_atol, 
-                             dist_turn_mid_to_flattening): 
+                             dist_turn_mid_to_flattening, mean_rolling_window_size): 
     # -----------------------------------------------------------------------------
     # use hip z position to ID start, stop, and midpoint of turns in vertical videos 
     hip_r_mp_z_filt = mp_hip_z_filt[0]
@@ -75,7 +75,7 @@ def segment_video_walks_turn(mp_hip_z_filt, yolo_hip_x_interp, vid_in_path, outp
     
     # distance between l and r z and smooth
     hip_z_diff_mp_filt = hip_l_mp_z_filt - hip_r_mp_z_filt
-    hip_z_diff_mp_filt = pd.Series(hip_z_diff_mp_filt).rolling(window=20, min_periods=1).mean()
+    hip_z_diff_mp_filt = pd.Series(hip_z_diff_mp_filt).rolling(window=mean_rolling_window_size, min_periods=1).mean()
     hip_z_diff_mp_filt.index = hip_l_mp_z_frames
 
     # find max and min of hip distance filtered 
@@ -168,6 +168,7 @@ def segment_video_walks_turn(mp_hip_z_filt, yolo_hip_x_interp, vid_in_path, outp
 
     number_of_walks = np.arange(0, len(walks_df), step = 1)
 
+    # set start and stop frames from turns df 
     for current_walk_num in number_of_walks: 
         # walk_num
         walks_df.iloc[current_walk_num, 0] = current_walk_num
@@ -187,6 +188,8 @@ def segment_video_walks_turn(mp_hip_z_filt, yolo_hip_x_interp, vid_in_path, outp
         # if current walk is the last walk, stop frame = last walk stop 
         if current_walk_num == max(number_of_walks): 
              current_walk_stop = last_walk_end_frame
+
+        # middle walks 
         else:
             turn_start_frame = turn_df['turn_start_frame'] 
             current_walk_stop = turn_start_frame[current_walk_num]
@@ -201,25 +204,27 @@ def segment_video_walks_turn(mp_hip_z_filt, yolo_hip_x_interp, vid_in_path, outp
 
         # walk direction 
         # if hip width is bigger at walk stop than walk start, person is moving toward camera 
-        
-        # if current walk start or stop is na 
+    
+        # new loop for toward or away ------------- 
         if (np.isnan(current_walk_start) | np.isnan(current_walk_stop)): 
             walks_df.iloc[current_walk_num, 5] = 'unknown'
 
         else: 
-            # if current start frame is empty in yolo data, pick next closest
-            if (np.isnan(hip_width_yolo_smooth[current_walk_start])):
-                forward_idx = hip_width_yolo_smooth[current_walk_start:].first_valid_index()
-                walk_start_w = current_walk_start[forward_idx]
+            # is current_walk_start in hip_width index? 
+            if current_walk_start in hip_width_yolo_smooth.index:
+                walk_start_w = hip_width_yolo_smooth.loc[current_walk_start]
+            # if not - get closest index 
             else: 
-                walk_start_w = hip_width_yolo_smooth[current_walk_start]
+                walk_start_w_i = [(walks_df.index - current_walk_start).abs().argmin()]
+                walk_start_w = hip_width_yolo_smooth.loc[walk_start_w_i]
 
-            # if current stop frame is empty in yolog data, pick closest point 
-            if (np.isnan(hip_width_yolo_smooth[current_walk_stop])): 
-                forward_idx = hip_width_yolo_smooth[current_walk_stop:].first_valid_index()
-                walk_stop_w = hip_width_yolo_smooth[forward_idx]
+            # is current_walk_stop in hip width index?
+            if current_walk_stop in hip_width_yolo_smooth.index: 
+                walk_stop_w = hip_width_yolo_smooth.loc[current_walk_stop]
+            # if not, closest index 
             else: 
-                walk_stop_w = hip_width_yolo_smooth[current_walk_stop]
+                walk_stop_w_i = [(walks_df.index - current_walk_stop).abs().argmin()]
+                walk_stop_w = hip_width_yolo_smooth.loc[walk_stop_w_i]
 
             # if width greater at stop than start, 'toward, otherwise away 
             if (walk_stop_w > walk_start_w): 
