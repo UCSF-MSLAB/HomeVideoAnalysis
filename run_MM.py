@@ -23,6 +23,7 @@ ALLOWED_VID_FORMATS = ["asf", "avi", "gif", "m4v",
 
 MODELS = ["yolo", "mediapipe", "mediapipe_world"]
 
+
 def get_frames_per_second(vid_in_path): 
     video = cv2.VideoCapture(vid_in_path) 
     fps = video.get(cv2.CAP_PROP_FPS)
@@ -37,7 +38,8 @@ def process_dir(dir_in_path, dir_out_path):
         for file_name in file_names:
             name, ext = os.path.splitext(file_name)
             ext = ext.lower()[1:]
-            if (ext in ALLOWED_VID_FORMATS) & ('vert' in name):
+            # 10/8 - no TUG, DTW, QSLOS tasks from in-person video, just PWS and FWS from camera #1
+            if (ext in ALLOWED_VID_FORMATS) & ('gait_vertical' in name) & ('DTW' not in name) & ('QSLOS' not in name) & ('TUG' not in name) & ('FW_2' not in name) & ('PWS_2' not in name):
                 vid_in_path = os.path.join(dir_path, file_name) # full path to video with file name 
                 print('vid_in_path:' + vid_in_path)
                 vid_relpath= os.path.relpath(vid_in_path, dir_in_path) # relative path, with file name and extension

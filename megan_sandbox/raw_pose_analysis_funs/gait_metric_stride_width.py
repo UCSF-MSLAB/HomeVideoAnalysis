@@ -68,9 +68,10 @@ def calculate_stride_width(mp_stride_width_interp_dfs, vid_in_path, output_paren
 
     # create data frame with heel x diff 
     heel_x_diff_df = pd.DataFrame(index = heel_right_x_df['frame'],
-                            data = {'frame' : heel_right_x_df['frame'],
-                                    'heel_x_diff_0' : heel_left_x_df['left_heel_X_world_interpolated'] - heel_right_x_df['right_heel_X_world_interpolated']
-                                   })
+                                  data = {'frame' : heel_right_x_df['frame'],
+                                          'heel_x_diff_0' : 
+                                          heel_left_x_df['left_heel_X_world_interpolated'] - heel_right_x_df['right_heel_X_world_interpolated']
+                                          })
                                                                       
     # frames when y diff crosses zero 
     # Determine the sign of each value (+1 for positive, -1 for negative, 0 for zero)
@@ -86,12 +87,14 @@ def calculate_stride_width(mp_stride_width_interp_dfs, vid_in_path, output_paren
     
     # df of heel x differences at valid crossing points 
     heel_x_diff_at_cross = heel_x_diff_df.loc[common_valid_cross_indices]
-    x_diff =  abs(heel_x_diff_at_cross['heel_x_diff_0'])
+    x_diff = abs(heel_x_diff_at_cross['heel_x_diff_0'])
+    #x_diff_smooth = abs(heel_x_diff_at_cross['heel_x_diff_0']).rolling(window=15, min_periods=1).mean()
     
-    x_diff_mean = heel_x_diff_at_cross['heel_x_diff_0'].mean(skipna = True)
-    x_diff_median = heel_x_diff_at_cross['heel_x_diff_0'].median(skipna = True)
-    x_diff_std = heel_x_diff_at_cross['heel_x_diff_0'].std(skipna = True)
+    x_diff_mean = abs(heel_x_diff_at_cross['heel_x_diff_0']).mean(skipna = True)
+    x_diff_median = abs(heel_x_diff_at_cross['heel_x_diff_0']).median(skipna = True)
+    x_diff_std = abs(heel_x_diff_at_cross['heel_x_diff_0']).std(skipna = True)
     x_diff_cv = (x_diff_std/x_diff_mean) * 100
+    
     stride_width_stats_df = pd.DataFrame(data = {'stride_width_mean_m' : [x_diff_mean],
                                                  'stride_width_median_m' : [x_diff_median],
                                                  'stride_width_std' : [x_diff_std], 
@@ -134,8 +137,9 @@ def calculate_stride_width(mp_stride_width_interp_dfs, vid_in_path, output_paren
     # plot x distance between heels, label zero crossing values 
     fig2, ax1 = plt.subplots(figsize=(10, 6))
     fig2.suptitle(os.path.splitext(os.path.basename(vid_in_path_no_ext))[0] + ': Stride Width')
-    ax1.plot(heel_x_diff_df['frame'], abs(heel_x_diff_df['heel_x_diff_0']), color = 'grey', label = 'X Abs Difference')
-    ax1.plot(heel_x_diff_at_cross['frame'], abs(heel_x_diff_at_cross['heel_x_diff_0']), "x", color = 'orange', label='Zero Crossing')
+    ax1.plot(heel_x_diff_df['frame'], heel_x_diff_df['heel_x_diff_0'], color = 'grey', label = 'X Difference')
+    #ax1.plot(heel_x_diff_df['frame'], x_diff_smooth, color = 'grey', label = 'X Abs Difference Smooth')
+    ax1.plot(heel_x_diff_at_cross['frame'], heel_x_diff_at_cross['heel_x_diff_0'], "x", color = 'orange', label='Zero Crossing')
     ax1.set_xlabel("Frame")
     ax1.set_ylabel("L Heel X - R Heel X (meters)")
     ax1.legend(loc='center left', bbox_to_anchor=(1, 0.5))

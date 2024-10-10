@@ -71,7 +71,7 @@ def interpolate_landmark_single_axis(df, landmark, axis_to_interpolate, max_gap_
 
     # plot original data vs linterpolated data 
     vid_in_path_no_ext = os.path.splitext(os.path.basename(vid_in_path))[0]
-    fig1, ax1 = plt.subplots()
+    fig1, ax1 = plt.subplots(figsize=(10, 6))
     fig1.suptitle(vid_in_path_no_ext)
     ax1.plot(position_interp_df['frame'], position_interp_df[current_col_name + '_raw'], color = 'red', alpha = 0.5, label = 'raw')
     ax1.plot(position_interp_df['frame'], position_interp_df[current_col_name + '_interpolated'], color = 'blue', alpha = 0.5, label = 'interpolated')
@@ -128,12 +128,12 @@ def filter_landmark_single_axis(original_data, video_fps, cutoff_hz, filter_orde
 
     vid_in_path_no_ext = os.path.splitext(os.path.basename(vid_in_path))[0]
     
-    fig2, ax2 = plt.subplots()
+    fig2, ax2 = plt.subplots(figsize=(10, 6))
     fig2.suptitle(vid_in_path_no_ext)
     ax2.plot(frame_original_data, original_data, color = 'red', alpha = 0.5, label = original_data_name)
     ax2.scatter(frame_filtered_data, filtered_data, color = 'blue', alpha = 0.5, marker = 'o', s = 1, label = original_data_name + '_filtered')
     ax2.scatter(frame_filtered_data_w_nan, filtered_data_w_nan, color = 'green', alpha = 0.5, marker = 'o', s = 1, label = original_data_name + '_filtered_w_nan')
-    ax2.legend()
+    ax2.legend(loc='center left', bbox_to_anchor=(1, 0.5))
     ax2.set_xlabel('Frame')
     
     
