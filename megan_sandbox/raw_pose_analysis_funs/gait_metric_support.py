@@ -103,7 +103,6 @@ def find_cross_frames(right_ank_y_data, left_ank_y_data):
 
     # join based on common index (frames) 
     df = right_ank_y_df.join(left_ank_y_df)
-    # df = pd.merge(right_ank_y_df, left_ank_y_df, on='frame', how='inner')
     
     # Create a new column to identify whether col1 is greater than col2
     df['r_greater'] = df['right_ankle_Y_yolo_negative_interpolated'] > df['left_ankle_Y_yolo_negative_interpolated']
@@ -114,12 +113,13 @@ def find_cross_frames(right_ank_y_data, left_ank_y_data):
     # Get the frames where the change happens (both switch cases)
     switch_frames = df.loc[df['change'] == True].index
     
-
     # Filter df to just include dropped 
     y_cross_df = df.loc[df['change'] == True]
 
-    # test new 
+    # new data frame - only y crossing values 
     y_cross_df = pd.DataFrame(data = {'frame' : df.loc[df['change'] == True].index,
+                                      'r_ank_y_neg_interp' : df.loc[switch_frames]['right_ankle_Y_yolo_negative_interpolated'], 
+                                      'l_ank_y_neg_interp' : df.loc[switch_frames]['left_ankle_Y_yolo_negative_interpolated'], 
                                       'r_greater' : df.loc[switch_frames]['r_greater'], 
                                       'change' : df.loc[switch_frames]['change']
                                      }) 
@@ -127,6 +127,13 @@ def find_cross_frames(right_ank_y_data, left_ank_y_data):
     # right greater than left = right toe off (? double check)
     r_toe_off_df = y_cross_df[y_cross_df['r_greater'] == True]
     l_toe_off_df = y_cross_df[y_cross_df['r_greater'] == False]
+
+    # mean of l and r ankle y position at each cross 
+    y_cross_df['ank_y_mean'] =  y_cross_df[['r_ank_y_neg_interp', 
+                                            'l_ank_y_neg_interp']].mean(axis=1)
+    y_cross_df['y_mean_diff'] = y_cross_df['ank_y_mean'].diff()
+    # y_mean_diff_shift: change in y position after y_cross_df['frame'] in that row 
+    y_cross_df['y_mean_diff_shift'] = y_cross_df['y_mean_diff'].shift(-1)
     
     return([y_cross_df, r_toe_off_df, l_toe_off_df, df])
 
@@ -147,18 +154,38 @@ def id_toe_off_heel_strike(right_ank_y_data, left_ank_y_data, video_id_date_name
     l_vel_max_frame = find_max_peak_frame(left_ank_y_data[1][0:15])
 
     # find crossing value closest to max vel peak (either left or right, whichver occurs first) 
-    first_max_vel = max(r_vel_max_frame, l_vel_max_frame)
-    y_cross_df = crossing_results[0]
-    closest_index = [(y_cross_df['frame'] - first_max_vel).abs().argmin()]
-    closest_row = y_cross_df.iloc[closest_index]
-
+    #first_max_vel = max(r_vel_max_frame, l_vel_max_frame)
+    #y_cross_df = crossing_results[0]
+    #closest_index = [(y_cross_df['frame'] - first_max_vel).abs().argmin()]
+   # closest_row = y_cross_df.iloc[closest_index]
     # start frame = first toe off (crossing) closest to the first velocity max 
-    start_frame = closest_row['frame'].iloc[0]
+    #start_frame = closest_row['frame'].iloc[0]
 
+    # second crossing 
+   # y_cross_df = crossing_results[0]
+   # second_row = y_cross_df.iloc[[1]]
+   # print(second_row)
+  #  start_frame = second_row['frame'].iloc[0] # second crossing 
+   # print(start_frame)
+
+
+    # new select first 10 values where l and r y values cross 
+    y_cross_df = crossing_results[0]
     
+    # select first 30 crossing points 
+    first_15_cross = y_cross_df.iloc[0:15, :]
+    # select only positive mean y position between cross 
+    first_15_cross_pos = first_15_cross[first_15_cross['y_mean_diff_shift'] >= 0]
+    # of the three largest crossings, select the first crossing  
+    top_3_diffs = first_15_cross_pos['y_mean_diff_shift'].nlargest(3).values
+    top_3_diff_df = first_15_cross_pos[first_15_cross_pos['y_mean_diff_shift'].isin(top_3_diffs)]
+    # start = second of top three largest crossings (first step little funky if starting walk)
+    start_frame_row = top_3_diff_df.iloc[[1]]
+    start_frame = start_frame_row['frame'].iloc[0]
+
     # if right max frame occurs first, start gait cyle at right toe off 
         # 1 and 2 labels below: either right or left foot 
-    if (closest_row['r_greater'].iloc[0] == True): 
+    if (start_frame_row['r_greater'].iloc[0] == True): 
         gait_cycle_events = ['right_toe_off1', 'right_heel_strike1', 'left_toe_off1', 'left_heel_strike1', 
                              'right_toe_off2', 'right_heel_strike2', 'left_toe_off2', 'left_heel_strike2'] 
      
@@ -169,7 +196,7 @@ def id_toe_off_heel_strike(right_ank_y_data, left_ank_y_data, video_id_date_name
         crossing_df_2 = crossing_results[2] # left 
     
     # if left  max frame occurs first, start gait cyle at left toe off     
-    elif (closest_row['r_greater'].iloc[0] == False):
+    elif (start_frame_row['r_greater'].iloc[0] == False):
         gait_cycle_events = ['left_toe_off1', 'left_heel_strike1', 'right_toe_off1', 'right_heel_strike1', 
                              'left_toe_off2', 'left_heel_strike2', 'right_toe_off2', 'right_heel_strike2'] 
     
@@ -188,9 +215,9 @@ def id_toe_off_heel_strike(right_ank_y_data, left_ank_y_data, video_id_date_name
     gait_events_df.loc[0, 'frame'] = start_frame
 
     # event 1 = foot 1 heel strike; accel valley followed by peak -> peak = heel strike 
-    # get first accel valley and peak after crossing over in event 0
+    # get first accel valley after last velocity crossing point
     accel_valley_1 = ank_data_1[4] # accel valleys 
-    accel_valley_1 = accel_valley_1[accel_valley_1['frame'] > gait_events_df.loc[0, 'frame']] # valleys after toe off/max peak
+    accel_valley_1 = accel_valley_1[accel_valley_1['frame'] > gait_events_df.loc[0, 'frame']] 
     next_accel_valley_1 = accel_valley_1['frame'].iloc[0]
 
     accel_peak_1 = ank_data_1[3] # accel peaks 
@@ -208,7 +235,7 @@ def id_toe_off_heel_strike(right_ank_y_data, left_ank_y_data, video_id_date_name
     gait_events_df.loc[2, 'frame'] = next_cross_2
 
     # event 3 = foot 2 heel strike; accel valley followed by peak -> peak = heel strike 
-    # get first accel valley and peak after velocity crossing point
+    # get first accel valley after last velocity crossing point
     accel_valley_2 = ank_data_2[4] # accel valleys 
     accel_valley_2 = accel_valley_2[accel_valley_2['frame'] > gait_events_df.loc[2, 'frame']]
     next_accel_valley_2 = accel_valley_2['frame'].iloc[0] # select frame from first row in df 
@@ -228,8 +255,9 @@ def id_toe_off_heel_strike(right_ank_y_data, left_ank_y_data, video_id_date_name
     gait_events_df.loc[4, 'frame'] = next_cross_1b
 
     # event 5 - foot 1 heel strike #2;  accel valley followed by peak -> peak = heel strike
+    # get first accel valley after last velocity crossing point
     accel_valley_1b = ank_data_1[4] # accel valleys 
-    accel_valley_1b = accel_valley_1b[accel_valley_1b['frame'] > gait_events_df.loc[4, 'frame']] # valleys after toe off/max peak
+    accel_valley_1b = accel_valley_1b[accel_valley_1b['frame'] > gait_events_df.loc[4, 'frame']]
     next_accel_valley_1b = accel_valley_1b['frame'].iloc[0]
 
     accel_peak_1b = ank_data_1[3] # accel peaks 
@@ -247,6 +275,7 @@ def id_toe_off_heel_strike(right_ank_y_data, left_ank_y_data, video_id_date_name
     gait_events_df.loc[6, 'frame'] = next_cross_2b
 
     # event 7 - foot 2 heel strike #2; accel valley followed by peak -> peak = heel strike
+    # get first accel valley after last velocity crossing point
     accel_valley_2b = ank_data_2[4] # accel valleys 
     accel_valley_2b = accel_valley_2b[accel_valley_2b['frame'] > gait_events_df.loc[6, 'frame']]
     next_accel_valley_2b = accel_valley_2b['frame'].iloc[0] # select frame from first row in df 
@@ -395,26 +424,26 @@ def id_toe_off_heel_strike(right_ank_y_data, left_ank_y_data, video_id_date_name
     ax1.plot(left_ank_y_data[0]['frame'],
              left_ank_y_data[0]['left_ankle_Y_yolo_negative_interpolated'], color = 'black', alpha = 1, label = 'left_ankle_y')
 
-    ax1.vlines(x = calc_right_heel_df['frame'], ymax = l_y_max, ymin = l_y_min, 
-               color = 'blue',
-               alpha = 1, 
-               linestyle = 'dashed', 
-               label = 'calculated_right_heel_strike')
     ax1.vlines(x = calc_right_toe_df['frame'], ymax = l_y_max, ymin = l_y_min, 
-               color = 'red',
-               alpha = 1, 
+               color = 'orange',
+               alpha = 0.7, 
                linestyle = 'dashed', 
                label = 'calculated_right_toe_off')
-    ax1.vlines(x = calc_left_heel_df['frame'], ymax = l_y_max, ymin = l_y_min, 
+    ax1.vlines(x = calc_right_heel_df['frame'], ymax = l_y_max, ymin = l_y_min, 
                color = 'orange',
-               alpha = 1, 
-               linestyle = 'dashed', 
-               label = 'calculated_left_heel_strike')
+               alpha = 0.7, 
+               linestyle = 'dotted', 
+               label = 'calculated_right_heel_strike')
     ax1.vlines(x = calc_left_toe_df['frame'], ymax = l_y_max, ymin = l_y_min, 
-               color = 'purple',
-               alpha = 1, 
+               color = 'black',
+               alpha = 0.7, 
                linestyle = 'dashed', 
                label = 'calculated_left_toe_off')
+    ax1.vlines(x = calc_left_heel_df['frame'], ymax = l_y_max, ymin = l_y_min, 
+               color = 'black',
+               alpha = 0.7, 
+               linestyle = 'dotted', 
+               label = 'calculated_left_heel_strike')
 
     ax1.set_ylabel('-Yolo Y (pixels)')
     ax1.set_xlabel('Frame')
@@ -443,7 +472,7 @@ def id_toe_off_heel_strike(right_ank_y_data, left_ank_y_data, video_id_date_name
     plt.close(fig2)
     plt.close()
     
-    output_plot_3 = os.path.normpath(os.path.join(output_folder, (vid_in_path_no_ext + '_calc_vs_ground_truth_gait_events.png')))
+    output_plot_3 = os.path.normpath(os.path.join(output_folder, (vid_in_path_no_ext + '_left_right_support.png')))
     fig3.savefig(output_plot_3, bbox_inches = 'tight')
     plt.close(fig3)
     plt.close()
@@ -546,6 +575,13 @@ def calculate_single_double_support(gait_events_df, fps, video_id_date_name, dir
     elif 'right_' in gait_events_df.loc[0, 'event']: 
         df.columns = df.columns.str.replace('foot1', 'right')
         df.columns = df.columns.str.replace('foot2', 'left')
+
+    # add single support and double support % mean to df 
+    df['double_support_per_mean_l_r'] = df[['right_double_support_per', 'left_double_support_per']].mean(axis=1)
+    df['single_support_per_mean_l_r'] = df[['right_single_support_per', 'left_single_support_per']].mean(axis=1)
+    # add L/R double and single support ratio to df 
+    df['double_support_per_ratio_l_r'] = df['left_double_support_per'] / df['right_double_support_per']
+    df['single_support_per_ratio_l_r'] = df['left_single_support_per'] / df['right_single_support_per']
 
     # save . csv with metrics 
     output_folder = os.path.join(dir_out_prefix, '005_gait_metrics', 'support')
