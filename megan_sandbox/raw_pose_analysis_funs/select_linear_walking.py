@@ -4,6 +4,7 @@
 # In[1]:
 
 import pandas as pd 
+import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import os 
@@ -25,6 +26,8 @@ def pivot_merge_yolo_df(mp_all_df, yolo_df):
     yolo_long = yolo_marker_subset.pivot(index = 'frame', columns = 'label', values = ['X_yolo', 'landmark_visible', 'time_seconds'])
     yolo_long.columns = [f"{col[1]}_{col[0]}" for col in yolo_long.columns]
     yolo_long['hip_x_width_yolo'] = abs(yolo_long['left_hip_X_yolo'] - yolo_long['right_hip_X_yolo'])
+    yolo_long['hip_x_width_yolo_smooth'] = yolo_long['hip_x_width_yolo'].rolling(window = 5, min_periods = 1).mean()
+    yolo_long.loc[yolo_long['hip_x_width_yolo'].isna(), 'hip_x_width_yolo_smooth'] = np.nan
 
     # merge dfs together
     mp_yolo_df = pd.merge(mp_long, yolo_long, left_index=True, right_index=True)
@@ -36,11 +39,14 @@ def pivot_merge_yolo_df(mp_all_df, yolo_df):
 # In[3]:
 def find_valid_segments(df):
     # Step 1: Calculate differences and create a pattern column for identifying increases or decreases
-    df['width_diff'] = df['hip_x_width_yolo'].diff(periods = 5)
+    df['width_diff'] = df['hip_x_width_yolo_smooth'].diff()
     df['pattern'] = df['width_diff'].apply(lambda x: 'increasing' if x > 0 else ('decreasing' if x < 0 else None))
 
     # Step 2: Identify continuous segments of increasing or decreasing patterns
     df['pattern_change'] = (df['pattern'] != df['pattern'].shift()).cumsum()
+
+    # Frame diff - gaps with missing hip data --> likeley too close to camera 
+    df['seconds_diff'] = df['time_seconds'].diff()
     
     # Step 3: Group by segment and filter based on criteria
     valid_segments = []
@@ -48,69 +54,36 @@ def find_valid_segments(df):
         duration = segment_data['time_seconds'].iloc[-1] - segment_data['time_seconds'].iloc[0]
         nans_in_segment = segment_data['hip_x_width_yolo'].isna().sum()
         
-        if (duration >= 1.5 and  # Pattern lasts at least 2 seconds
-            (segment_data['pattern'].iloc[0] == 'decreasing') and # person is walking away from camera 
-            (segment_data.iloc[:, 0:3] > 0.25).all().all()):  # All vis values in in columns 1, 2, 3 > 0.25
+        if (duration >= 2 and  # greater than 2 seconds 
+            (segment_data['seconds_diff'] <= .33).all() and # no missing hip data for more than 1/3 second
+            (segment_data.iloc[:, 0:3] > 0.25).all().all() and # no vis scores less than 0.25
+            segment_data.iloc[:, 0:3].values.mean() >= 0.75): # mean vis score >= 0.75
 
             # make current segment data frame and append to list 
             segment_data_df = pd.DataFrame(data = segment_data)
             valid_segments.append(segment_data_df)
 
-    return valid_segments
 
-
-# In[4]:
-def pick_best_vis_segment(all_valid_segments, mp_all_df, yolo_df): 
-    # pick walk away with best visibility score 
-    if len(all_valid_segments) > 0: # if valid segements exist
-        print('include: valid segments exist') 
-
-        mean_vis_scores = []
-        for i, current_segment_df in enumerate(all_valid_segments):
-            current_mean_vis_score = current_segment_df.iloc[:, 0:3].values.mean()
-            mean_vis_scores.append(current_mean_vis_score)
-            
-        # find index of max visibility score 
-        max_vis_i = mean_vis_scores.index(max(mean_vis_scores))
-        # if mean vis score is > 0.75 --> use in analysis 
-        if mean_vis_scores[max_vis_i] >= 0.75: 
-            print('include: greater than 0.75') 
-            segment_to_analyze = all_valid_segments[max_vis_i]
-            start_sec = segment_to_analyze['time_seconds'].iloc[0]
-            end_sec = segment_to_analyze['time_seconds'].iloc[-1]
-            # select yolo and mediapipe df between end and start seconds 
-            walk_segment_mp_all_df = mp_all_df[(mp_all_df['time_seconds'] >= start_sec) & (mp_all_df['time_seconds'] <= end_sec)]
-            walk_segment_yolo_df = yolo_df[(yolo_df['time_seconds'] >= start_sec) & (yolo_df['time_seconds'] <= end_sec)]
-            valid_segment_found = 1
-        else: 
-            print('no walking segment with mean vis greater than 0.75: exclude from analysis')
-            valid_segment_found = 0
-            start_sec = []
-            end_sec = []
-            walk_segment_mp_all_df = []
-            walk_segment_yolo_df = []
-
+    if len(valid_segments) > 0: 
+        print('include: valid segments found') 
+        valid_segments_found = 1
     else: 
-        print('no walking segments found: exclude from analysis')
-        valid_segment_found = 0 # no valid segments exist 
-        start_sec = []
-        end_sec = []
-        walk_segment_mp_all_df = []
-        walk_segment_yolo_df = []
+        print('exclude: no valid segments found')
+        valid_segments_found = 0
         
-    return valid_segment_found, start_sec, end_sec, walk_segment_mp_all_df, walk_segment_yolo_df
+    return valid_segments, valid_segments_found
 
 
 # In[ ]:
 
-def plot_valid_walking_segments(mp_yolo_df, mp_all_df, all_valid_segments, valid_segment_found, start_sec, end_sec, vid_in_path, output_parent_folder):
+def plot_valid_walking_segments(mp_yolo_df, mp_all_df, valid_segments, vid_in_path, output_parent_folder):
 
      # plot #1 - hip width 
     fig1, (ax1, ax2) = plt.subplots(2, figsize=(10, 6))
     fig1.suptitle(os.path.splitext(os.path.basename(vid_in_path))[0])
 
     # suplot 1 - hip x width 
-    ax1.scatter(mp_yolo_df['time_seconds'], mp_yolo_df['hip_x_width_yolo'], label = 'hip_width_yolo_x', color = 'black', s =1)
+    ax1.scatter(mp_yolo_df['time_seconds'], mp_yolo_df['hip_x_width_yolo_smooth'], label = 'hip_width_yolo_x', color = 'black', s =1)
 
 
     # subplot 2 - landmark visibility 
@@ -127,9 +100,9 @@ def plot_valid_walking_segments(mp_yolo_df, mp_all_df, all_valid_segments, valid
     # plot 
     ax2 = sns.lineplot(data=mp_all_filt_df, x='time_seconds', y='vis', hue='label', markers=True, dashes=False, estimator = None)
 
-    if len(all_valid_segments) > 0: # if first for loop found any valid segments 
+    if len(valid_segments) > 0: # if first for loop found any valid segments 
     
-        for i, current_segment_df in enumerate(all_valid_segments):
+        for i, current_segment_df in enumerate(valid_segments):
             current_start_sec = current_segment_df['time_seconds'].iloc[0]
             current_end_sec = current_segment_df['time_seconds'].iloc[-1]
 
@@ -151,30 +124,7 @@ def plot_valid_walking_segments(mp_yolo_df, mp_all_df, all_valid_segments, valid
                        ymax = 1,
                        color = 'black', alpha = 0.25, linewidth = 2.5)
 
-    # if one segment was selected, label with dotted lines --> this segment will be analyzed 
-    if valid_segment_found == 1:
 
-        ax1.vlines(x = start_sec, 
-                    ymin = mp_yolo_df['hip_x_width_yolo'].min(), 
-                    ymax = mp_yolo_df['hip_x_width_yolo'].max(),
-                    color = 'green', alpha = 0.7, linewidth = 2.5, linestyle = 'dashed', 
-                    label = 'start_analysis')
-        ax1.vlines(x = end_sec, 
-                    ymin = mp_yolo_df['hip_x_width_yolo'].min(), 
-                    ymax = mp_yolo_df['hip_x_width_yolo'].max(),
-                    color = 'black', alpha = 0.7, linewidth = 2.5, linestyle = 'dashed', 
-                    label = 'end_analysis')
-
-        ax2.vlines(x = start_sec, 
-                    ymin = 0, 
-                    ymax = 1,
-                    color = 'green', alpha = 0.7, linewidth = 2.5, linestyle = 'dashed', 
-                    label = 'start_analysis')
-        ax2.vlines(x = end_sec, 
-                    ymin = 0, 
-                    ymax = 1,
-                    color = 'black', alpha = 0.7, linewidth = 2.5, linestyle = 'dashed', 
-                    label = 'end_analysis')
     ax1.legend(loc='center left', bbox_to_anchor=(1, 0.5))   
     ax2.legend(loc='center left', bbox_to_anchor=(1, 0.5))
 
@@ -200,11 +150,11 @@ def plot_valid_walking_segments(mp_yolo_df, mp_all_df, all_valid_segments, valid
 # run on all 
 def select_plot_linear_walking(mp_all_df, yolo_df, vid_in_path, output_parent_folder):
     mp_yolo_df = pivot_merge_yolo_df(mp_all_df, yolo_df)
-    all_valid_segments = find_valid_segments(mp_yolo_df)
-    valid_segment_found, start_sec, end_sec, walk_segment_mp_all_df, walk_segment_yolo_df = pick_best_vis_segment(all_valid_segments, mp_all_df, yolo_df)
-    plot_valid_walking_segments(mp_yolo_df, mp_all_df, all_valid_segments, valid_segment_found, start_sec, end_sec, vid_in_path, output_parent_folder) 
+    valid_segments, valid_segments_found = find_valid_segments(mp_yolo_df)
+    #valid_segment_found, start_sec, end_sec, walk_segment_mp_all_df, walk_segment_yolo_df = pick_best_vis_segment(valid_segments, mp_all_df, yolo_df)
+    plot_valid_walking_segments(mp_yolo_df, mp_all_df, valid_segments, vid_in_path, output_parent_folder) 
 
-    return valid_segment_found, start_sec, end_sec, walk_segment_mp_all_df, walk_segment_yolo_df
+    return valid_segments, valid_segments_found
     
 
 

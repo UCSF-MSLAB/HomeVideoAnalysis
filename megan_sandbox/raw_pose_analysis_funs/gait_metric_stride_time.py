@@ -49,7 +49,7 @@ def stride_time_interp(mp_all_df,video_id_date_name, dir_out_prefix, max_gap, fp
     return(mp_stride_time_interp_dfs)
 
 
-def calculate_stride_time(mp_ankle_Y_interp, fps, vid_in_path, output_parent_folder, rolling_mean_window, find_peaks_distance, find_peaks_prominence): 
+def calculate_stride_time(mp_ankle_Y_interp, fps, vid_in_path, output_parent_folder, rolling_mean_window, find_peaks_distance, find_peaks_prominence, walk_num): 
     # difference between Y values of left and right ankles 
         # min and max of this plot are gait events 
     ank_r_mp_y_interp = mp_ankle_Y_interp[0]
@@ -106,7 +106,13 @@ def calculate_stride_time(mp_ankle_Y_interp, fps, vid_in_path, output_parent_fol
     stride_time_stats_df.loc['std', 'all_strides'] = pd.concat([stride_times_peaks, stride_times_valleys]).std()
     stride_time_stats_df.loc['cv', 'all_strides'] = (pd.concat([stride_times_peaks, stride_times_valleys]).std()/
                                                      pd.concat([stride_times_peaks, stride_times_valleys]).mean()) * 100
-    
+    #pivot all stride time data to one row 
+    stride_time_df_unstacked = stride_time_stats_df.unstack().to_frame().T 
+    stride_time_df_unstacked.columns = [f'{col[0]}_{col[1]}' for col in stride_time_df_unstacked.columns] 
+    stride_time_df_unstacked.columns = ['stride_time_' + col for col in stride_time_df_unstacked.columns] 
+    stride_time_df_unstacked = stride_time_df_unstacked.astype(float)\
+
+         
 
     #save outputs 
     output_folder = os.path.join(output_parent_folder, '005_gait_metrics', 'stride_time')
@@ -116,16 +122,16 @@ def calculate_stride_time(mp_ankle_Y_interp, fps, vid_in_path, output_parent_fol
     vid_in_path_no_ext = os.path.splitext(os.path.basename(vid_in_path))[0]
     
     # save stasts
-    stride_time_stats_path = os.path.normpath(os.path.join(output_folder, (vid_in_path_no_ext + '_stride_time_stats.csv')))
-    stride_time_stats_df.to_csv(stride_time_stats_path)
+ #   stride_time_stats_path = os.path.normpath(os.path.join(output_folder, (vid_in_path_no_ext + '_' + walk_num + '_stride_time_stats_per_walk.csv')))
+ #   stride_time_df_unstacked.to_csv(stride_time_stats_path)
     
     # save peaks diff 
-    leg_1_peaks_path = os.path.normpath(os.path.join(output_folder, (vid_in_path_no_ext + '_stride_time_leg_1_all.csv')))
-    stride_times_peaks.to_csv(leg_1_peaks_path)
+   # leg_1_peaks_path = os.path.normpath(os.path.join(output_folder, (vid_in_path_no_ext + '_' + walk_num + '_stride_time_leg_1_all.csv')))
+   # stride_times_peaks.to_csv(leg_1_peaks_path)
     
     # save valleys diff 
-    leg_2_valleys_path = os.path.normpath(os.path.join(output_folder, (vid_in_path_no_ext + 'stride_time_leg_2_all.csv')))
-    stride_times_valleys.to_csv(leg_2_valleys_path)
+   # leg_2_valleys_path = os.path.normpath(os.path.join(output_folder, (vid_in_path_no_ext + '_' + walk_num + '_stride_time_leg_2_all.csv')))
+   # stride_times_valleys.to_csv(leg_2_valleys_path)
 
     # --------------------------------------------
     # plot and save plots 
@@ -140,11 +146,11 @@ def calculate_stride_time(mp_ankle_Y_interp, fps, vid_in_path, output_parent_fol
     ax1.legend(loc='center left', bbox_to_anchor=(1, 0.5))
     fig1.tight_layout()  # avoid plot overlap
 
-    output_plot_path = os.path.normpath(os.path.join(output_folder, (vid_in_path_no_ext + '_stride_time.png')))
+    output_plot_path = os.path.normpath(os.path.join(output_folder, (vid_in_path_no_ext + '_' + walk_num + '_stride_time.png')))
     fig1.savefig(output_plot_path, bbox_inches = 'tight')
     plt.close(fig1)
     plt.close()
 
 
-    return([stride_time_stats_df, stride_times_peaks, stride_times_valleys])
+    return([stride_time_df_unstacked, stride_times_peaks, stride_times_valleys])
 
