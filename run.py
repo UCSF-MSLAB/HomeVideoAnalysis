@@ -23,6 +23,7 @@ ALLOWED_VID_FORMATS = ["asf", "avi", "gif", "m4v",
 
 MODELS = ["yolo", "mediapipe", "mediapipe_world"]
 
+
 # from https://www.oreilly.com/library/view/python-cookbook/0596001673/ch04s16.html
 def splitall(path):
     allparts = []

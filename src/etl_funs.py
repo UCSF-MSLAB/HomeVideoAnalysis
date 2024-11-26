@@ -5,6 +5,7 @@ from ultralytics import YOLO
 import pandas as pd
 from src.yolo_result_handler import YoloResultHandler as init_yolo_hndl
 from src.mpipe_result_handler import MPipeResultHandler as init_mpipe_hndl
+from Marigold.marigold import MarigoldPipeline
 import logging
 # import itertools
 logger = logging.getLogger(__name__)
@@ -15,6 +16,7 @@ MARGIN = 0
 yolo_pose = YOLO(os.getcwd() + '/models/yolov8m-pose.pt')
 mp_pose = mp.solutions.pose.Pose(min_detection_confidence=0.5,
                                  min_tracking_confidence=0.5)
+marigold_pipe = MarigoldPipeline.from_pretrained("Bingxin/Marigold")
 
 
 def extract_pose_data(vid_in_path):
@@ -46,6 +48,11 @@ def extract_pose_data(vid_in_path):
                                             yolo_handler.box,
                                             frame_i,
                                             False)
+                
+                # perform depth estimation
+                depth_est = marigold_pipe(image)['depth_colored']
+                
+                
                 mpipe_pose_data.append(mpipe_pose_df)
                 mpipe_world_data.append(mpipe_world_df)
 

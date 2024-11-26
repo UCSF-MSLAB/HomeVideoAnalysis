@@ -1,6 +1,5 @@
 import cv2
 import mediapipe as mp
-import sys
 import pandas as pd
 import seaborn as sb
 import matplotlib.pyplot as plt
@@ -46,10 +45,18 @@ mp_drawing = mp.solutions.drawing_utils
 mp_drawing_styles = mp.solutions.drawing_styles
 mp_pose = mp.solutions.pose
 
+
+def denormalize(df, box, margin):
+    df.X = df.X * (box[2] - box[0] + 2*margin) + box[0] - margin
+    df.Y = df.Y * (box[3] - box[1] + 2*margin) + box[1] - margin
+    return df
+
+
 def renameCols(col):
     lmNum = col.split('_')[0]
     lmVal = poseDict[int(lmNum)]
     return col.replace(lmNum, lmVal)
+
 
 mp4_file = os.getcwd() + "/tests/fixtures/gait_vertical_left.mov"
 cap = cv2.VideoCapture(mp4_file)
@@ -68,17 +75,17 @@ results = pose.process(image)
 tLndMrks = list(map(lambda lndMrk: (lndMrk.x, lndMrk.y,
                                     lndMrk.z, lndMrk.visibility,
                                     lndMrk.presence) if lndMrk else None,
-                    results.pose_world_landmarks.landmark))
+                    results.pose_landmarks.landmark)) # pose_world_landmarks
 
 opose_res = pd.DataFrame(tLndMrks,
                          columns=['X', 'Y', 'Z', 'vis', 'pres'])
-# opose_res['Y'] = opose_res['Y'] * (-1) + 1
+
 opose_res['frame'] = [i] * len(poseDict)
 opose_res['label'] = poseDict.values()
 
-ax = sb.scatterplot(data=opose_res,
-                    x='X', y='Y')
+opose_res = denormalize(opose_res, [0, 0, image.shape[1], image.shape[0]], 0)
 
+ax = sb.scatterplot(data=opose_res, x='X', y='Y')
 
 def label_points(df):
     for i, point in df.iterrows():
@@ -92,11 +99,10 @@ label_points(opose_res)
 
 plt.show()
 
-plot.figure(figsize=(2, 2))
-axes = plt.axes(projection="3d")
-axes.scatter3D(opose_res.X, opose_res.Y, opose_res.Z)
-axes.set_xlabel("x")
-axes.set_ylabel("y")
-axes.set_zlabel("z")
-plt.show()
-
+# plt.figure(figsize=(2, 2))
+# axes = plt.axes(projection="3d")
+# axes.scatter3D(opose_res.X, opose_res.Y, opose_res.Z)
+# axes.set_xlabel("x")
+# axes.set_ylabel("y")
+# axes.set_zlabel("z")
+# plt.show()
