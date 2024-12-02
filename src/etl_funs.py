@@ -5,6 +5,7 @@ from ultralytics import YOLO
 import pandas as pd
 from src.yolo_result_handler import YoloResultHandler as init_yolo_hndl
 from src.mpipe_result_handler import MPipeResultHandler as init_mpipe_hndl
+from src.marigold_result_handler import MarigoldResultHandler as init_mari_hndl
 from Marigold.marigold import MarigoldPipeline
 import logging
 # import itertools
@@ -16,7 +17,7 @@ MARGIN = 0
 yolo_pose = YOLO(os.getcwd() + '/models/yolov8m-pose.pt')
 mp_pose = mp.solutions.pose.Pose(min_detection_confidence=0.5,
                                  min_tracking_confidence=0.5)
-marigold_pipe = MarigoldPipeline.from_pretrained("Bingxin/Marigold")
+marigold_pipe = MarigoldPipeline.from_pretrained("prs-eth/marigold-depth-lcm-v1-0")
 
 
 def extract_pose_data(vid_in_path):
@@ -25,6 +26,7 @@ def extract_pose_data(vid_in_path):
     yolo_pose_data = []
     mpipe_pose_data = []
     mpipe_world_data = []
+    mari_depth_data = []
 
     print(f"Processing {vid_in_path}...")
     frame_i = 0
@@ -48,11 +50,12 @@ def extract_pose_data(vid_in_path):
                                             yolo_handler.box,
                                             frame_i,
                                             False)
-                
+
                 # perform depth estimation
-                depth_est = marigold_pipe(image)['depth_colored']
-                
-                
+                mari_hndl = init_mari_hndl(frame_i, marigold_pipe(image))
+                mari_depth_df = mari_hndl.extract(mpipe_pose_df)
+
+                mari_depth_data.append(mari_depth_df)
                 mpipe_pose_data.append(mpipe_pose_df)
                 mpipe_world_data.append(mpipe_world_df)
 
@@ -61,7 +64,7 @@ def extract_pose_data(vid_in_path):
     cap.release()
     print("Processing complete...")
     logger.info(f'Processed {frame_i} frames in {vid_in_path}')
-    return [yolo_pose_data, mpipe_pose_data, mpipe_world_data]
+    return [yolo_pose_data, mpipe_pose_data, mpipe_world_data, mari_depth_data]
 
 
 def mpipe_process(image, frame):

@@ -36,8 +36,9 @@ class MPipeResultHandler():
 
             mpipe_df = pd.DataFrame(tLndMrks,
                                     columns=['X', 'Y', 'Z', 'vis', 'pres'])
-            # flip the Y axis
-            mpipe_df['Y'] = mpipe_df['Y'] * (-1) + 1
+            # dont flip the Y axis right now
+            # as this ordering lines up with image indexing (marigold)
+            # mpipe_df['Y'] = mpipe_df['Y'] * (-1) + 1
             mpipe_df['frame'] = [self.frame] * len(self.LABELS)
             mpipe_df['label'] = pd.Series(self.LABELS.copy(), dtype='string')
 
