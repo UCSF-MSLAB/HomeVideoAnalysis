@@ -151,9 +151,15 @@ def id_toe_off_heel_strike(right_ank_y_data, left_ank_y_data, video_id_date_name
     # of the three largest crossings, select the first crossing  
     top_3_diffs = y_cross_df['y_mean_diff_shift'].nlargest(3).values
     top_3_diff_df = y_cross_df[y_cross_df['y_mean_diff_shift'].isin(top_3_diffs)]
-    
-    start_frame_row = top_3_diff_df.iloc[[0]]
-    start_frame = start_frame_row['frame'].iloc[0]
+
+    if len(top_3_diff_df) == 0: 
+        gait_events_df = pd.DataFrame() # blank data frame 
+        enough_data_for_support = 0 # any nan = not enough data to calculate 
+        return gait_events_df, enough_data_for_support
+        
+    else:
+        start_frame_row = top_3_diff_df.iloc[[0]]
+        start_frame = start_frame_row['frame'].iloc[0]
 
     # creating y_crossing data frame starting from start_frame_row 
     y_cross_df_from_start = y_cross_df[y_cross_df['frame'] >= start_frame]

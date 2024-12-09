@@ -33,13 +33,22 @@ def pivot_merge_yolo_df(mp_all_df, yolo_df, fps):
     # filter hip width 
     # Butterworth filter parameters
     order = 1  # Filter order
-    cutoff_frequency = 1  # less than 0.5 * fps 
 
-    # Create a Butterworth filter
-    nyquist_frequency = 0.5 * fps  # Nyquist frequency
-    normalized_cutoff = cutoff_frequency / nyquist_frequency # between 0 and 1
+    # cutoff 
+    if fps == 0: # one video fps = 0 and code wouldn't run 
+        normalized_cutoff = 0.066 # typically 30Hz --> normalized cutoff of 1 / 15
+    else: 
+       
+        cutoff_frequency = 1  # less than 0.5 * fps 
+
+        # Create a Butterworth filter
+        nyquist_frequency = 0.5 * fps  # Nyquist frequency
+        normalized_cutoff = cutoff_frequency / nyquist_frequency # between 0 and 1
     
     b, a = sig.butter(order, normalized_cutoff, btype='low', analog=False)
+
+    # Ensure data is float to avoid FutureWarning with fillna
+    yolo_long['hip_x_width_yolo'] = yolo_long['hip_x_width_yolo'].astype(float)
 
     # Mask NaN values
     mask = yolo_long['hip_x_width_yolo'].isna()
@@ -95,10 +104,8 @@ def find_valid_segments(df):
 
 
     if len(valid_segments) > 0: 
-        print('include: valid segments found') 
         valid_segments_found = 1
     else: 
-        print('exclude: no valid segments found')
         valid_segments_found = 0
         
     return valid_segments, valid_segments_found
@@ -171,9 +178,9 @@ def plot_valid_walking_segments(mp_yolo_df, mp_all_df, valid_segments, vid_in_pa
 
     # save figure 
     fig1.savefig(output_file, bbox_inches = 'tight')
-    # plt.close(fig1)
-    # plt.close()
-    plt.show(fig1)
+    plt.close(fig1)
+    plt.close()
+    # plt.show(fig1)
 
 
 # In[ ]:
