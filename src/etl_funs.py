@@ -15,13 +15,13 @@ logger = logging.getLogger(__name__)
 
 # encounter errors when box includes image edge
 MARGIN = 0
+FPS = 30
 
 yolo_pipe = YOLO(os.getcwd() + '/models/yolov8m-pose.pt')
 mp_pipe = mp.solutions.pose.Pose(min_detection_confidence=0.5,
                                  min_tracking_confidence=0.5)
 marigold_pipe = MarigoldPipeline \
-    .from_pretrained("prs-eth/marigold-depth-lcm-v1-0",
-                     half_precision=True)
+    .from_pretrained("prs-eth/marigold-depth-lcm-v1-0")
 # , variant='fp16', torch_dtype=torch.float16
 marigold_pipe.set_progress_bar_config(disable=True)
 
@@ -71,9 +71,13 @@ def run_pipes_on_frame(image, frame_i):
                 extract_mpipe_pose_data(image,
                                         yolo_handler.box,
                                         frame_i,
-                                        False)
+                                        True)
             # perform depth estimation
-            mari_output = marigold_pipe(Image.fromarray(image))
+            # since this takes so long, let's only do it 1x per second
+            if frame_i % FPS == 0:
+                mari_output = marigold_pipe(Image.fromarray(image))
+            else:
+                mari_output = None
             mari_depth_df = init_mari_hndl(frame_i, mari_output) \
                 .extract(mpipe_pose_df)
             return [yolo_handler.dfs[0], mpipe_pose_df,

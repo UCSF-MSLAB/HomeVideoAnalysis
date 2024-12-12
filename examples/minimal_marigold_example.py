@@ -10,6 +10,7 @@ from Marigold.marigold import MarigoldPipeline
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
+import time
 
 mp4_file = os.getcwd() + "/tests/fixtures/gait_vertical_left.mov"
 cap = cv2.VideoCapture(mp4_file)
