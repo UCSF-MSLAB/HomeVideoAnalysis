@@ -17,7 +17,7 @@ import os
 # Cadence is shown on the “Mean” row of the Gait Table
 
 def calculate_cadence(stride_times_peaks, stride_times_valleys, start_sec, end_sec, vid_in_path, output_parent_folder): 
-    total_steps = len(stride_times_peaks) + len(stride_times_valleys) # peaks + valleys
+    total_steps = (len(stride_times_peaks) + len(stride_times_valleys)) - 1 # peaks + valleys
     video_length_sec = end_sec - start_sec # video length 
     cadence = (total_steps/video_length_sec) * 60
     cadence_df = pd.DataFrame(index = range(1),

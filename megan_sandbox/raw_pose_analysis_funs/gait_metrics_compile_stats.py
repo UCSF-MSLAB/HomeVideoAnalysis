@@ -1,22 +1,40 @@
 
 import pandas as pd 
+import numpy as np
 import os 
  
-def save_all_pose_metrics(id_date, vid_in_path, task, stride_time_stats_all, cadence_mean_df, stride_time_stats_df, stride_width_stats_all, support_metrics_all, output_parent_folder): 
+def save_all_pose_metrics(id_date, vid_in_path, task, valid_segments_all, stride_time_stats_all, cadence_mean_df, stride_time_stats_df, stride_width_stats_all, support_metrics_all, output_parent_folder): 
 
     # video name 
     vid_in_path_no_ext = os.path.splitext(os.path.basename(vid_in_path))[0]
+
+    # save info about linear walking segments - #, mean time, etc 
+    total_segments = len(valid_segments_all)
+
+    all_segment_duration = []
+    for segment_i, current_segment in enumerate(valid_segments_all):
+        start_sec = current_segment['time_seconds'].iloc[0]
+        end_sec = current_segment['time_seconds'].iloc[-1]
+        current_segment_duration = end_sec - start_sec
+        all_segment_duration.append(current_segment_duration)
+
+    all_segment_duration_mean = np.mean(all_segment_duration)
+    all_segment_duration_median = np.median(all_segment_duration)
+
+    walking_segment_info_df = pd.DataFrame(data = {'walking_segmets_n' : [total_segments],
+                                                   'walking_segments_duration_mean': [round(all_segment_duration_mean, 2)],
+                                                   'walking_segments_duration_median' : [round(all_segment_duration_median, 2)]}) 
+
     
     # test saving summary data frame 
-        # can extract more from existing data frame, just for ACTRIMS 
-
     all_metrics_df = pd.DataFrame(data = {'id_date' : [id_date],
                                           'video_id_date_name' : [vid_in_path_no_ext], 
                                           'task' : [task]})
 
     
     # merge stats into one data frame 
-    all_metrics_df = pd.concat([all_metrics_df, stride_time_stats_all, cadence_mean_df, stride_width_stats_all, support_metrics_all], axis = 1)
+    all_metrics_df = pd.concat([all_metrics_df, walking_segment_info_df, stride_time_stats_all, cadence_mean_df, stride_width_stats_all, support_metrics_all],
+                               axis = 1)
     
     
     all_metrics_df.columns = [col + '_pose' for col in all_metrics_df.columns]
