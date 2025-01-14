@@ -32,43 +32,39 @@ def pivot_merge_yolo_df(mp_all_df, yolo_df, fps):
 
     # filter hip width 
     # Butterworth filter parameters
-#    order = 1  # Filter order
+    order = 1  # Filter order
 
     # cutoff 
-#    if fps == 0: # one video fps = 0 and code wouldn't run 
-#        normalized_cutoff = 0.066 # typically 30Hz --> normalized cutoff of 1 / 15
-#    else: 
+    if fps == 0: # one video fps = 0 and code wouldn't run 
+        normalized_cutoff = 0.066 # typically 30Hz --> normalized cutoff of 1 / 15
+    else: 
        
-#        cutoff_frequency = 1  # less than 0.5 * fps 
+        cutoff_frequency = 1  # less than 0.5 * fps 
 
         # Create a Butterworth filter
-#        nyquist_frequency = 0.5 * fps  # Nyquist frequency
-#        normalized_cutoff = cutoff_frequency / nyquist_frequency # between 0 and 1
+        nyquist_frequency = 0.5 * fps  # Nyquist frequency
+        normalized_cutoff = cutoff_frequency / nyquist_frequency # between 0 and 1
     
-#    b, a = sig.butter(order, normalized_cutoff, btype='low', analog=False)
+    b, a = sig.butter(order, normalized_cutoff, btype='low', analog=False)
 
     # Ensure data is float to avoid FutureWarning with fillna
-#    yolo_long['hip_x_width_yolo'] = yolo_long['hip_x_width_yolo'].astype(float)
+    yolo_long['hip_x_width_yolo'] = yolo_long['hip_x_width_yolo'].astype(float)
 
     # Mask NaN values
-#    mask = yolo_long['hip_x_width_yolo'].isna()
-#    filtered_hip_width_data = yolo_long['hip_x_width_yolo'].copy()
+    mask = yolo_long['hip_x_width_yolo'].isna()
+    filtered_hip_width_data = yolo_long['hip_x_width_yolo'].copy()
 
     # Replace NaNs with zero temporarily for filtering
-#    data_filled = yolo_long['hip_x_width_yolo'].fillna(0)
+    data_filled = yolo_long['hip_x_width_yolo'].fillna(0)
 
     # Apply the filter
-#    filtered_values = sig.filtfilt(b, a, data_filled)
+    filtered_values = sig.filtfilt(b, a, data_filled)
 
     # Insert the filtered values back, preserving original NaNs
-#    filtered_hip_width_data[~mask] = filtered_values[~mask]
+    filtered_hip_width_data[~mask] = filtered_values[~mask]
 
     # replace in df
-#    yolo_long['hip_x_width_yolo_filt'] = filtered_hip_width_data
-
-#   new ---------, not filtering 
-    yolo_long['hip_x_width_yolo_filt'] = yolo_long['hip_x_width_yolo'].rolling(window = 5, min_periods = 1).mean()
-#   end of new script --------
+    yolo_long['hip_x_width_yolo_filt'] = filtered_hip_width_data
     
     # merge dfs together
     mp_yolo_df = pd.merge(mp_long, yolo_long, left_index=True, right_index=True)
@@ -97,8 +93,8 @@ def find_valid_segments(df):
         duration = segment_data['time_seconds'].iloc[-1] - segment_data['time_seconds'].iloc[0]
         nans_in_segment = segment_data['hip_x_width_yolo'].isna().sum()
         
-        if (duration >= 1.5 and  # greater than 2 seconds 
-            (segment_data['seconds_diff'] <= 0.33).all() and # no missing hip data for more than 1/4 of a second 
+        if (duration >= 2 and  # greater than 2 seconds 
+            (segment_data['seconds_diff'] <= 0.25).all() and # no missing hip data for more than 1/4 of a second 
             (segment_data.iloc[:, 0:3] > 0.25).all().all() and # no vis scores less than 0.25
             segment_data.iloc[:, 0:3].values.mean() >= 0.75): # mean vis score >= 0.75
 
