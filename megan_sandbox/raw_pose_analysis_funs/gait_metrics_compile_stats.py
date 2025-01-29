@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import os 
  
-def save_all_pose_metrics(id_date, vid_in_path, task, current_vid_duration, valid_segments_all, stride_time_stats_all, cadence_mean_df, stride_time_stats_df, stride_width_stats_all, support_metrics_all, output_parent_folder): 
+def save_all_pose_metrics(id_date, vid_in_path, task, fps, current_vid_duration, valid_segments_all, stride_time_stats_all, cadence_mean_df, stride_time_stats_df, stride_width_stats_all, support_metrics_all, output_parent_folder): 
 
     # video name 
     vid_in_path_no_ext = os.path.splitext(os.path.basename(vid_in_path))[0]
@@ -30,7 +30,8 @@ def save_all_pose_metrics(id_date, vid_in_path, task, current_vid_duration, vali
     # test saving summary data frame 
     all_metrics_df = pd.DataFrame(data = {'id_date' : [id_date],
                                           'video_id_date_name' : [vid_in_path_no_ext], 
-                                          'task' : [task]})
+                                          'task' : [task],
+                                          'frames_per_second': [fps]})
 
     
     # merge stats into one data frame 
