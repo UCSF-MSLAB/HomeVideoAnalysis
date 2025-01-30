@@ -1,9 +1,24 @@
 import cv2
+import os
 import mediapipe as mp
 import pandas as pd
+import numpy as np
 import seaborn as sb
 import matplotlib.pyplot as plt
-import os
+from PIL import Image
+from Marigold.marigold import MarigoldPipeline
+
+mp4_file = os.getcwd() + "/tests/fixtures/gait_vertical_left.mov"
+cap = cv2.VideoCapture(mp4_file)
+
+i = 0
+while i < 100:
+    success, image = cap.read()
+    i += 1
+
+# -####################################
+# - Mediapipe
+# -####################################
 
 poseDict = {
     0: "nose",
@@ -45,6 +60,8 @@ mp_drawing = mp.solutions.drawing_utils
 mp_drawing_styles = mp.solutions.drawing_styles
 mp_pose = mp.solutions.pose
 
+pose = mp_pose.Pose(min_detection_confidence=0.5,
+                    min_tracking_confidence=0.5)
 
 def denormalize(df, box, margin):
     df.X = df.X * (box[2] - box[0] + 2*margin) + box[0] - margin
@@ -58,15 +75,6 @@ def renameCols(col):
     return col.replace(lmNum, lmVal)
 
 
-mp4_file = os.getcwd() + "/tests/fixtures/gait_vertical_left.mov"
-cap = cv2.VideoCapture(mp4_file)
-
-pose = mp_pose.Pose(min_detection_confidence=0.5,
-                    min_tracking_confidence=0.5)
-i = 0
-while i < 100:
-    success, image = cap.read()
-    i += 1
 
 image.flags.writeable = False
 image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
@@ -87,6 +95,7 @@ opose_res = denormalize(opose_res, [0, 0, image.shape[1], image.shape[0]], 0)
 
 ax = sb.scatterplot(data=opose_res, x='X', y='Y')
 
+
 def label_points(df):
     for i, point in df.iterrows():
         if point['X'] != 0 and point['Y'] != 0:
@@ -97,12 +106,29 @@ def label_points(df):
 
 label_points(opose_res)
 
+# -####################################
+# - Marigold
+# -####################################
+
+pipe = MarigoldPipeline.from_pretrained("prs-eth/marigold-depth-lcm-v1-0")
+output = pipe(Image.fromarray(image))
+depth_image = output['depth_colored']
+depth_data = output['depth_np']
+
+plt.imshow(np.asarray(depth_image))
 plt.show()
 
-# plt.figure(figsize=(2, 2))
-# axes = plt.axes(projection="3d")
-# axes.scatter3D(opose_res.X, opose_res.Y, opose_res.Z)
-# axes.set_xlabel("x")
-# axes.set_ylabel("y")
-# axes.set_zlabel("z")
-# plt.show()
+
+# -####################################
+# - together
+# -####################################
+
+lndmrk_px_vals = []
+
+for i, row in opose_res.iterrows():
+    if row['X'] != 0 and row['Y'] != 0:
+        depth_est = depth_data[int(row.Y), int(row.X)]
+        lndmrk_px_vals.append({'frame': i, 'label': row['label'],
+                               'depth_est': depth_est})
+
+pd.DataFrame(lndmrk_px_vals)
