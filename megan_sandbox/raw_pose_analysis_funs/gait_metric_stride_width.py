@@ -52,7 +52,7 @@ def stride_width_interp(mp_all_df,video_id_date_name, dir_out_prefix, max_gap, f
     return(mp_stride_width_interp_dfs)
 
 # calculate stride width using interpolated data 
-def calculate_stride_width(mp_stride_width_interp_dfs, vid_in_path, output_parent_folder): 
+def calculate_stride_width(mp_stride_width_interp_dfs, vid_in_path, output_parent_folder, walk_num): 
     heel_right_y_df = mp_stride_width_interp_dfs[0]
     heel_right_x_df = mp_stride_width_interp_dfs[1]
     heel_left_y_df = mp_stride_width_interp_dfs[2]
@@ -87,16 +87,16 @@ def calculate_stride_width(mp_stride_width_interp_dfs, vid_in_path, output_paren
     
     # df of heel x differences at valid crossing points 
     heel_x_diff_at_cross = heel_x_diff_df.loc[common_valid_cross_indices]
-    x_diff = abs(heel_x_diff_at_cross['heel_x_diff_0'])
+    x_diff = abs(heel_x_diff_at_cross['heel_x_diff_0']) * 100 # convert m to cm 
     #x_diff_smooth = abs(heel_x_diff_at_cross['heel_x_diff_0']).rolling(window=15, min_periods=1).mean()
     
-    x_diff_mean = abs(heel_x_diff_at_cross['heel_x_diff_0']).mean(skipna = True)
-    x_diff_median = abs(heel_x_diff_at_cross['heel_x_diff_0']).median(skipna = True)
-    x_diff_std = abs(heel_x_diff_at_cross['heel_x_diff_0']).std(skipna = True)
+    x_diff_mean = x_diff.mean(skipna = True)
+    x_diff_median = x_diff.median(skipna = True)
+    x_diff_std = x_diff.std(skipna = True)
     x_diff_cv = (x_diff_std/x_diff_mean) * 100
     
-    stride_width_stats_df = pd.DataFrame(data = {'stride_width_mean_m' : [x_diff_mean],
-                                                 'stride_width_median_m' : [x_diff_median],
+    stride_width_stats_df = pd.DataFrame(data = {'stride_width_mean_cm' : [x_diff_mean],
+                                                 'stride_width_median_cm' : [x_diff_median],
                                                  'stride_width_std' : [x_diff_std], 
                                                  'stride_width_cv' : [x_diff_cv]})
 
@@ -107,14 +107,11 @@ def calculate_stride_width(mp_stride_width_interp_dfs, vid_in_path, output_paren
 
     vid_in_path_no_ext = os.path.splitext(os.path.basename(vid_in_path))[0]
 
-    # save stats 
-    stride_width_stats_path = os.path.normpath(os.path.join(output_folder, (vid_in_path_no_ext + '_stride_width_stats.csv')))
-    stride_width_stats_df.to_csv(stride_width_stats_path)
 
     # save each step wdith
-    x_diff_df = pd.DataFrame(data = {'step_width_m' : x_diff})
-    x_diff_path = os.path.normpath(os.path.join(output_folder, (vid_in_path_no_ext + '_stride_width_per_step.csv')))
-    x_diff.to_csv(x_diff_path)
+   # x_diff_df = pd.DataFrame(data = {'step_width_m' : x_diff})
+   # x_diff_path = os.path.normpath(os.path.join(output_folder, (vid_in_path_no_ext + '_' + walk_num + '_stride_width_per_step.csv')))
+  #  x_diff.to_csv(x_diff_path)
 
     # plots --------------------------------------------------
     # plot y distance between heels, confirm zero crossing values are correct 
@@ -129,7 +126,7 @@ def calculate_stride_width(mp_stride_width_interp_dfs, vid_in_path, output_paren
     ax1.set_ylabel("L Heel Y - R Heel Y (meters)")
     ax1.legend(loc='center left', bbox_to_anchor=(1, 0.5))
 
-    output_plot_path_1 = os.path.normpath(os.path.join(output_folder, (vid_in_path_no_ext + '_y_zero_cross.png')))
+    output_plot_path_1 = os.path.normpath(os.path.join(output_folder, (vid_in_path_no_ext + '_' + walk_num + '_y_zero_cross.png')))
     fig1.savefig(output_plot_path_1, bbox_inches = 'tight')
     plt.close(fig1)
     plt.close()
@@ -144,9 +141,9 @@ def calculate_stride_width(mp_stride_width_interp_dfs, vid_in_path, output_paren
     ax1.set_ylabel("L Heel X - R Heel X (meters)")
     ax1.legend(loc='center left', bbox_to_anchor=(1, 0.5))
 
-    output_plot_path_2 = os.path.normpath(os.path.join(output_folder, (vid_in_path_no_ext + '_x_width_zero_cross.png')))
+    output_plot_path_2 = os.path.normpath(os.path.join(output_folder, (vid_in_path_no_ext + '_' + walk_num + '_x_width_zero_cross.png')))
     fig2.savefig(output_plot_path_2, bbox_inches = 'tight')
     plt.close(fig2)
     plt.close()
 
-    return(stride_width_stats_df)
+    return(stride_width_stats_df, x_diff)
