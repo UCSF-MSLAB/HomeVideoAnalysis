@@ -24,15 +24,20 @@ class MPipeResultHandler():
         def extract(landmark_dict):
 
             if landmark_dict:
-                tLndMrks = list(map(lambda lndMrk: (lndMrk.x, lndMrk.y,
-                                                    lndMrk.z, lndMrk.visibility,
-                                                    lndMrk.presence) if lndMrk else
-                                    None, landmark_dict.landmark))
+                tLndMrks = list(map(lambda lndMrk: (lndMrk.x,
+                                                    lndMrk.y,
+                                                    lndMrk.z,
+                                                    lndMrk.visibility,
+                                                    lndMrk.presence)
+                                    if lndMrk else None,
+                                    landmark_dict.landmark))
             else:
                 return self.EMPTY_DICT
 
             mpipe_df = pd.DataFrame(tLndMrks,
                                     columns=['X', 'Y', 'Z', 'vis', 'pres'])
+            # dont flip the Y axis right now
+            # as this ordering lines up with image indexing (marigold)
             # mpipe_df['Y'] = mpipe_df['Y'] * (-1) + 1
             mpipe_df['frame'] = [self.frame] * len(self.LABELS)
             mpipe_df['label'] = pd.Series(self.LABELS.copy(), dtype='string')

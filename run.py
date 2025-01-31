@@ -1,5 +1,7 @@
 import os
+import re
 import sys
+import glob
 from src.etl_funs import (extract_pose_data,
                           transform_pose_data,
                           load_pose_data)
@@ -19,28 +21,46 @@ ALLOWED_VID_FORMATS = ["asf", "avi", "gif", "m4v",
                        "mkv", "mov", "mp4", "mpeg",
                        "mpg", "ts", "wmv", "webm"]
 
-MODELS = ["yolo", "mediapipe", "mediapipe_world"]
+MODELS = ["yolo", "mediapipe", "mediapipe_world", "marigold"]
+
+
+# from https://www.oreilly.com/library/view/python-cookbook/0596001673/ch04s16.html
+def splitall(path):
+    allparts = []
+    while 1:
+        parts = os.path.split(path)
+        if parts[0] == path:  # sentinel for absolute paths
+            allparts.insert(0, parts[0])
+            break
+        elif parts[1] == path: # sentinel for relative paths
+            allparts.insert(0, parts[1])
+            break
+        else:
+            path = parts[0]
+            allparts.insert(0, parts[1])
+    return allparts
 
 
 def process_dir(dir_in_path, dir_out_path):
 
-    for (dir_path, dir_names, file_names) in os.walk(dir_in_path):
-        for file_name in file_names:
-            name, ext = os.path.splitext(file_name)
-            ext = ext.lower()[1:]
-            if (ext in ALLOWED_VID_FORMATS):
-                vid_in_path = os.path.join(dir_path, file_name)
-                data_out_prefix = os.path.join(dir_out_path, name)
-                print(f"Processing: {file_name}")
-
-                model_results = extract_pose_data(vid_in_path)
-                for i, raw_data in enumerate(model_results):
-                    try:
-                        pose_data = transform_pose_data(raw_data)
-                        load_pose_data(pose_data,
-                                       data_out_prefix + f"_{MODELS[i]}")
-                    except Exception as e:
-                        logger.info(e.args)
+    abs_path = os.path.abspath(dir_in_path)
+    for file_name in glob.glob(abs_path + '/**/*.*',
+                               recursive=True):
+        name, ext = os.path.splitext(file_name[file_name.find(dir_in_path):])
+        ext = ext.lower()[1:]
+        if (ext in ALLOWED_VID_FORMATS):
+            new_name = '_'.join(splitall(name)[1:])
+            data_out_prefix = os.path.join(dir_out_path, new_name)
+            print(f"Processing: {file_name}")
+            model_results = extract_pose_data(file_name)
+            for i, raw_data in enumerate(model_results):
+                try:
+                    pose_data = transform_pose_data(raw_data)
+                    load_pose_data(pose_data,
+                                   data_out_prefix + f"_{MODELS[i]}")
+                    print(data_out_prefix)
+                except Exception as e:
+                    logger.info(e.args)
 
 
 def main():
