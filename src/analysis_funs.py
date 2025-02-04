@@ -2,21 +2,15 @@ import pandas as pd
 import numpy as np
 from scipy.ndimage import gaussian_filter1d
 
-
-# TODO
-# def calc_stride(heel_loc_df, band=5):
-
-#     # vals = []
-#     # for i in range(0, int(max(heel_loc_df.Y))):
-#     #     vals.append((i, heel_loc_df[((i - band) < heel_loc_df.Y) &
-#     #                                 (heel_loc_df.Y < (i+band))].shape[0]))
-
-#     # vals_df = pd.DataFrame(vals, columns=['Y', 'count'])
-#     # floor_Y = vals_df[vals_df['count'] == np.max(vals_df['count'])].Y.values[0]
-
-#     # heel_loc_df['heel_on_floor'] = ((heel_loc_df['Y'] > floor_Y - band) &
-#     #                                 (heel_loc_df['Y'] < floor_Y + band))
-#     pass
+def get_all_unique_pairs(df):
+    df_pairs = df.merge(df, on='frame', how='left')
+    df_pairs = df_pairs[df_pairs['label_x'] != df_pairs['label_y']]
+    def make_id(x, y, i):
+        return str(i) + "-" +  str(max(x,y)) + "-" + str(min(x,y))
+    df_pairs["row_id"] = df_pairs.apply(lambda row: make_id(row["subframe_id_x"],
+                                                                row["subframe_id_y"],
+                                                                row["frame"]), axis=1)
+    return df_pairs.drop_duplicates(subset="row_id", keep="first")
 
 
 def get_landmark_pairs(landmark_df, label_x, label_y):
@@ -122,3 +116,18 @@ def calculate_pair_dist():
 #     # plt.show()
 
 #     return max(dX_gf)
+
+# TODO
+# def calc_stride(heel_loc_df, band=5):
+
+#     # vals = []
+#     # for i in range(0, int(max(heel_loc_df.Y))):
+#     #     vals.append((i, heel_loc_df[((i - band) < heel_loc_df.Y) &
+#     #                                 (heel_loc_df.Y < (i+band))].shape[0]))
+
+#     # vals_df = pd.DataFrame(vals, columns=['Y', 'count'])
+#     # floor_Y = vals_df[vals_df['count'] == np.max(vals_df['count'])].Y.values[0]
+
+#     # heel_loc_df['heel_on_floor'] = ((heel_loc_df['Y'] > floor_Y - band) &
+#     #                                 (heel_loc_df['Y'] < floor_Y + band))
+#     pass
