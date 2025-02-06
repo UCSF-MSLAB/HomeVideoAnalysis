@@ -8,6 +8,8 @@ class MarigoldResultHandler():
 
         self.frame = i
         self.data = marigold_output
+        self.data_shape_x = len(self.data['depth_np'][0])
+        self.data_shape_y = len(self.data['depth_np'])
         self.EMPTY_DICT = pd.DataFrame({'frame': [i],
                                         'label': ['None'],
                                         'depth_est': [float('inf')]
@@ -22,11 +24,12 @@ class MarigoldResultHandler():
         lndmrk_px_vals = []
 
         for i, row in mpipe_lndmrks.iterrows():
-            if row.X != 0 and row.Y != 0 and \
-               not math.isinf(row.X) and not math.isinf(row.Y):
-                # this is a quick fix.
+            y_ind = int(row.Y)
+            x_ind = int(row.X)
+            if (x_ind > 0 and x_ind < self.data_shape_x) and \
+               (y_ind > 0 and y_ind < self.data_shape_y):
                 try:
-                    depth_est = self.data['depth_np'][int(row.Y), int(row.X)]
+                    depth_est = self.data['depth_np'][y_ind, x_ind]
                 except Exception as e:
                     print(f"Error in frame {self.frame}:\n")
                     print(e)

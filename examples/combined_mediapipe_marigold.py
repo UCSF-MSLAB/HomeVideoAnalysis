@@ -63,6 +63,7 @@ mp_pose = mp.solutions.pose
 pose = mp_pose.Pose(min_detection_confidence=0.5,
                     min_tracking_confidence=0.5)
 
+
 def denormalize(df, box, margin):
     df.X = df.X * (box[2] - box[0] + 2*margin) + box[0] - margin
     df.Y = df.Y * (box[3] - box[1] + 2*margin) + box[1] - margin
@@ -73,7 +74,6 @@ def renameCols(col):
     lmNum = col.split('_')[0]
     lmVal = poseDict[int(lmNum)]
     return col.replace(lmNum, lmVal)
-
 
 
 image.flags.writeable = False
