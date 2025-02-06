@@ -24,7 +24,13 @@ class MarigoldResultHandler():
         for i, row in mpipe_lndmrks.iterrows():
             if row.X != 0 and row.Y != 0 and \
                not math.isinf(row.X) and not math.isinf(row.Y):
-                depth_est = self.data['depth_np'][int(row.Y), int(row.X)]
+                # this is a quick fix.
+                try:
+                    depth_est = self.data['depth_np'][int(row.Y), int(row.X)]
+                except Exception as e:
+                    print(f"Error in frame {self.frame}:\n")
+                    print(e)
+                    continue
                 lndmrk_px_vals.append({'frame': self.frame,
                                        'label': row['label'],
                                        'depth_est': depth_est})
