@@ -6,18 +6,15 @@ import os
 # import torch
 import imageio
 from PIL import Image
-from Marigold.marigold import MarigoldPipeline
+# from Marigold.marigold import MarigoldPipeline
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
 import diffusers
 
 
-pipe = diffusers.MarigoldDepthPipeline.from_pretrained("prs-eth/marigold-depth-lcm-v1-0",
-                                        variant="fp16",
-                                        torch_dtype=torch.float16)
-pipe.vae = diffusers.AutoencoderTiny.from_pretrained("madebyollin/taesd",
-                                                     torch_dtype=torch.float16)
+pipe = diffusers.MarigoldDepthPipeline.from_pretrained("prs-eth/marigold-depth-lcm-v1-0")
+pipe.vae = diffusers.AutoencoderTiny.from_pretrained("madebyollin/taesd")
 
 mp4_file = os.getcwd() + "/tests/fixtures/gait_vertical_left.mov"
 cap = cv2.VideoCapture(mp4_file)
