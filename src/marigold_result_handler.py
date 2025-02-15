@@ -10,11 +10,18 @@ class MarigoldResultHandler():
         self.data = marigold_output
         self.data_shape_x = len(self.data['depth_np'][0])
         self.data_shape_y = len(self.data['depth_np'])
+        if marigold_output is not None:
+            self.latent = marigold_output.latent
+        else:
+            self.latent = None
         self.EMPTY_DICT = pd.DataFrame({'frame': [i],
                                         'label': ['None'],
                                         'depth_est': [float('inf')]
                                         })
         self.EMPTY_DICT['label'] = pd.Series('None', dtype='string')
+
+    def get_latents(self):
+        return self.latents
 
     def extract(self, mpipe_lndmrks):
 
