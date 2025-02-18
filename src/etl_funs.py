@@ -29,7 +29,7 @@ marigold_pipe.vae = diffusers.AutoencoderTiny.from_pretrained("madebyollin/taesd
 # marigold_pipe = MarigoldPipeline \
 #     .from_pretrained("prs-eth/marigold-depth-lcm-v1-0")
 # , variant='fp16', torch_dtype=torch.float16
- marigold_pipe.set_progress_bar_config(disable=True)
+marigold_pipe.set_progress_bar_config(disable=True)
 
 
 def extract_pose_data(vid_in_path):
@@ -41,11 +41,13 @@ def extract_pose_data(vid_in_path):
     mari_depth_data = []
 
     # probably don't need another library for this.
-    reader = imageio.get_reader(mp4_file)
+    reader = imageio.get_reader(vid_in_path)
     size = reader.get_meta_data()['size']
 
     latent_common = torch.randn(
-        (1, 4, 768 * size[1] // (8 * max(size)), 768 * size[0] // (8 * max(size)))
+        (1, 4,
+         768 * size[1] // (8 * max(size)),
+         768 * size[0] // (8 * max(size)))
     )
     last_frame_latent = None
     latents = latent_common
@@ -61,18 +63,17 @@ def extract_pose_data(vid_in_path):
         if last_frame_latent is not None:
             latents = .9 * latents + .1*last_frame_latent
 
-        hndls = run_pipes_on_frame(image, frame_i, latents)
-        if pipe_results is not None:
-            
-            yolo_pose_data.append(pipe_results[0].dfs[0])
-            
-            mpipe_pose_data.append(pipe_results[1].df)
-            
-            mpipe_world_data.append(pipe_results[2].df)
-            
-            mari_depth_data.append(pipe_results[3].extract(pipe_results[1].df)
+        handlers = run_pipes_on_frame(image, frame_i, latents)
+        if handlers is not None:
 
-        last_frame_latent = pipe_results[3].get_latents()
+            yolo_hndl, mp_p_hndl, mp_wrld_hndl, mari_hndl = handlers
+
+            yolo_pose_data.append(yolo_hndl.dfs[0])
+            mpipe_pose_data.append(mp_p_hndl.df)
+            mpipe_world_data.append(mp_wrld_hndl.df)
+            mari_depth_data.append(mari_hndl.extract(mp_p_hndl.df))
+            last_frame_latent = mari_hndl.get_latents()
+
         frame_i += 1
 
     cap.release()
@@ -106,9 +107,11 @@ def run_pipes_on_frame(image, frame_i, latents):
             else:
                 mari_output = None
 
-            mari_handler = init_mari_hndl(frame_i, mari_output)            
-            return [yolo_handler, mipe_handler,
-                    mipe_world_hander, mari_handler]
+            mari_handler = init_mari_hndl(frame_i, mari_output)
+            return [yolo_handler,
+                    mpipe_handler,
+                    mpipe_world_handler,
+                    mari_handler]
     return None
 
 

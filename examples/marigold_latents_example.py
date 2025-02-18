@@ -13,7 +13,7 @@ import torch
 import diffusers
 
 
-pipe = diffusers.MarigoldDepthPipeline.from_pretrained("prs-eth/marigold-depth-lcm-v1-0")
+pipe = diffusers.MarigoldDepthPipeline.from_pretrained("prs-eth/marigold-depth-lcm-v1-0",half_precision=True)
 pipe.vae = diffusers.AutoencoderTiny.from_pretrained("madebyollin/taesd")
 
 mp4_file = os.getcwd() + "/tests/fixtures/gait_vertical_left.mov"
@@ -39,7 +39,7 @@ if last_frame_latent is not None:
     latents = .9 * latents + .1*last_frame_latent
 
 output = pipe(Image.fromarray(image),
-              match_input_resolution=False,
+              match_input_resolution=True,
               latents=latents,
               output_latent=True)
 
@@ -49,6 +49,7 @@ depth_data[0:10, 0:10]
 
 depth_image.size
 
-plt.imshow(output['depth_np'])
-plt.show()
+np_out = output.prediction.reshape(size[1], size[0])
 
+plt.imshow(np_out)
+plt.show()

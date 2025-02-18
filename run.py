@@ -1,5 +1,5 @@
 import os
-import re
+# import re
 import sys
 import glob
 from src.etl_funs import (extract_pose_data,
