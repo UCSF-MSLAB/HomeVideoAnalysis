@@ -24,7 +24,8 @@ yolo_pipe = YOLO(os.getcwd() + '/models/yolov8m-pose.pt')
 mp_pipe = mp.solutions.pose.Pose(min_detection_confidence=0.5,
                                  min_tracking_confidence=0.5)
 
-marigold_pipe = diffusers.MarigoldDepthPipeline.from_pretrained("prs-eth/marigold-depth-lcm-v1-0")
+marigold_pipe = diffusers.MarigoldDepthPipeline.from_pretrained("prs-eth/marigold-depth-lcm-v1-0",
+                                                                half_precision=True)
 marigold_pipe.vae = diffusers.AutoencoderTiny.from_pretrained("madebyollin/taesd")
 # marigold_pipe = MarigoldPipeline \
 #     .from_pretrained("prs-eth/marigold-depth-lcm-v1-0")
@@ -88,7 +89,9 @@ def run_pipes_on_frame(image, frame_i, latents):
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     yolo_results = yolo_pipe(image)
     if len(yolo_results[0].boxes) > 0:
+
         yolo_handler = init_yolo_hndl(frame_i, yolo_results)
+
         if yolo_handler.box is not None:
 
             # get bounds for the mediapipe image
@@ -100,14 +103,16 @@ def run_pipes_on_frame(image, frame_i, latents):
             # perform depth estimation
             # since this takes so long, let's only do it 1x per second
             if frame_i % FPS == 0:
+
                 mari_output = marigold_pipe(Image.fromarray(image),
-                                            match_input_resolution=False,
+                                            match_input_resolution=True,
                                             latents=latents,
                                             output_latent=True)
             else:
                 mari_output = None
 
             mari_handler = init_mari_hndl(frame_i, mari_output)
+
             return [yolo_handler,
                     mpipe_handler,
                     mpipe_world_handler,

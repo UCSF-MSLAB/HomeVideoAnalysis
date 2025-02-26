@@ -7,6 +7,9 @@ import seaborn as sb
 import matplotlib.pyplot as plt
 from PIL import Image
 from Marigold.marigold import MarigoldPipeline
+import diffusers
+import torch
+import imageio
 
 mp4_file = os.getcwd() + "/tests/fixtures/gait_vertical_left.mov"
 cap = cv2.VideoCapture(mp4_file)
@@ -110,14 +113,39 @@ label_points(opose_res)
 # - Marigold
 # -####################################
 
-pipe = MarigoldPipeline.from_pretrained("prs-eth/marigold-depth-lcm-v1-0")
-output = pipe(Image.fromarray(image))
-depth_image = output['depth_colored']
-depth_data = output['depth_np']
+# pipe = MarigoldPipeline.from_pretrained("prs-eth/marigold-depth-lcm-v1-0")
+# output = pipe(Image.fromarray(image))
+# depth_image = output['depth_colored']
+# depth_data = output['depth_np']
 
-plt.imshow(np.asarray(depth_image))
+# plt.imshow(np.asarray(depth_image))
+# plt.show()
+
+# with latents
+
+reader = imageio.get_reader(mp4_file)
+size = reader.get_meta_data()['size']
+last_frame_latent = None
+latent_common = torch.randn(
+        (1, 4, 768 * size[1] // (8 * max(size)), 768 * size[0] // (8 * max(size)))
+    )
+
+latents = latent_common
+if last_frame_latent is not None:
+    latents = .9 * latents + .1*last_frame_latent
+
+pipe = diffusers.MarigoldDepthPipeline.from_pretrained("prs-eth/marigold-depth-lcm-v1-0",half_precision=True)
+pipe.vae = diffusers.AutoencoderTiny.from_pretrained("madebyollin/taesd")
+
+output = pipe(Image.fromarray(image),
+              match_input_resolution=True,
+              latents=latents,
+              output_latent=True)
+
+np_out = output.prediction.reshape(size[1], size[0])
+
+plt.imshow(np_out)
 plt.show()
-
 
 # -####################################
 # - together
@@ -127,7 +155,7 @@ lndmrk_px_vals = []
 
 for i, row in opose_res.iterrows():
     if row['X'] != 0 and row['Y'] != 0:
-        depth_est = depth_data[int(row.Y), int(row.X)]
+        depth_est = np_out[int(row.Y), int(row.X)]
         lndmrk_px_vals.append({'frame': i, 'label': row['label'],
                                'depth_est': depth_est})
 
