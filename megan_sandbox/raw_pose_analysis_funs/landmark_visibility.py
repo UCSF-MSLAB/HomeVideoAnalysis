@@ -141,7 +141,8 @@ def yolo_vis_lineplot(yolo_df, vid_in_path, output_parent_folder):
     labels_to_plot = ['left_ankle', 'right_ankle',
                       'left_knee', 'right_knee', 
                       'left_hip', 'right_hip', 
-                      'right_shoulder', 'left_shoulder'
+                      'right_shoulder', 'left_shoulder',
+                      'right_eye', 'left_eye'
                      ]
 
     # one plot per label 

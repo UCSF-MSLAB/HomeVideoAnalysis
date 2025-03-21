@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import os 
  
-def save_all_pose_metrics(id_date, vid_in_path, task, fps, current_vid_duration, valid_segments_all, stride_time_stats_all, cadence_mean_df, stride_time_stats_df, stride_width_stats_all, support_metrics_all, output_parent_folder): 
+def save_all_pose_metrics(vid_in_path, valid_segments_all, stride_time_stats_all, cadence_mean_df, stride_time_stats_df, stride_width_stats_all, support_metrics_all, output_parent_folder): 
 
     # video name 
     vid_in_path_no_ext = os.path.splitext(os.path.basename(vid_in_path))[0]
@@ -21,17 +21,13 @@ def save_all_pose_metrics(id_date, vid_in_path, task, fps, current_vid_duration,
     all_segment_duration_mean = np.mean(all_segment_duration)
     all_segment_duration_median = np.median(all_segment_duration)
 
-    walking_segment_info_df = pd.DataFrame(data = {'total_video_duration_sec' : [round(current_vid_duration, 2)],
-                                                   'walking_segmets_n' : [total_segments],
+    walking_segment_info_df = pd.DataFrame(data = {'walking_segmets_n' : [total_segments],
                                                    'walking_segments_duration_mean': [round(all_segment_duration_mean, 2)],
                                                    'walking_segments_duration_median' : [round(all_segment_duration_median, 2)]}) 
 
     
     # test saving summary data frame 
-    all_metrics_df = pd.DataFrame(data = {'id_date' : [id_date],
-                                          'video_id_date_name' : [vid_in_path_no_ext], 
-                                          'task' : [task],
-                                          'frames_per_second': [fps]})
+    all_metrics_df = pd.DataFrame(data = {'video_id_date_name' : [vid_in_path_no_ext]})
 
     
     # merge stats into one data frame 
