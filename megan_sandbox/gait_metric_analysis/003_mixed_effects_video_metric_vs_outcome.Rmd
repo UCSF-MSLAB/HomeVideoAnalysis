@@ -28,8 +28,7 @@ library(performance)
 
 - Improve metric - re-run delta pixel eye to foot?
 
-- Additional analysis with just log delta pixel proxy?
-  - Dropped rows with any missing video metrics for adj vs unadj metrics 
+- Dropped rows with any missing video metrics for adj vs unadj metrics 
   - Should this be done before univariate steps? 
 
 - Interaction? - test diff with aov()
@@ -1352,6 +1351,9 @@ home_df$sqrt_PWS_velocity <- sqrt(home_df$PWS_velocitycmsecmean)
 
 ggplot(data = home_df, mapping = aes(sqrt_PWS_velocity)) + 
   geom_histogram()
+
+
+
 ```
 
 ## Preferred Walking speed videos 
@@ -1662,7 +1664,160 @@ ggsave(file.path(output_dir, 'ZenoVelFw_adj_vs_unadj_fw_estimates.png'),
        bg = "white", width= 12, height=10)
 ```
 
-## Home Videos 
+## Home Videos: FW Velocity Outcome 
+### Univariate Models 
+```{r}
+uni_home_fwvel <- all_univariate_mixed_effect(data = home_df,
+                                               outcome_column = "FW_velocitycmsecmean")
+
+# save adjusted r_squared 
+adj_r_squared_df <- uni_home_fwvel[c('Variable', 'R2_conditional', 'R2_marginal')] %>% 
+  distinct() %>% # remove duplicates 
+  mutate(R2_conditional = round(R2_conditional, 2)) %>% 
+  mutate(R2_marginal = round(R2_marginal, 2))
+
+print(adj_r_squared_df)
+
+write.csv(adj_r_squared_df, file.path(output_dir, 'ZenoVelFW_univariate_home_r2.csv'))
+
+
+# Plot estimates 
+p <- univariate_regression_plot(results = uni_home_fwvel, 
+                                plot_title = "Home Univariate - lmer(Zeno Mat FW Velocity ~ Predictor + (1 | bw_id))", 
+                                x_adj = 15)
+p 
+ggsave(file.path(output_dir, 'ZenoVelFW_univariate_home_estimates.png'), 
+       bg = "white", width= 10, height=10)
+
+```
+
+### Multivariate Demographics and MS Info
+```{r}
+fwVel_home_multi_dem <- lmer(FW_velocitycmsecmean ~ 
+                               demoEHR_Age +
+                               demoEHR_DiseaseDuration + 
+                               ms_dx_condensed + 
+                               race_ethnicity_clean +
+                               clean_sex + 
+                               (1|bw_id), 
+                             data = home_clean_df)
+
+
+summary(fwVel_home_multi_dem)
+
+# Residuals vs. fitted values
+hist(resid(fwVel_home_multi_dem), main = "Residuals All Demographic and MS Info")
+
+# Normality check
+qqnorm(residuals(fwVel_home_multi_dem), main = "Normal Q-Q plot: Residuals All Demographic and MS Info")
+
+# tidy results
+fwVel_home_multi_dem_df <- tidy(fwVel_home_multi_dem, conf.int = TRUE) %>% 
+  mutate(R2_conditional = r2(fwVel_home_multi_dem)$R2_conditional) %>% 
+  mutate(R2_marginal = r2(fwVel_home_multi_dem)$R2_marginal) %>% 
+  mutate(Model = "Unadjusted - Multivariate Demographics and MS Info")
+
+fwVel_home_multi_dem_df
+```
+### Multivariate Video Models - Unadjusted 
+
+```{r}
+fwVel_home_multi_vid_unadj <- lmer(FW_velocitycmsecmean ~ 
+                                     stride_time_median_sec_pose_hv +
+                                     log_delta_pix_h_rel_median_pose_hv + 
+                                     mean_cadence_step_per_min_pose_hv + 
+                                     stride_width_median_cm_pose_hv + 
+                                     (1|bw_id), 
+                                   data = home_clean_df)
+
+summary(fwVel_home_multi_vid_unadj)
+
+# Residuals vs. fitted values
+hist(resid(fwVel_home_multi_vid_unadj), main = "Residuals All Video Metrics Unadjusted")
+
+# Normality check
+qqnorm(residuals(fwVel_home_multi_vid_unadj), main = "Normal Q-Q plot: Residuals All Video Metrics Unadjusted")
+
+# tidy results 
+fwVel_home_multi_vid_unadj_df <- tidy(fwVel_home_multi_vid_unadj, conf.int = TRUE) %>% 
+  mutate(R2_conditional = r2(fwVel_home_multi_vid_unadj)$R2_conditional) %>% 
+  mutate(R2_marginal = r2(fwVel_home_multi_vid_unadj)$R2_marginal) %>% 
+  mutate(Model = "Unadjusted - Multivariate Video Metrics")
+
+fwVel_home_multi_vid_unadj_df
+```
+### Multivariate Video Models - Adjusted  
+```{r}
+fwVel_home_multi_vid_adj <- lmer(FW_velocitycmsecmean ~ 
+                                   stride_time_median_sec_pose_hv +
+                                   log_delta_pix_h_rel_median_pose_hv + 
+                                   mean_cadence_step_per_min_pose_hv + 
+                                   stride_width_median_cm_pose_hv + 
+                                   demoEHR_Age +
+                                   demoEHR_DiseaseDuration + 
+                                   ms_dx_condensed + 
+                                   race_ethnicity_clean +
+                                   clean_sex + 
+                                   (1|bw_id), 
+                                 data = home_clean_df)
+
+summary(fwVel_home_multi_vid_adj)
+
+# Residuals vs. fitted values
+hist(resid(fwVel_home_multi_vid_adj), main = "Residuals All Video Metrics Adjusted")
+
+# Normality check
+qqnorm(residuals(fwVel_home_multi_vid_adj), main = "Normal Q-Q plot: Residuals All Video Metrics Adjusted")
+
+# tidy results
+fwVel_home_multi_vid_adj_df <- tidy(fwVel_home_multi_vid_adj, conf.int = TRUE) %>% 
+  mutate(R2_conditional = r2(fwVel_home_multi_vid_adj)$R2_conditional) %>% 
+  mutate(R2_marginal = r2(fwVel_home_multi_vid_adj)$R2_marginal) %>% 
+  mutate(Model = "Adjusted - Multivariate Video Metrics")
+
+fwVel_home_multi_vid_adj_df
+
+```
+### ANOVA - Compare Multivar Models 
+p value < 0.05, more complex model is significantly better than the simpler model 
+
+https://bookdown.org/ndphillips/YaRrr/comparing-regression-models-with-anova.html 
+```{r}
+# Demographics only vs Video + Demographics 
+anova(fwVel_home_multi_dem, fwVel_home_multi_vid_adj)
+
+# Video only vs Video + Demographics 
+anova(fwVel_home_multi_vid_unadj, fwVel_home_multi_vid_adj)
+```
+### Save all Multivar R-squared values 
+```{r}
+fwVel_home_multivar_all <- bind_rows(fwVel_home_multi_dem_df, 
+                                     fwVel_home_multi_vid_unadj_df, 
+                                     fwVel_home_multi_vid_adj_df)
+
+
+# save R-squared 
+adj_r_squared_df <- fwVel_home_multivar_all[c('Model', 'R2_conditional', 'R2_marginal')] %>% 
+  distinct() %>% # remove duplicates 
+  mutate(R2_conditional = round(R2_conditional, 2)) %>% 
+  mutate(R2_marginal = round(R2_marginal, 2))
+
+print(adj_r_squared_df)
+
+write.csv(adj_r_squared_df, file.path(output_dir, 'ZenoFW_adj_vs_unadj_home_r2.csv'))
+```
+### Plot Unadjusted vs Adjusted Estimates 
+```{r}
+p <- adj_vs_unadj_plot(results_df = fwVel_home_multivar_all, 
+                       plot_title = "Home: FW Mat Velocity Unadjusted vs Adjusted", 
+                       x_adj = 30)
+p
+ggsave(file.path(output_dir, 'ZenoVelFW_adj_vs_unadj_home_estimates.png'),
+       bg = "white", width= 12, height=10)
+```
+
+
+## Home Videos: PWS Velocity Outcome 
 ### Univariate Models 
 ```{r}
 uni_home_pwsvel <- all_univariate_mixed_effect(data = home_df,
@@ -1676,15 +1831,15 @@ adj_r_squared_df <- uni_home_pwsvel[c('Variable', 'R2_conditional', 'R2_marginal
 
 print(adj_r_squared_df)
 
-write.csv(adj_r_squared_df, file.path(output_dir, 'ZenoVelPws_univariate_home_r2.csv'))
+write.csv(adj_r_squared_df, file.path(output_dir, 'ZenoVelPWS_univariate_home_r2.csv'))
 
 
 # Plot estimates 
 p <- univariate_regression_plot(results = uni_home_pwsvel, 
-                                plot_title = "Home Univariate - lmer(Zeno Mat Velocity ~ Predictor + (1 | bw_id))", 
+                                plot_title = "Home Univariate - lmer(Zeno Mat PWS Velocity ~ Predictor + (1 | bw_id))", 
                                 x_adj = 15)
 p 
-ggsave(file.path(output_dir, 'ZenoVelPws_univariate_home_estimates.png'), 
+ggsave(file.path(output_dir, 'ZenoVelPWS_univariate_home_estimates.png'), 
        bg = "white", width= 10, height=10)
 
 ```
@@ -1802,7 +1957,7 @@ adj_r_squared_df <- pwsVel_home_multivar_all[c('Model', 'R2_conditional', 'R2_ma
 
 print(adj_r_squared_df)
 
-write.csv(adj_r_squared_df, file.path(output_dir, 'ZenoVelPws_adj_vs_unadj_home_r2.csv'))
+write.csv(adj_r_squared_df, file.path(output_dir, 'ZenoVelPWS_adj_vs_unadj_home_r2.csv'))
 ```
 ### Plot Unadjusted vs Adjusted Estimates 
 ```{r}
@@ -1810,7 +1965,7 @@ p <- adj_vs_unadj_plot(results_df = pwsVel_home_multivar_all,
                        plot_title = "Home: PWS Mat Velocity Unadjusted vs Adjusted", 
                        x_adj = 30)
 p
-ggsave(file.path(output_dir, 'ZenoVelPws_adj_vs_unadj_home_estimates.png'),
+ggsave(file.path(output_dir, 'ZenoPWS_adj_vs_unadj_home_estimates.png'),
        bg = "white", width= 12, height=10)
 ```
 

@@ -10,20 +10,14 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 # to do and questions 
-- Fix OR confidence interval 
-
-
-- EDSS + T25FW: sensitivity analysis - dateDiff from video walking +- 90 days, +- 30 days 
+- Fix OR confidence interval error 
 
 - Improve metric - re-run delta pixel eye to foot?
 
-- EDSS Ordinal regression
-  - used EDSS severity for consistency- same cutoff groups for all models and bigger n per group
-  - not sure if edss score better 
+- Re-run with HC as outcome category: HC, mild EDSS, moderate EDSS, and severe EDSS 
+  - home videos: MS vs mild EDSS vs moderate/severe EDSS (maybe T25fw too?) 
   
 -Take out progressive MS as predictor? assumed progressive higher EDSS?
-
-- cleanre way to do faceted plot with multiple predictors? - messy when I tried earlier 
   
 - standardize y limits for probability plots 
 
@@ -39,10 +33,6 @@ library(Hmisc)
 library(reshape2)
 ```
 
-
-
-
-
 # Set directories and load data 
 ## output directory 
 ```{r}
@@ -54,7 +44,7 @@ analysis_version <- '005'
 ```{r}
 output_dir <- file.path("C:/Users/mmccu/Box/MM_Personal/5_Projects/BoveLab/3_Data_and_Code/gait_bw_zeno_home_analysis",
                         analysis_version, 
-                        "003_ordered_logistic_regression_edss")
+                        "003_ordered_logistic_regression_edss)
 
 # create output folder if it doesn't already exist 
 if (file.exists(output_dir) == FALSE){
