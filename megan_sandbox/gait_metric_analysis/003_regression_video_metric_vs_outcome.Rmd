@@ -1,0 +1,2808 @@
+---
+title: "Megan Dissertation - Regression Models"
+author: "Megan"
+date: "2025-02-21"
+output: html_document
+---
+
+Linear regression - not accounting for subjects with multiple videos 
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(readxl)
+library(dplyr)
+library(tidyverse)
+library(ggplot2)
+library(broom)
+```
+
+# set output directory 
+```{r}
+# analysis folder 
+analysis_version <- '005'
+
+# video metric folder version 
+metrics_version <- '004'
+```
+
+
+```{r}
+output_dir <- file.path("C:/Users/mmccu/Box/MM_Personal/5_Projects/BoveLab/3_Data_and_Code/gait_bw_zeno_home_analysis",
+                    analysis_version, 
+                    "003_regression_video_metric_vs_outcomes")
+
+scatter_dir <- file.path(output_dir, "scatterplots")
+
+```
+
+# Functions 
+
+## Function - box and whisker plots regression estimates 
+Significance based transparency 
+```{r}
+univariate_regression_plot <- function(results, plot_title, x_adj) {
+  # Apply rounding function to p-value columns 
+  results <- results %>% mutate(pval_text = paste0("p=", sapply(p.value, format_p_value)))  # Format p-values
+  
+  # Apply formatting function and create significance indicators
+  results <- results %>%
+    mutate(
+      pval_text = paste0("p=", sapply(p.value, format_p_value)),
+      sig = ifelse(p.value < 0.05, "Significant", "Non-Significant"),  # Create significance group
+      alpha_level = ifelse(p.value < 0.05, 1, 0.3)  # More transparency for non-sig points
+    )
+  results
+  
+  # Determine x position for p-values (offset to the right of the max estimate)
+  x_max <- max(results$conf.high, na.rm = TRUE)  # Get max confidence interval upper bound
+  results <- results %>% mutate(pval_x_pos = x_max + x_adj)  # Place p-values slightly to the right of max x range
+  
+  p <- ggplot(results, aes(x = estimate, y = term, color = Variable, alpha = alpha_level))+ 
+    geom_point(size = 3)  + # dot = coefficient estimate 
+    geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = 0.2) +  # Whiskers for confidence intervals
+    geom_text(aes(x = pval_x_pos, label = pval_text, fontface = ifelse(p.value < 0.05, "bold", "plain")), 
+              hjust = 1, size = 3) +  # Right-aligned p-values, bold if significant
+    scale_alpha_identity() +  # Use manually set alpha levels
+    geom_vline(xintercept = 0, linetype = "dashed", color = "gray50") +  # Reference line at zero
+    theme_minimal() + 
+    labs(title = plot_title,
+         x = "Estimate (Effect Size)",
+         y = "Predictor") +
+    theme(legend.position = "right")  # Hide legend to keep it clean
+  
+  return(p)
+}
+```
+
+
+## Round p-values 
+```{r}
+# Conditional rounding function
+format_p_value <- function(p) {
+  if (p < 0.001) {
+    return(formatC(p, format = "e", digits = 1))  # Scientific notation, 1 decimal place
+  } else {
+    return(formatC(p, format = "f", digits = 2))  # Standard notation, 2 decimal places
+  }
+}
+```
+
+## Plot Adjusted vs Unadjusted coefficient estimates 
+```{r}
+adj_vs_unadj_regression_plot <- function(results_df, plot_title, x_adj){
+  
+  set.seed(42)  # Set seed for reproducibility
+  
+  results_df <- results_df %>%
+    mutate(
+      pval_text = paste0("p=", sapply(p.value, format_p_value)),  # Format p-values
+      sig = ifelse(is.na(p.value) | p.value >= 0.05, "Non-Significant", "Significant"),  # Identify significance
+      alpha_level = ifelse(is.na(p.value) | p.value >= 0.05, 0.3, 1),  # More transparency for non-sig points
+      jitter_y = as.numeric(factor(term)) + runif(n(), -0.2, 0.2)  # Jitter y-axis values slightly
+    )
+  
+  # Define colors for models
+  model_colors <- c("Unadjusted" = "darkblue", "Adjusted" = "darkorange")
+  
+  # Define shading by creating an index for each predictor group
+  results_df <- results_df %>%
+    arrange(term) %>%
+    mutate(group = as.integer(factor(term)) %% 2)  # Alternating shading
+  
+  
+  # Determine x position for p-values (offset to the right of max estimate)
+  x_max <- max(results_df$conf.high, na.rm = TRUE)  # Get max confidence interval upper bound
+  results_df <- results_df %>%
+    mutate(pval_x_pos = x_max + x_adj)  # Place p-values slightly to the right of max x range
+  
+  # Dot-and-whisker plot with enhancements
+  p2 <- ggplot(results_df, aes(x = estimate, y = term, color = Model, alpha = alpha_level)) +
+    # Add confidence intervals as horizontal whiskers
+    geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = 0.2, 
+                   position = position_dodge(width = 0.5)) + 
+    # Add dots for coefficient estimates
+    geom_point(position = position_dodge(width = 0.5), size = 3) + 
+    # Add background shading for alternate rows
+    geom_rect(data = results_df, aes(ymin = as.numeric(factor(term)) - 0.5, 
+                                     ymax = as.numeric(factor(term)) + 0.5,
+                                     xmin = -Inf, xmax = Inf, 
+                                     fill = factor(group)),
+              inherit.aes = FALSE, alpha = 0.1) +
+    # Add vertical line at zero (null effect)
+    geom_vline(xintercept = 0, linetype = "dashed", color = "gray50") + 
+    # Add jittered p-values at right side
+    geom_text(aes(x = pval_x_pos, y = jitter_y, label = pval_text, 
+                  fontface = ifelse(sig == "Significant", "bold", "plain")), 
+              hjust = 1, size = 3) + 
+    scale_color_manual(values = model_colors) +  # Set custom colors for models
+    scale_fill_manual(values = c("white", "gray90")) +  # Alternating shading
+    scale_alpha_identity() +  # Use manually set alpha levels
+    theme_minimal() +
+    labs(title = plot_title,
+         x = "Estimate (Effect Size)",
+         y = "Predictor",
+         color = "Model") +  
+   theme(legend.position = "right",  # Move legend to the right
+          panel.grid.major = element_blank(),  # Remove major grid lines for clarity
+          panel.grid.minor = element_blank())
+    
+
+  return(p2)
+  
+}
+
+```
+
+# Load and format In-Person Video Data   
+All videos included in analysis. Videos were included based on if a walking segment could be identified. 
+Some participants may have both a fast walk and preferred walking speed video. Some may have just fast walk or just preferred walking speed. 
+
+Each row = 1 video 
+
+Preferred walking speed 
+
+```{r}
+# Preferred Walking Speed 
+zeno_pws_path <- file.path("C:/Users/mmccu/Box/MM_Personal/5_Projects/BoveLab/3_Data_and_Code/gait_bw_zeno_home_analysis", 
+                           metrics_version, 
+                           "000_merged_cleaned_data",
+                           "zv_bw_merged_gait_vertical_PWS_1_clean.csv")
+zeno_pws_df <- read.csv(zeno_pws_path)
+table(zeno_pws_df$task_pose)
+```
+White Not Hispanic as reference because highest %, rest alphabetical 
+```{r}
+# assign levels to categorical variables 
+table(zeno_pws_df$race_ethnicity_clean)
+
+zeno_pws_df$race_ethnicity_clean <- factor(zeno_pws_df$race_ethnicity_clean, 
+                                           levels = c('White Not Hispanic', 
+                                                      'Asian', 
+                                                      'Black Or African American',
+                                                      'Hispanic or Latino',
+                                                      'Other/Unknown/Declined'), 
+                                           ordered = FALSE)
+print(levels(zeno_pws_df$race_ethnicity_clean))
+
+table(zeno_pws_df$ms_dx_condensed)
+zeno_pws_df$ms_dx_condensed <- factor(zeno_pws_df$ms_dx_condensed, 
+                                           levels = c('RRMS', 
+                                                      'Progressive MS',
+                                                      'MS, Subtype Not Specified'), 
+                                           ordered = FALSE)
+print(levels(zeno_pws_df$ms_dx_condensed))
+
+table(zeno_pws_df$clean_sex)
+zeno_pws_df$clean_sex <- factor(zeno_pws_df$clean_sex, 
+                                           levels = c('Female', 
+                                                      'Male',
+                                                      'Non-Binary'), 
+                                           ordered = FALSE)
+print(levels(zeno_pws_df$clean_sex))
+```
+
+Drop healthy controls - no EDSS and T25FW 
+```{r}
+zeno_pws_df <- zeno_pws_df[grepl('MS', zeno_pws_df$demographic_diagnosis), ]
+table(zeno_pws_df$demographic_diagnosis)
+
+# convert infinite values to NA 
+zeno_pws_df[] <- lapply(zeno_pws_df, function(x) {
+  if (is.numeric(x)) replace(x, is.infinite(x), NA) else x
+})
+```
+```{r}
+# filter to unique IDs - one row per person, select first video 
+nrow(zeno_pws_df)
+zeno_pws_uniqueid_df <- zeno_pws_df %>%
+  arrange(visit_date_video) %>%   # Sort by date
+  distinct(bw_id, .keep_all = TRUE)  # Keep the first occurrence of each ID
+
+nrow(zeno_pws_uniqueid_df)
+```
+
+Missing Data 
+```{r}
+# count number of missing variables in preferred walking speed data frame 
+sum(is.na(zeno_pws_df$delta_pix_h_rel_median_pose_zv))
+sum(is.na(zeno_pws_df$stride_time_mean_sec_pose_zv))
+sum(is.na(zeno_pws_df$mean_cadence_step_per_min_pose_zv))
+sum(is.na(zeno_pws_df$stride_width_mean_cm_pose_zv))
+# stance and all double support measures 
+sum(is.na(zeno_pws_df$foot1_gait_cycle_time_mean_pose_zv))
+# ground truth preferred walk zeno mat data 
+sum(is.na(zeno_pws_df$PWS_cadencestepsminmean))
+sum(is.na(zeno_pws_df$bingoEHR_EDSS_measure_value))
+sum(is.na(zeno_pws_df$msfcEHR_T25FW.SPEED.AVG))
+# demographics 
+sum(is.na(zeno_pws_df$demoEHR_Age))
+sum(is.na(zeno_pws_df$demoEHR_DiseaseDuration)) 
+sum(is.na(zeno_pws_df$ms_dx_condensed))
+sum(is.na(zeno_pws_df$clean_ethnicity))
+sum(is.na(zeno_pws_df$clean_sex))
+sum(is.na(zeno_pws_df$ms_dx_condensed))
+```
+
+Fast walking speed videos  
+
+```{r}
+zeno_fw_path <- file.path("C:/Users/mmccu/Box/MM_Personal/5_Projects/BoveLab/3_Data_and_Code/gait_bw_zeno_home_analysis", 
+                          metrics_version, 
+                          "000_merged_cleaned_data", 
+                          "zv_bw_merged_gait_vertical_FW_1_clean.csv")
+zeno_fw_df <- read.csv(zeno_fw_path)
+table(zeno_fw_df$task_pose)
+```
+```{r}
+# assign levels to categorical variables 
+table(zeno_fw_df$race_ethnicity_clean)
+
+zeno_fw_df$race_ethnicity_clean <- factor(zeno_fw_df$race_ethnicity_clean, 
+                                           levels = c('White Not Hispanic', 
+                                                      'Asian', 
+                                                      'Black Or African American',
+                                                      'Hispanic or Latino',
+                                                      'Other/Unknown/Declined'), 
+                                           ordered = FALSE)
+print(levels(zeno_fw_df$race_ethnicity_clean))
+
+table(zeno_fw_df$ms_dx_condensed)
+zeno_fw_df$ms_dx_condensed <- factor(zeno_fw_df$ms_dx_condensed, 
+                                           levels = c('RRMS', 
+                                                      'Progressive MS',
+                                                      'MS, Subtype Not Specified'), 
+                                           ordered = FALSE)
+print(levels(zeno_fw_df$ms_dx_condensed))
+
+table(zeno_fw_df$clean_sex)
+zeno_fw_df$clean_sex <- factor(zeno_fw_df$clean_sex, 
+                                           levels = c('Female', 
+                                                      'Male',
+                                                      'Non-Binary'), 
+                                           ordered = FALSE)
+print(levels(zeno_fw_df$clean_sex))
+```
+
+
+
+```{r}
+zeno_fw_df <- zeno_fw_df[grepl('MS', zeno_fw_df$demographic_diagnosis), ]
+table(zeno_fw_df$demographic_diagnosis)
+
+
+# convert infinite values to NA 
+zeno_fw_df[] <- lapply(zeno_fw_df, function(x) {
+  if (is.numeric(x)) replace(x, is.infinite(x), NA) else x
+})
+```
+
+
+```{r}
+# filter to unique IDs - one row per person, select first video 
+nrow(zeno_fw_df)
+zeno_fw_uniqueid_df <- zeno_fw_df %>%
+  arrange(visit_date_video) %>%   # Sort by date
+  distinct(bw_id, .keep_all = TRUE)  # Keep the first occurrence of each ID
+
+nrow(zeno_fw_uniqueid_df)
+
+```
+
+```{r}
+# count number of missing variables in fast walking speed data frame 
+sum(is.na(zeno_fw_df$delta_pix_h_rel_median_pose_zv))
+sum(is.na(zeno_fw_df$stride_time_mean_sec_pose_zv))
+sum(is.na(zeno_fw_df$mean_cadence_step_per_min_pose_zv))
+sum(is.na(zeno_fw_df$stride_width_mean_cm_pose_zv))
+# stance and all double support measures 
+sum(is.na(zeno_fw_df$foot1_gait_cycle_time_mean_pose_zv))
+# ground truth preferred walk zeno mat data 
+sum(is.na(zeno_fw_df$PWS_cadencestepsminmean))
+sum(is.na(zeno_fw_df$bingoEHR_EDSS_measure_value))
+sum(is.na(zeno_fw_df$msfcEHR_T25FW.SPEED.AVG))
+# demographics 
+sum(is.na(zeno_fw_df$demoEHR_Age))
+sum(is.na(zeno_fw_df$demoEHR_DiseaseDuration)) 
+sum(is.na(zeno_fw_df$race_ethnicity_clean))
+sum(is.na(zeno_fw_df$clean_sex))
+sum(is.na(zeno_fw_df$ms_dx_condensed))
+
+```
+
+# Load and format home video data 
+Some participants have videos from multiple timepoints (baseline and follow up)
+At each timepoint, participants sent back two videos - one turning to the right (gait_vertical_right task) and one turning to the left (gait_vertical_left task)
+
+```{r}
+home_path <- file.path("C:/Users/mmccu/Box/MM_Personal/5_Projects/BoveLab/3_Data_and_Code/gait_bw_zeno_home_analysis",
+                       metrics_version, 
+                       "000_merged_cleaned_data", 
+                       "hv_bw_merged_clean.csv")
+home_df <- read.csv(home_path)
+nrow(home_df)
+table(home_df$demographic_diagnosis)
+table(home_df$task_pose_hv)
+
+```
+
+```{r}
+# assign levels to categorical variables 
+table(home_df$race_ethnicity_clean)
+
+home_df$race_ethnicity_clean <- factor(home_df$race_ethnicity_clean, 
+                                            levels = c('White Not Hispanic', 
+                                                      'Asian', 
+                                                      'Black Or African American',
+                                                      'Hispanic or Latino',
+                                                      'Other/Unknown/Declined'),  
+                                           ordered = FALSE)
+print(levels(home_df$race_ethnicity_clean))
+
+table(home_df$ms_dx_condensed)
+home_df$ms_dx_condensed <- factor(home_df$ms_dx_condensed, 
+                                           levels = c('RRMS', 
+                                                      'Progressive MS',
+                                                      'MS, Subtype Not Specified'), 
+                                           ordered = FALSE)
+print(levels(home_df$ms_dx_condensed))
+
+table(home_df$clean_sex)
+home_df$clean_sex <- factor(home_df$clean_sex, 
+                                           levels = c('Female', 
+                                                      'Male',
+                                                      'Non-Binary'), 
+                                           ordered = FALSE)
+print(levels(home_df$clean_sex))
+```
+
+```{r}
+# convert infinite values to NA 
+home_df[] <- lapply(home_df, function(x) {
+  if (is.numeric(x)) replace(x, is.infinite(x), NA) else x
+})
+```
+
+
+Group by left and right turning videos, unique IDs
+
+```{r}
+# right turning videos  
+home_r_df <- home_df[grepl('gait_vertical_right', home_df$task_pose_hv), ]
+nrow(home_r_df)
+table(home_r_df$task_pose_hv)
+
+# left turning videos 
+home_l_df <- home_df[grepl('gait_vertical_left', home_df$task_pose_hv), ]
+nrow(home_l_df)
+table(home_l_df$task_pose_hv)
+
+# filter to unique IDs - one row per person, select first video 
+home_uniqueid_df <- home_df %>%
+  arrange(visit_date_video) %>%   # Sort by date
+  distinct(bw_id, .keep_all = TRUE)  # Keep the first occurrence of each ID
+
+nrow(home_uniqueid_df)
+```
+
+```{r}
+# count number of missing variables in home video data frame 
+sum(is.na(home_df$delta_pix_h_rel_median_pose_hv))
+sum(is.na(home_df$stride_time_mean_sec_pose_hv))
+sum(is.na(home_df$mean_cadence_step_per_min_pose_hv))
+sum(is.na(home_df$stride_width_mean_cm_pose_hv))
+# stance and all double support measures 
+sum(is.na(home_df$foot1_gait_cycle_time_mean_pose_hv))
+# ground truth preferred walk zeno mat data 
+sum(is.na(home_df$PWS_cadencestepsminmean))
+sum(is.na(home_df$bingoEHR_EDSS_measure_value))
+sum(is.na(home_df$msfcEHR_T25FW.SPEED.AVG))
+# demographics 
+sum(is.na(home_df$demoEHR_Age))
+sum(is.na(home_df$demoEHR_DiseaseDuration)) 
+sum(is.na(home_df$race_ethnicity_clean))
+sum(is.na(home_df$clean_sex))
+sum(is.na(home_df$ms_dx_condensed))
+
+```
+
+# T25FW  Linear Regression 
+
+## Transform T25FW 
+PWS, FW, and Home Videos 
+
+```{r}
+# preferred walking speed videos 
+zeno_pws_df$t25fw_log <- log(zeno_pws_df$msfcEHR_T25FW.SPEED.AVG)
+
+ggplot(data = zeno_pws_df, mapping = aes(msfcEHR_T25FW.SPEED.AVG)) + 
+  geom_histogram()
+
+ggplot(data = zeno_pws_df, mapping = aes(t25fw_log)) + 
+  geom_histogram()
+```
+
+```{r}
+# fast walking speed videos 
+zeno_fw_df$t25fw_log <- log(zeno_fw_df$msfcEHR_T25FW.SPEED.AVG)
+
+ggplot(data = zeno_fw_df, mapping = aes(msfcEHR_T25FW.SPEED.AVG)) + 
+  geom_histogram()
+
+ggplot(data = zeno_fw_df, mapping = aes(t25fw_log)) + 
+  geom_histogram()
+
+```
+
+```{r}
+# home - all videos  
+
+home_df$t25fw_log <- log(home_df$msfcEHR_T25FW.SPEED.AVG)
+
+ggplot(data = home_df, mapping = aes(msfcEHR_T25FW.SPEED.AVG)) + 
+  geom_histogram()
+
+ggplot(data = home_df, mapping = aes(t25fw_log)) + 
+  geom_histogram()
+
+```
+
+
+
+
+## Log Delta Pixel Proxy 
+```{r}
+zeno_pws_df$log_delta_pix_h_rel_median_pose_zv <- log(zeno_pws_df$delta_pix_h_rel_median_pose_zv)
+zeno_fw_df$log_delta_pix_h_rel_median_pose_zv <- log(zeno_fw_df$delta_pix_h_rel_median_pose_zv)
+home_df$log_delta_pix_h_rel_median_pose_hv <- log(home_df$delta_pix_h_rel_median_pose_hv)
+
+# convert inf to NaN 
+zeno_pws_df[] <- lapply(zeno_pws_df, function(x) {
+  if (is.numeric(x)) replace(x, is.infinite(x), NA) else x
+})
+
+zeno_fw_df[] <- lapply(zeno_fw_df, function(x) {
+  if (is.numeric(x)) replace(x, is.infinite(x), NA) else x
+})
+
+home_df[] <- lapply(home_df, function(x) {
+  if (is.numeric(x)) replace(x, is.infinite(x), NA) else x
+})
+```
+
+
+## Preferred Walking Speed --> T25FW 
+
+### Demographics  univariate models  --> Log T25FW
+
+```{r}
+
+# PWS ------------------------------------------
+uni1 <- lm(t25fw_log ~ demoEHR_Age, data = zeno_pws_df)
+hist(resid(uni1)) 
+
+uni2 <- lm(t25fw_log ~ demoEHR_DiseaseDuration, data = zeno_pws_df)
+hist(resid(uni2)) 
+
+uni3 <- lm(t25fw_log ~ ms_dx_condensed, data = zeno_pws_df)
+hist(resid(uni3)) 
+
+uni4 <- lm(t25fw_log ~ race_ethnicity_clean, data = zeno_pws_df)
+hist(resid(uni4)) 
+
+uni5 <- lm(t25fw_log ~ clean_sex, data = zeno_pws_df)
+hist(resid(uni5)) 
+
+## Extract regression results from each model 
+results <- bind_rows(
+  tidy(uni1, conf.int = TRUE) %>% mutate(Variable = "demoEHR_Age", 
+                                         AdjRsquared = summary(uni1)$adj.r.squared),
+  tidy(uni2, conf.int = TRUE) %>% mutate(Variable = "demoEHR_DiseaseDuration", 
+                                         AdjRsquared = summary(uni2)$adj.r.squared),
+  tidy(uni3, conf.int = TRUE) %>% mutate(Variable = "ms_dx_condensed", 
+                                         AdjRsquared = summary(uni3)$adj.r.squared),
+  tidy(uni4, conf.int = TRUE) %>% mutate(Variable = "race_ethnicity_clean", 
+                                         AdjRsquared = summary(uni4)$adj.r.squared),
+  tidy(uni5, conf.int = TRUE) %>% mutate(Variable = "clean_sex", 
+                                         AdjRsquared = summary(uni5)$adj.r.squared)) %>% 
+  filter(term != "(Intercept)")  # Remove intercept term
+
+adj_rsqu_df <- results[c("Variable","AdjRsquared")] %>% 
+  distinct() # remove duplicates 
+adj_rsqu_df$AdjRsquared <- round(adj_rsqu_df$AdjRsquared, 2)
+adj_rsqu_df
+write.csv(adj_rsqu_df, file.path(output_dir, "t25fw_pws_demographics_univariate_regression_adjR.csv"))
+
+# Plot 
+title <- "PWS: Log T25FW ~ Demographic/MS Info"
+p <- univariate_regression_plot(results, title, 1)
+p
+ggsave(file.path(output_dir, "t25fw_pws_demographics_univariate_regression_estimates.png"), 
+       bg = "white", width= 10, height=10)
+```
+
+### Metric univariate models - PWS video metrics 
+
+```{r}
+### Univariate video metrics 
+uni1 <- lm(t25fw_log ~ log_delta_pix_h_rel_median_pose_zv, data = zeno_pws_df)
+ggplot(data = zeno_pws_df, aes(x = log_delta_pix_h_rel_median_pose_zv, y = t25fw_log)) + geom_point()
+hist(resid(uni1))
+
+uni2 <- lm(t25fw_log ~ stride_time_median_sec_pose_zv, data = zeno_pws_df)
+ggplot(data = zeno_pws_df, aes(x = stride_time_median_sec_pose_zv, y = t25fw_log)) + geom_point()
+hist(resid(uni2))
+
+uni3 <- lm(t25fw_log ~ mean_cadence_step_per_min_pose_zv, data = zeno_pws_df)
+ggplot(data = zeno_pws_df, aes(x = mean_cadence_step_per_min_pose_zv, y = t25fw_log)) + geom_point()
+hist(resid(uni3))
+
+uni4 <- lm(t25fw_log ~ stride_width_median_cm_pose_zv, data = zeno_pws_df)
+ggplot(data = zeno_pws_df, aes(x = stride_width_median_cm_pose_zv, y = t25fw_log)) + geom_point()
+hist(resid(uni4))
+
+uni_results <- bind_rows(
+  tidy(uni1, conf.int = TRUE) %>% mutate(Variable = "log_delta_pix_h_rel_median_pose_zv", 
+                                         AdjRsquared = summary(uni1)$adj.r.squared),
+  tidy(uni2, conf.int = TRUE) %>% mutate(Variable = "stride_time_median_sec_pose_zv", 
+                                         AdjRsquared = summary(uni2)$adj.r.squared),
+  tidy(uni3, conf.int = TRUE) %>% mutate(Variable = "mean_cadence_step_per_min_pose_zv",
+                                         AdjRsquared = summary(uni3)$adj.r.squared),
+  tidy(uni4, conf.int = TRUE) %>% mutate(Variable = "stride_width_median_cm_pose_zv",
+                                         AdjRsquared = summary(uni4)$adj.r.squared)) %>% 
+  filter(term != "(Intercept)")  # Remove intercept term
+
+uni_results <- uni_results %>% mutate(Model = "Unadjusted")
+
+# print adjusted R squared 
+adj_rsqu_df <- uni_results[c("Variable", "AdjRsquared")] %>% 
+  distinct() # remove duplicates 
+adj_rsqu_df$AdjRsquared <- round(adj_rsqu_df$AdjRsquared, 2)
+adj_rsqu_df
+write.csv(adj_rsqu_df, file.path(output_dir, "t25fw_pws_metrics_univariate_regression_adjR.csv")) 
+
+p <- univariate_regression_plot(uni_results, 'PWS: Log T25FW ~ Metric', 1)
+p
+ggsave(file.path(output_dir, "t25fw_pws_metrics_univariate_regression_estimates.png"), 
+       bg = "white", width= 10, height=10)
+```
+
+
+
+### Single Metric, adjust 1 confounder - PWS video metrics 
+
+```{r}
+## age ---------------------------------------------------
+con1_age <- lm(t25fw_log ~ log_delta_pix_h_rel_median_pose_zv + demoEHR_Age, data = zeno_pws_df)
+hist(resid(con1_age))
+
+con2_age <- lm(t25fw_log ~ stride_time_median_sec_pose_zv + demoEHR_Age, data = zeno_pws_df)
+hist(resid(con2_age))
+
+con3_age <- lm(t25fw_log ~ mean_cadence_step_per_min_pose_zv + demoEHR_Age, data = zeno_pws_df)
+hist(resid(con3_age))
+
+con4_age <- lm(t25fw_log ~ stride_width_median_cm_pose_zv + demoEHR_Age, data = zeno_pws_df)
+hist(resid(con4_age))
+
+
+con_age_results <- bind_rows(
+  tidy(con1_age, conf.int = TRUE) %>% mutate(Variable = "log_delta_pix_h_rel_median_pose_zv"),
+  tidy(con2_age, conf.int = TRUE) %>% mutate(Variable = "stride_time_median_sec_pose_zv"),
+  tidy(con3_age, conf.int = TRUE) %>% mutate(Variable = "mean_cadence_step_per_min_pose_zv"),
+  tidy(con4_age, conf.int = TRUE) %>% mutate(Variable = "stride_width_median_cm_pose_zv")) %>% 
+  filter(term != "(Intercept)")  # Remove intercept term
+
+confounders <- c("demoEHR_Age")  # Define confounders to remove
+
+con_age_results <- con_age_results %>% 
+  filter(!grepl(confounders, term)) %>% # Remove confounders
+  mutate(Model = "Adjusted") 
+
+con_age_results
+
+# plot adjusted for age vs not adjusted univariate 
+# bind all together to single results df 
+results_age <- bind_rows(uni_results, con_age_results)
+results_age
+
+p <- adj_vs_unadj_regression_plot(results_age, 'PWS: Log T25FW ~ Metric + demoEHR_Age', 1)
+p
+ggsave(file.path(output_dir, "t25fw_pws_metric_regression_adj_age.png"), 
+       bg = "white", width= 10, height=10)
+  
+```
+
+```{r}
+## disease duration -----------------------------------------------------
+con1_dur <- lm(t25fw_log ~ log_delta_pix_h_rel_median_pose_zv + demoEHR_DiseaseDuration, data = zeno_pws_df)
+hist(resid(con1_dur))
+
+con2_dur <- lm(t25fw_log ~ stride_time_median_sec_pose_zv + demoEHR_DiseaseDuration, data = zeno_pws_df)
+hist(resid(con2_dur))
+
+con3_dur <- lm(t25fw_log ~ mean_cadence_step_per_min_pose_zv + demoEHR_DiseaseDuration, data = zeno_pws_df)
+hist(resid(con3_dur))
+
+con4_dur <- lm(t25fw_log ~ stride_width_median_cm_pose_zv + demoEHR_DiseaseDuration, data = zeno_pws_df)
+hist(resid(con4_dur))
+
+
+con_dur_results <- bind_rows(
+  tidy(con1_dur, conf.int = TRUE) %>% mutate(Variable = "log_delta_pix_h_rel_median_pose_zv"),
+  tidy(con2_dur, conf.int = TRUE) %>% mutate(Variable = "stride_time_median_sec_pose_zv"),
+  tidy(con3_dur, conf.int = TRUE) %>% mutate(Variable = "mean_cadence_step_per_min_pose_zv"),
+  tidy(con4_dur, conf.int = TRUE) %>% mutate(Variable = "stride_width_median_cm_pose_zv")) %>% 
+  filter(term != "(Intercept)")  # Remove intercept term
+
+confounders <- c("demoEHR_DiseaseDuration")  # Define confounders to remove
+
+con_dur_results
+
+con_dur_results <- con_dur_results %>% 
+  filter(!grepl(confounders, term)) %>% # Remove confounders
+  mutate(Model = "Adjusted") 
+
+con_dur_results
+
+# plot adjusted for age vs not adjusted univariate 
+# bind all together to single results df 
+results_dur <- bind_rows(uni_results, con_dur_results)
+results_dur
+
+p <- adj_vs_unadj_regression_plot(results_dur, 'PWS: Log T25FW ~ Metric + demoEHR_DiseaseDuration', 1)
+p
+ggsave(file.path(output_dir, "t25fw_pws_metric_regression_adj_duration.png"), 
+       bg = "white", width= 10, height=10)
+```
+
+```{r}
+## MS DX ---------------------------------------------------------------
+con1_dx <- lm(t25fw_log ~ log_delta_pix_h_rel_median_pose_zv + ms_dx_condensed, data = zeno_pws_df)
+hist(resid(con1_dx))
+
+con2_dx <- lm(t25fw_log ~ stride_time_median_sec_pose_zv + ms_dx_condensed, data = zeno_pws_df)
+hist(resid(con2_dx))
+
+con3_dx <- lm(t25fw_log ~ mean_cadence_step_per_min_pose_zv + ms_dx_condensed, data = zeno_pws_df)
+hist(resid(con3_dx))
+
+con4_dx <- lm(t25fw_log ~ stride_width_median_cm_pose_zv + ms_dx_condensed, data = zeno_pws_df)
+hist(resid(con4_dx))
+
+
+con_dx_results <- bind_rows(
+  tidy(con1_dx, conf.int = TRUE) %>% mutate(Variable = "log_delta_pix_h_rel_median_pose_zv"),
+  tidy(con2_dx, conf.int = TRUE) %>% mutate(Variable = "stride_time_median_sec_pose_zv"),
+  tidy(con3_dx, conf.int = TRUE) %>% mutate(Variable = "mean_cadence_step_per_min_pose_zv"),
+  tidy(con4_dx, conf.int = TRUE) %>% mutate(Variable = "stride_width_median_cm_pose_zv")) %>% 
+  filter(term != "(Intercept)")  # Remove intercept term
+
+confounders <- c("ms_dx_condensed")  # Define confounders to remove
+
+con_dx_results
+
+con_dx_results <- con_dx_results %>% 
+  filter(!grepl(confounders, term)) %>% # Remove confounders
+  mutate(Model = "Adjusted") 
+
+con_dx_results
+
+# plot adjusted for age vs not adjusted univariate 
+# bind all together to single results df 
+results_dx <- bind_rows(uni_results, con_dx_results)
+results_dx
+
+p <- adj_vs_unadj_regression_plot(results_dx, 'PWS: Log T25FW ~ Metric + MS DX',1)
+p
+ggsave(file.path(output_dir, "t25fw_pws_metric_regression_adj_MSDX.png"), 
+       bg = "white", width= 10, height=10)
+
+```
+
+
+
+
+```{r}
+## race_ethnicity -----------------------------------------------------
+con1_re <- lm(t25fw_log ~ log_delta_pix_h_rel_median_pose_zv + race_ethnicity_clean, data = zeno_pws_df)
+hist(resid(con1_re))
+
+con2_re <- lm(t25fw_log ~ stride_time_median_sec_pose_zv + race_ethnicity_clean, data = zeno_pws_df)
+hist(resid(con2_re))
+
+con3_re <- lm(t25fw_log ~ mean_cadence_step_per_min_pose_zv + race_ethnicity_clean, data = zeno_pws_df)
+hist(resid(con3_re))
+
+con4_re <- lm(t25fw_log ~ stride_width_median_cm_pose_zv + race_ethnicity_clean, data = zeno_pws_df)
+hist(resid(con4_re))
+
+
+con_re_results <- bind_rows(
+  tidy(con1_re, conf.int = TRUE) %>% mutate(Variable = "log_delta_pix_h_rel_median_pose_zv"),
+  tidy(con2_re, conf.int = TRUE) %>% mutate(Variable = "stride_time_median_sec_pose_zv"),
+  tidy(con3_re, conf.int = TRUE) %>% mutate(Variable = "mean_cadence_step_per_min_pose_zv"),
+  tidy(con4_re, conf.int = TRUE) %>% mutate(Variable = "stride_width_median_cm_pose_zv")) %>% 
+  filter(term != "(Intercept)")  # Remove intercept term
+
+confounders <- c("race_ethnicity_clean")  # Define confounders to remove
+
+con_re_results
+
+con_re_results <- con_re_results %>% 
+  filter(!grepl(confounders, term)) %>% # Remove confounders
+  mutate(Model = "Adjusted") 
+
+con_re_results
+
+# plot adjusted for age vs not adjusted univariate 
+# bind all together to single results df 
+results_re <- bind_rows(uni_results, con_re_results)
+results_re
+
+p <- adj_vs_unadj_regression_plot(results_re, 'PWS: Log T25FW ~ Metric + race_ethnicity_clean', 1)
+p
+ggsave(file.path(output_dir, "t25fw_pws_metric_regression_adj_RaceEthnicity.png"), 
+       bg = "white", width= 10, height=10)
+```
+
+
+```{r}
+## sex -------------------------------------------------------------------
+con1_sex <- lm(t25fw_log ~ log_delta_pix_h_rel_median_pose_zv + clean_sex, data = zeno_pws_df)
+hist(resid(con1_sex))
+
+con2_sex <- lm(t25fw_log ~ stride_time_median_sec_pose_zv + clean_sex, data = zeno_pws_df)
+hist(resid(con2_sex))
+
+con3_sex <- lm(t25fw_log ~ mean_cadence_step_per_min_pose_zv + clean_sex, data = zeno_pws_df)
+hist(resid(con3_sex))
+
+con4_sex <- lm(t25fw_log ~ stride_width_median_cm_pose_zv + clean_sex, data = zeno_pws_df)
+hist(resid(con4_sex))
+
+
+con_sex_results <- bind_rows(
+  tidy(con1_sex, conf.int = TRUE) %>% mutate(Variable = "log_delta_pix_h_rel_median_pose_zv"),
+  tidy(con2_sex, conf.int = TRUE) %>% mutate(Variable = "stride_time_median_sec_pose_zv"),
+  tidy(con3_sex, conf.int = TRUE) %>% mutate(Variable = "mean_cadence_step_per_min_pose_zv"),
+  tidy(con4_sex, conf.int = TRUE) %>% mutate(Variable = "stride_width_median_cm_pose_zv")) %>% 
+  filter(term != "(Intercept)")  # Remove intercept term
+
+confounders <- c("clean_sex")  # Define confounders to remove
+
+con_sex_results
+
+con_sex_results <- con_sex_results %>% 
+  filter(!grepl(confounders, term)) %>% # Remove confounders
+  mutate(Model = "Adjusted") 
+
+con_sex_results
+
+# plot adjusted for age vs not adjusted univariate 
+# bind all together to single results df 
+results_sex <- bind_rows(uni_results, con_sex_results)
+results_sex
+
+p <- adj_vs_unadj_regression_plot(results_sex, 'PWS: Log T25FW ~ Metric + Sex', 1)
+p
+ggsave(file.path(output_dir, "t25fw_pws_metric_regression_adj_sex.png"), 
+       bg = "white", width= 10, height=10)
+```
+
+
+### Multivariate - PWS --> T25fw
+
+Metrics only - not including double support/stance measures, too many missing. May include after improving code 
+```{r}
+# PWS 
+
+# Unadjusted 
+all_unadj <- lm(t25fw_log ~ log_delta_pix_h_rel_median_pose_zv + 
+                  stride_time_median_sec_pose_zv + 
+                  mean_cadence_step_per_min_pose_zv + 
+                  stride_width_median_cm_pose_zv, 
+                data = zeno_pws_df)
+
+summary(all_unadj)
+hist(resid(all_unadj))
+
+# Adjusted 
+all_adjusted <- lm(t25fw_log ~ log_delta_pix_h_rel_median_pose_zv + 
+                     stride_time_median_sec_pose_zv + 
+                     mean_cadence_step_per_min_pose_zv + 
+                     stride_width_median_cm_pose_zv + 
+                     demoEHR_Age + 
+                     demoEHR_DiseaseDuration +
+                     ms_dx_condensed + 
+                     race_ethnicity_clean + 
+                     clean_sex, 
+                   data = zeno_pws_df)
+
+summary(all_adjusted)
+hist(resid(all_adjusted))
+
+# format for plotting 
+# Unadjusted 
+unadj_all_results <- tidy(all_unadj, conf.int = TRUE) %>% 
+  mutate(Model = "Unadjusted", 
+         AdjRsquared = summary(all_unadj)$adj.r.squared)
+
+# Adjusted 
+adj_all_results <- tidy(all_adjusted, conf.int = TRUE) %>% 
+  mutate(Model = "Adjusted", 
+         AdjRsquared = summary(all_adjusted)$adj.r.squared)
+
+# combine and plot 
+multivar_results <- bind_rows(unadj_all_results, adj_all_results) %>% 
+  filter(term != "(Intercept)")  %>% # Remove intercept term
+  mutate(priority = ifelse(grepl("zv", term), 1, 2)) %>% # assign priority to video metrics 
+  arrange(priority) %>% # sort by priority 
+  select(-priority) # drop priority colum
+  
+adj_rsqu_df <- multivar_results[c("Model", "AdjRsquared")] %>% 
+  distinct() # remove duplicates 
+adj_rsqu_df$AdjRsquared <- round(adj_rsqu_df$AdjRsquared, 2)
+adj_rsqu_df
+write.csv(adj_rsqu_df, file.path(output_dir, "t25fw_pws_allMetrics_unadjusted_vs_adjusted_adjR.csv"))
+
+p <- adj_vs_unadj_regression_plot(multivar_results, 'PWS: Log T25FW Multivariate - Unadjusted vs Adjusted', 1)
+p
+ggsave(file.path(output_dir, "t25fw_pws_allMetrics_unadjusted_vs_adjusted.png"), 
+       bg = "white", width= 10, height=10)
+
+```
+
+
+## Fast Walking Speed --> T25fw 
+### Demographics univariate models --> Log T25FW 
+```{r}
+# FW ------------------------------------------
+uni1 <- lm(t25fw_log ~ demoEHR_Age, data = zeno_fw_df)
+hist(resid(uni1)) 
+
+uni2 <- lm(t25fw_log ~ demoEHR_DiseaseDuration, data = zeno_fw_df)
+hist(resid(uni2)) 
+
+uni3 <- lm(t25fw_log ~ ms_dx_condensed, data = zeno_fw_df)
+hist(resid(uni3)) 
+
+uni4 <- lm(t25fw_log ~ race_ethnicity_clean, data = zeno_fw_df)
+hist(resid(uni4)) 
+
+uni5 <- lm(t25fw_log ~ clean_sex, data = zeno_fw_df)
+hist(resid(uni4)) 
+
+
+## Extract regression results from each model 
+results <- bind_rows(
+  tidy(uni1, conf.int = TRUE) %>% mutate(Variable = "demoEHR_Age", 
+                                         AdjRsquared = summary(uni1)$adj.r.squared),
+  tidy(uni2, conf.int = TRUE) %>% mutate(Variable = "demoEHR_DiseaseDuration", 
+                                         AdjRsquared = summary(uni2)$adj.r.squared),
+  tidy(uni3, conf.int = TRUE) %>% mutate(Variable = "ms_dx_condensed", 
+                                         AdjRsquared = summary(uni3)$adj.r.squared),
+  tidy(uni4, conf.int = TRUE) %>% mutate(Variable = "race_ethnicity_clean", 
+                                         AdjRsquared = summary(uni4)$adj.r.squared),
+  tidy(uni5, conf.int = TRUE) %>% mutate(Variable = "clean_sex", 
+                                         AdjRsquared = summary(uni5)$adj.r.squared)) %>% 
+  filter(term != "(Intercept)")  # Remove intercept term
+
+adj_rsqu_df <- results[c("Variable","AdjRsquared")] %>% 
+  distinct() # remove duplicates 
+adj_rsqu_df$AdjRsquared <- round(adj_rsqu_df$AdjRsquared, 2)
+adj_rsqu_df
+write.csv(adj_rsqu_df, file.path(output_dir, "t25fw_fw_demographics_univariate_regression_adjR.csv")) 
+
+# Plot 
+title <- "FW: Log T25FW ~ Demographic/MS Info"
+p <- univariate_regression_plot(results, title, 1)
+p
+ggsave(file.path(output_dir, "t25fw_fw_demographics_univariate_regression_estimates.png"), 
+       bg = "white", width= 10, height=10)
+```
+
+
+### Metric univariate models - FW video metrics 
+```{r}
+### Univariate video metrics 
+uni1 <- lm(t25fw_log ~ log_delta_pix_h_rel_median_pose_zv, data = zeno_fw_df)
+ggplot(data = zeno_fw_df, aes(x = log_delta_pix_h_rel_median_pose_zv, y = t25fw_log)) + geom_point()
+hist(resid(uni1))
+
+uni2 <- lm(t25fw_log ~ stride_time_median_sec_pose_zv, data = zeno_fw_df)
+ggplot(data = zeno_fw_df, aes(x = stride_time_median_sec_pose_zv, y = t25fw_log)) + geom_point()
+hist(resid(uni2))
+
+uni3 <- lm(t25fw_log ~ mean_cadence_step_per_min_pose_zv, data = zeno_fw_df)
+ggplot(data = zeno_fw_df, aes(x = mean_cadence_step_per_min_pose_zv, y = t25fw_log)) + geom_point()
+hist(resid(uni3))
+
+uni4 <- lm(t25fw_log ~ stride_width_median_cm_pose_zv, data = zeno_fw_df)
+ggplot(data = zeno_fw_df, aes(x = stride_width_median_cm_pose_zv, y = t25fw_log)) + geom_point()
+hist(resid(uni4))
+
+uni_results <- bind_rows(
+  tidy(uni1, conf.int = TRUE) %>% mutate(Variable = "log_delta_pix_h_rel_median_pose_zv",
+                                         AdjRsquared = summary(uni1)$adj.r.squared),
+  tidy(uni2, conf.int = TRUE) %>% mutate(Variable = "stride_time_median_sec_pose_zv",
+                                         AdjRsquared = summary(uni2)$adj.r.squared),
+  tidy(uni3, conf.int = TRUE) %>% mutate(Variable = "mean_cadence_step_per_min_pose_zv",
+                                         AdjRsquared = summary(uni3)$adj.r.squared),
+  tidy(uni4, conf.int = TRUE) %>% mutate(Variable = "stride_width_median_cm_pose_zv",
+                                         AdjRsquared = summary(uni4)$adj.r.squared)) %>% 
+  filter(term != "(Intercept)")  # Remove intercept term
+
+uni_results <- uni_results %>% mutate(Model = "Unadjusted")
+adj_rsqu_df <- uni_results[c("Variable", "AdjRsquared")] %>% 
+  distinct() # remove duplicates 
+adj_rsqu_df$AdjRsquared <- round(adj_rsqu_df$AdjRsquared, 2)
+adj_rsqu_df
+write.csv(adj_rsqu_df, file.path(output_dir, "t25fw_fw_metrics_univariate_regression_adjR.csv"))
+
+p <- univariate_regression_plot(uni_results, 'FW: Log T25FW ~ Metric', 1)
+p
+ggsave(file.path(output_dir, "t25fw_fw_metrics_univariate_regression_estimates.png"), 
+       bg = "white", width= 10, height=10)
+```
+
+### Single Metric, adjust 1 confounder - FW video metrics 
+```{r}
+## age ---------------------------------------------------
+con1_age <- lm(t25fw_log ~ log_delta_pix_h_rel_median_pose_zv + demoEHR_Age, data = zeno_fw_df)
+hist(resid(con1_age))
+
+con2_age <- lm(t25fw_log ~ stride_time_median_sec_pose_zv + demoEHR_Age, data = zeno_fw_df)
+hist(resid(con2_age))
+
+con3_age <- lm(t25fw_log ~ mean_cadence_step_per_min_pose_zv + demoEHR_Age, data = zeno_fw_df)
+hist(resid(con3_age))
+
+con4_age <- lm(t25fw_log ~ stride_width_median_cm_pose_zv + demoEHR_Age, data = zeno_fw_df)
+hist(resid(con4_age))
+
+
+con_age_results <- bind_rows(
+  tidy(con1_age, conf.int = TRUE) %>% mutate(Variable = "log_delta_pix_h_rel_median_pose_zv"),
+  tidy(con2_age, conf.int = TRUE) %>% mutate(Variable = "stride_time_median_sec_pose_zv"),
+  tidy(con3_age, conf.int = TRUE) %>% mutate(Variable = "mean_cadence_step_per_min_pose_zv"),
+  tidy(con4_age, conf.int = TRUE) %>% mutate(Variable = "stride_width_median_cm_pose_zv")) %>% 
+  filter(term != "(Intercept)")  # Remove intercept term
+
+confounders <- c("demoEHR_Age")  # Define confounders to remove
+
+con_age_results <- con_age_results %>% 
+  filter(!grepl(confounders, term)) %>% # Remove confounders
+  mutate(Model = "Adjusted") 
+
+con_age_results
+
+# plot adjusted for age vs not adjusted univariate 
+# bind all together to single results df 
+results_age <- bind_rows(uni_results, con_age_results)
+results_age
+
+p <- adj_vs_unadj_regression_plot(results_age, 'FW: Log T25FW ~ Metric + demoEHR_Age', 1)
+p
+ggsave(file.path(output_dir, "t25fw_fw_metric_regression_adj_age.png"), 
+       bg = "white", width= 10, height=10)
+  
+```
+
+```{r}
+## disease duration -----------------------------------------------------
+con1_dur <- lm(t25fw_log ~ log_delta_pix_h_rel_median_pose_zv + demoEHR_DiseaseDuration, data = zeno_fw_df)
+hist(resid(con1_dur))
+
+con2_dur <- lm(t25fw_log ~ stride_time_median_sec_pose_zv + demoEHR_DiseaseDuration, data = zeno_fw_df)
+hist(resid(con2_dur))
+
+con3_dur <- lm(t25fw_log ~ mean_cadence_step_per_min_pose_zv + demoEHR_DiseaseDuration, data = zeno_fw_df)
+hist(resid(con3_dur))
+
+con4_dur <- lm(t25fw_log ~ stride_width_median_cm_pose_zv + demoEHR_DiseaseDuration, data = zeno_fw_df)
+hist(resid(con4_dur))
+
+
+con_dur_results <- bind_rows(
+  tidy(con1_dur, conf.int = TRUE) %>% mutate(Variable = "log_delta_pix_h_rel_median_pose_zv"),
+  tidy(con2_dur, conf.int = TRUE) %>% mutate(Variable = "stride_time_median_sec_pose_zv"),
+  tidy(con3_dur, conf.int = TRUE) %>% mutate(Variable = "mean_cadence_step_per_min_pose_zv"),
+  tidy(con4_dur, conf.int = TRUE) %>% mutate(Variable = "stride_width_median_cm_pose_zv")) %>% 
+  filter(term != "(Intercept)")  # Remove intercept term
+
+confounders <- c("demoEHR_DiseaseDuration")  # Define confounders to remove
+
+con_dur_results
+
+con_dur_results <- con_dur_results %>% 
+  filter(!grepl(confounders, term)) %>% # Remove confounders
+  mutate(Model = "Adjusted") 
+
+con_dur_results
+
+# plot adjusted for age vs not adjusted univariate 
+# bind all together to single results df 
+results_dur <- bind_rows(uni_results, con_dur_results)
+results_dur
+
+p <- adj_vs_unadj_regression_plot(results_dur, 'FW: Log T25FW ~ Metric + demoEHR_DiseaseDuration', 1)
+p
+ggsave(file.path(output_dir, "t25fw_fw_metric_regression_adj_duration.png"), 
+       bg = "white", width= 10, height=10)
+```
+
+```{r}
+## MS DX ---------------------------------------------------------------
+con1_dx <- lm(t25fw_log ~ log_delta_pix_h_rel_median_pose_zv + ms_dx_condensed, data = zeno_fw_df)
+hist(resid(con1_dx))
+
+con2_dx <- lm(t25fw_log ~ stride_time_median_sec_pose_zv + ms_dx_condensed, data = zeno_fw_df)
+hist(resid(con2_dx))
+
+con3_dx <- lm(t25fw_log ~ mean_cadence_step_per_min_pose_zv + ms_dx_condensed, data = zeno_fw_df)
+hist(resid(con3_dx))
+
+con4_dx <- lm(t25fw_log ~ stride_width_median_cm_pose_zv + ms_dx_condensed, data = zeno_fw_df)
+hist(resid(con4_dx))
+
+
+con_dx_results <- bind_rows(
+  tidy(con1_dx, conf.int = TRUE) %>% mutate(Variable = "log_delta_pix_h_rel_median_pose_zv"),
+  tidy(con2_dx, conf.int = TRUE) %>% mutate(Variable = "stride_time_median_sec_pose_zv"),
+  tidy(con3_dx, conf.int = TRUE) %>% mutate(Variable = "mean_cadence_step_per_min_pose_zv"),
+  tidy(con4_dx, conf.int = TRUE) %>% mutate(Variable = "stride_width_median_cm_pose_zv")) %>% 
+  filter(term != "(Intercept)")  # Remove intercept term
+
+confounders <- c("ms_dx_condensed")  # Define confounders to remove
+
+con_dx_results
+
+con_dx_results <- con_dx_results %>% 
+  filter(!grepl(confounders, term)) %>% # Remove confounders
+  mutate(Model = "Adjusted") 
+
+con_dx_results
+
+# plot adjusted for age vs not adjusted univariate 
+# bind all together to single results df 
+results_dx <- bind_rows(uni_results, con_dx_results)
+results_dx
+
+p <- adj_vs_unadj_regression_plot(results_dx, 'FW: Log T25FW ~ Metric + MS DX', 1)
+p
+ggsave(file.path(output_dir, "t25fw_fw_metric_regression_adj_MSDX.png"), 
+       bg = "white", width= 10, height=10)
+
+```
+
+
+
+
+```{r}
+## race_ethnicity -----------------------------------------------------
+con1_re <- lm(t25fw_log ~ log_delta_pix_h_rel_median_pose_zv + race_ethnicity_clean, data = zeno_fw_df)
+hist(resid(con1_re))
+
+con2_re <- lm(t25fw_log ~ stride_time_median_sec_pose_zv + race_ethnicity_clean, data = zeno_fw_df)
+hist(resid(con2_re))
+
+con3_re <- lm(t25fw_log ~ mean_cadence_step_per_min_pose_zv + race_ethnicity_clean, data = zeno_fw_df)
+hist(resid(con3_re))
+
+con4_re <- lm(t25fw_log ~ stride_width_median_cm_pose_zv + race_ethnicity_clean, data = zeno_fw_df)
+hist(resid(con4_re))
+
+
+con_re_results <- bind_rows(
+  tidy(con1_re, conf.int = TRUE) %>% mutate(Variable = "log_delta_pix_h_rel_median_pose_zv"),
+  tidy(con2_re, conf.int = TRUE) %>% mutate(Variable = "stride_time_median_sec_pose_zv"),
+  tidy(con3_re, conf.int = TRUE) %>% mutate(Variable = "mean_cadence_step_per_min_pose_zv"),
+  tidy(con4_re, conf.int = TRUE) %>% mutate(Variable = "stride_width_median_cm_pose_zv")) %>% 
+  filter(term != "(Intercept)")  # Remove intercept term
+
+confounders <- c("race_ethnicity_clean")  # Define confounders to remove
+
+con_re_results
+
+con_re_results <- con_re_results %>% 
+  filter(!grepl(confounders, term)) %>% # Remove confounders
+  mutate(Model = "Adjusted") 
+
+con_re_results
+
+# plot adjusted for age vs not adjusted univariate 
+# bind all together to single results df 
+results_re <- bind_rows(uni_results, con_re_results)
+results_re
+
+p <- adj_vs_unadj_regression_plot(results_re, 'FW: Log T25FW ~ Metric + race_ethnicity_clean', 1)
+p
+ggsave(file.path(output_dir, "t25fw_fw_metric_regression_adj_RaceEthnicity.png"), 
+       bg = "white", width= 10, height=10)
+```
+
+
+```{r}
+## sex -------------------------------------------------------------------
+con1_sex <- lm(t25fw_log ~ log_delta_pix_h_rel_median_pose_zv + clean_sex, data = zeno_fw_df)
+hist(resid(con1_sex))
+
+con2_sex <- lm(t25fw_log ~ stride_time_median_sec_pose_zv + clean_sex, data = zeno_fw_df)
+hist(resid(con2_sex))
+
+con3_sex <- lm(t25fw_log ~ mean_cadence_step_per_min_pose_zv + clean_sex, data = zeno_fw_df)
+hist(resid(con3_sex))
+
+con4_sex <- lm(t25fw_log ~ stride_width_median_cm_pose_zv + clean_sex, data = zeno_fw_df)
+hist(resid(con4_sex))
+
+
+con_sex_results <- bind_rows(
+  tidy(con1_sex, conf.int = TRUE) %>% mutate(Variable = "log_delta_pix_h_rel_median_pose_zv"),
+  tidy(con2_sex, conf.int = TRUE) %>% mutate(Variable = "stride_time_median_sec_pose_zv"),
+  tidy(con3_sex, conf.int = TRUE) %>% mutate(Variable = "mean_cadence_step_per_min_pose_zv"),
+  tidy(con4_sex, conf.int = TRUE) %>% mutate(Variable = "stride_width_median_cm_pose_zv")) %>% 
+  filter(term != "(Intercept)")  # Remove intercept term
+
+confounders <- c("clean_sex")  # Define confounders to remove
+
+con_sex_results
+
+con_sex_results <- con_sex_results %>% 
+  filter(!grepl(confounders, term)) %>% # Remove confounders
+  mutate(Model = "Adjusted") 
+
+con_sex_results
+
+# plot adjusted for age vs not adjusted univariate 
+# bind all together to single results df 
+results_sex <- bind_rows(uni_results, con_sex_results)
+results_sex
+
+p <- adj_vs_unadj_regression_plot(results_sex, 'FW: Log T25FW ~ Metric + Sex', 1)
+p
+ggsave(file.path(output_dir, "t25fw_fw_metric_regression_adj_sex.png"), 
+       bg = "white", width= 10, height=10)
+```
+
+
+### Multivariate - FW --> T25fw
+
+Metrics only - not including double support/stance measures, too many missing. May include after improving code 
+```{r}
+# FW 
+
+# Unadjusted 
+all_unadj <- lm(t25fw_log ~ log_delta_pix_h_rel_median_pose_zv + 
+                  stride_time_median_sec_pose_zv + 
+                  mean_cadence_step_per_min_pose_zv + 
+                  stride_width_median_cm_pose_zv, 
+                data = zeno_fw_df)
+
+summary(all_unadj)
+hist(resid(all_unadj))
+
+# Adjusted 
+all_adjusted <- lm(t25fw_log ~ log_delta_pix_h_rel_median_pose_zv + 
+                     stride_time_median_sec_pose_zv + 
+                     mean_cadence_step_per_min_pose_zv + 
+                     stride_width_median_cm_pose_zv + 
+                     demoEHR_Age + 
+                     demoEHR_DiseaseDuration +
+                     ms_dx_condensed + 
+                     race_ethnicity_clean + 
+                     clean_sex, 
+                   data = zeno_fw_df)
+
+summary(all_adjusted)
+hist(resid(all_adjusted))
+
+# format for plotting 
+# Unadjusted 
+unadj_all_results <- tidy(all_unadj, conf.int = TRUE) %>% 
+  mutate(Model = "Unadjusted",
+         AdjRsquared = summary(all_unadj)$adj.r.squared)
+
+# Adjusted 
+adj_all_results <- tidy(all_adjusted, conf.int = TRUE) %>% 
+  mutate(Model = "Adjusted",
+         AdjRsquared = summary(all_adjusted)$adj.r.squared)
+
+
+# combine and plot 
+multivar_results <- bind_rows(unadj_all_results, adj_all_results) %>% 
+  filter(term != "(Intercept)")  %>% # Remove intercept term
+  mutate(priority = ifelse(grepl("zv", term), 1, 2)) %>% # assign priority to video metrics 
+  arrange(priority) %>% # sort by priority 
+  select(-priority) # drop priority colum
+  
+adj_rsqu_df <- multivar_results[c("Model", "AdjRsquared")] %>% 
+  distinct() # remove duplicates 
+adj_rsqu_df$AdjRsquared <- round(adj_rsqu_df$AdjRsquared, 2)
+adj_rsqu_df
+write.csv(adj_rsqu_df, file.path(output_dir, "t25fw_fw_allMetrics_unadjusted_vs_adjusted_adjR.csv")) 
+
+p <- adj_vs_unadj_regression_plot(multivar_results, 'FW: Log T25FW Multivariate - Unadjusted vs Adjusted', 1)
+p
+ggsave(file.path(output_dir, "t25fw_fw_allMetrics_unadjusted_vs_adjusted.png"), 
+       bg = "white", width= 10, height=10)
+
+```
+
+## Home Videos --> T25fw 
+### Home Univariate models with disease info and demographics  --> Log T25FW
+
+```{r}
+uni1 <- lm(t25fw_log ~ demoEHR_Age, data = home_df)
+hist(resid(uni1)) 
+
+uni2 <- lm(t25fw_log ~ demoEHR_DiseaseDuration, data = home_df)
+hist(resid(uni2)) 
+
+uni3 <- lm(t25fw_log ~ ms_dx_condensed, data = home_df)
+hist(resid(uni3)) 
+
+uni4 <- lm(t25fw_log ~ race_ethnicity_clean, data = home_df)
+hist(resid(uni4)) 
+
+uni5 <- lm(t25fw_log ~ clean_sex, data = home_df)
+hist(resid(uni4)) 
+
+## Extract regression results from each model 
+results <- bind_rows(
+  tidy(uni1, conf.int = TRUE) %>% mutate(Variable = "demoEHR_Age", 
+                                         AdjRsquared = summary(uni1)$adj.r.squared),
+  tidy(uni2, conf.int = TRUE) %>% mutate(Variable = "demoEHR_DiseaseDuration", 
+                                         AdjRsquared = summary(uni2)$adj.r.squared),
+  tidy(uni3, conf.int = TRUE) %>% mutate(Variable = "ms_dx_condensed", 
+                                         AdjRsquared = summary(uni3)$adj.r.squared),
+  tidy(uni4, conf.int = TRUE) %>% mutate(Variable = "race_ethnicity_clean", 
+                                         AdjRsquared = summary(uni4)$adj.r.squared),
+  tidy(uni5, conf.int = TRUE) %>% mutate(Variable = "clean_sex", 
+                                         AdjRsquared = summary(uni5)$adj.r.squared)) %>% 
+  filter(term != "(Intercept)")  # Remove intercept term
+
+adj_rsqu_df <- results[c("Variable", "AdjRsquared")] %>% 
+  distinct() # remove duplicates 
+adj_rsqu_df$AdjRsquared <- round(adj_rsqu_df$AdjRsquared, 2)
+adj_rsqu_df
+write.csv(adj_rsqu_df, file.path(output_dir, "t25fw_home_demographics_univariate_regression_adjR.csv")) 
+
+# Apply rounding function to p-value columns 
+results <- results %>% mutate(pval_text = paste0("p=", sapply(p.value, format_p_value)))  # Format p-values
+
+# Apply formatting function and create significance indicators
+results <- results %>%
+  mutate(
+    pval_text = paste0("p=", sapply(p.value, format_p_value)),
+    sig = ifelse(p.value < 0.05, "Significant", "Non-Significant"),  # Create significance group
+    alpha_level = ifelse(p.value < 0.05, 1, 0.3)  # More transparency for non-sig points
+  )
+
+# Determine x position for p-values (offset to the right of the max estimate)
+x_max <- max(results$conf.high, na.rm = TRUE)  # Get max confidence interval upper bound
+results <- results %>% mutate(pval_x_pos = x_max + 1)  # Place p-values slightly to the right of max x range
+
+# Plot 
+title <- "Home: Log T25FW ~ Demographic/Disease Info"
+p <- univariate_regression_plot(results, title, 1)
+p
+ggsave(file.path(output_dir, "t25fw_home_demographics_univariate_regression_estimates.png"), 
+       bg = "white", width= 10, height=10)
+```
+
+
+
+
+### Metric univariate models - Home video metrics 
+
+```{r}
+### Univariate video metrics 
+uni1 <- lm(t25fw_log ~ log_delta_pix_h_rel_median_pose_hv, data = home_df)
+ggplot(data = home_df, aes(x = log_delta_pix_h_rel_median_pose_hv, y = t25fw_log)) + geom_point()
+hist(resid(uni1))
+
+uni2 <- lm(t25fw_log ~ stride_time_median_sec_pose_hv, data = home_df)
+ggplot(data = home_df, aes(x = stride_time_median_sec_pose_hv, y = t25fw_log)) + geom_point()
+hist(resid(uni2))
+
+uni3 <- lm(t25fw_log ~ mean_cadence_step_per_min_pose_hv, data = home_df)
+ggplot(data = home_df, aes(x = mean_cadence_step_per_min_pose_hv, y = t25fw_log)) + geom_point()
+hist(resid(uni3))
+
+uni4 <- lm(t25fw_log ~ stride_width_median_cm_pose_hv, data = home_df)
+ggplot(data = home_df, aes(x = stride_width_median_cm_pose_hv, y = t25fw_log)) + geom_point()
+hist(resid(uni4))
+
+uni_results <- bind_rows(
+  tidy(uni1, conf.int = TRUE) %>% mutate(Variable = "log_delta_pix_h_rel_median_pose_hv",
+                                         AdjRsquared = summary(uni1)$adj.r.squared),
+  tidy(uni2, conf.int = TRUE) %>% mutate(Variable = "stride_time_median_sec_pose_hv",
+                                         AdjRsquared = summary(uni2)$adj.r.squared),
+  tidy(uni3, conf.int = TRUE) %>% mutate(Variable = "mean_cadence_step_per_min_pose_hv",
+                                         AdjRsquared = summary(uni3)$adj.r.squared),
+  tidy(uni4, conf.int = TRUE) %>% mutate(Variable = "stride_width_median_cm_pose_hv", 
+                                         AdjRsquared = summary(uni4)$adj.r.squared)) %>% 
+  filter(term != "(Intercept)")  # Remove intercept term
+
+uni_results <- uni_results %>% mutate(Model = "Unadjusted")
+
+adj_rsqu_df <- uni_results[c("Variable", "AdjRsquared")] %>% 
+  distinct() # remove duplicates 
+adj_rsqu_df$AdjRsquared <- round(adj_rsqu_df$AdjRsquared, 2)
+adj_rsqu_df
+write.csv(adj_rsqu_df, file.path(output_dir, "t25fw_home_metrics_univariate_regression_adjR.csv")) 
+
+p <- univariate_regression_plot(uni_results, 'Home: Log T25FW ~ Metric', 1)
+p
+ggsave(file.path(output_dir, "t25fw_home_metrics_univariate_regression_estimates.png"), 
+       bg = "white", width= 10, height=10)
+```
+
+
+### Single Metric, adjust 1 confounder - PWS video metrics 
+
+```{r}
+## age ---------------------------------------------------
+con1_age <- lm(t25fw_log ~ log_delta_pix_h_rel_median_pose_hv + demoEHR_Age, data = home_df)
+hist(resid(con1_age))
+
+con2_age <- lm(t25fw_log ~ stride_time_median_sec_pose_hv + demoEHR_Age, data = home_df)
+hist(resid(con2_age))
+
+con3_age <- lm(t25fw_log ~ mean_cadence_step_per_min_pose_hv + demoEHR_Age, data = home_df)
+hist(resid(con3_age))
+
+con4_age <- lm(t25fw_log ~ stride_width_median_cm_pose_hv + demoEHR_Age, data = home_df)
+hist(resid(con4_age))
+
+
+con_age_results <- bind_rows(
+  tidy(con1_age, conf.int = TRUE) %>% mutate(Variable = "log_delta_pix_h_rel_median_pose_hv"),
+  tidy(con2_age, conf.int = TRUE) %>% mutate(Variable = "stride_time_median_sec_pose_hv"),
+  tidy(con3_age, conf.int = TRUE) %>% mutate(Variable = "mean_cadence_step_per_min_pose_hv"),
+  tidy(con4_age, conf.int = TRUE) %>% mutate(Variable = "stride_width_median_cm_pose_hv")) %>% 
+  filter(term != "(Intercept)")  # Remove intercept term
+
+confounders <- c("demoEHR_Age")  # Define confounders to remove
+
+con_age_results <- con_age_results %>% 
+  filter(!grepl(confounders, term)) %>% # Remove confounders
+  mutate(Model = "Adjusted") 
+
+con_age_results
+
+# plot adjusted for age vs not adjusted univariate 
+# bind all together to single results df 
+results_age <- bind_rows(uni_results, con_age_results)
+results_age
+
+p <- adj_vs_unadj_regression_plot(results_age, 'Home: Log T25FW ~ Metric + demoEHR_Age', 1)
+p
+ggsave(file.path(output_dir, "t25fw_home_metric_regression_adj_age.png"), 
+       bg = "white", width= 10, height=10)
+  
+```
+
+```{r}
+## disease duration -----------------------------------------------------
+con1_dur <- lm(t25fw_log ~ log_delta_pix_h_rel_median_pose_hv + demoEHR_DiseaseDuration, data = home_df)
+hist(resid(con1_dur))
+
+con2_dur <- lm(t25fw_log ~ stride_time_median_sec_pose_hv + demoEHR_DiseaseDuration, data = home_df)
+hist(resid(con2_dur))
+
+con3_dur <- lm(t25fw_log ~ mean_cadence_step_per_min_pose_hv + demoEHR_DiseaseDuration, data = home_df)
+hist(resid(con3_dur))
+
+con4_dur <- lm(t25fw_log ~ stride_width_median_cm_pose_hv + demoEHR_DiseaseDuration, data = home_df)
+hist(resid(con4_dur))
+
+
+con_dur_results <- bind_rows(
+  tidy(con1_dur, conf.int = TRUE) %>% mutate(Variable = "log_delta_pix_h_rel_median_pose_hv"),
+  tidy(con2_dur, conf.int = TRUE) %>% mutate(Variable = "stride_time_median_sec_pose_hv"),
+  tidy(con3_dur, conf.int = TRUE) %>% mutate(Variable = "mean_cadence_step_per_min_pose_hv"),
+  tidy(con4_dur, conf.int = TRUE) %>% mutate(Variable = "stride_width_median_cm_pose_hv")) %>% 
+  filter(term != "(Intercept)")  # Remove intercept term
+
+confounders <- c("demoEHR_DiseaseDuration")  # Define confounders to remove
+
+con_dur_results
+
+con_dur_results <- con_dur_results %>% 
+  filter(!grepl(confounders, term)) %>% # Remove confounders
+  mutate(Model = "Adjusted") 
+
+con_dur_results
+
+# plot adjusted for age vs not adjusted univariate 
+# bind all together to single results df 
+results_dur <- bind_rows(uni_results, con_dur_results)
+results_dur
+
+p <- adj_vs_unadj_regression_plot(results_dur, 'Home: Log T25FW ~ Metric + demoEHR_DiseaseDuration', 1)
+p
+ggsave(file.path(output_dir, "t25fw_home_metric_regression_adj_duration.png"), 
+       bg = "white", width= 10, height=10)
+```
+
+```{r}
+## MS DX ---------------------------------------------------------------
+con1_dx <- lm(t25fw_log ~ log_delta_pix_h_rel_median_pose_hv + ms_dx_condensed, data = home_df)
+hist(resid(con1_dx))
+
+con2_dx <- lm(t25fw_log ~ stride_time_median_sec_pose_hv + ms_dx_condensed, data = home_df)
+hist(resid(con2_dx))
+
+con3_dx <- lm(t25fw_log ~ mean_cadence_step_per_min_pose_hv + ms_dx_condensed, data = home_df)
+hist(resid(con3_dx))
+
+con4_dx <- lm(t25fw_log ~ stride_width_median_cm_pose_hv + ms_dx_condensed, data = home_df)
+hist(resid(con4_dx))
+
+
+con_dx_results <- bind_rows(
+  tidy(con1_dx, conf.int = TRUE) %>% mutate(Variable = "log_delta_pix_h_rel_median_pose_hv"),
+  tidy(con2_dx, conf.int = TRUE) %>% mutate(Variable = "stride_time_median_sec_pose_hv"),
+  tidy(con3_dx, conf.int = TRUE) %>% mutate(Variable = "mean_cadence_step_per_min_pose_hv"),
+  tidy(con4_dx, conf.int = TRUE) %>% mutate(Variable = "stride_width_median_cm_pose_hv")) %>% 
+  filter(term != "(Intercept)")  # Remove intercept term
+
+confounders <- c("ms_dx_condensed")  # Define confounders to remove
+
+con_dx_results
+
+con_dx_results <- con_dx_results %>% 
+  filter(!grepl(confounders, term)) %>% # Remove confounders
+  mutate(Model = "Adjusted") 
+
+con_dx_results
+
+# plot adjusted for age vs not adjusted univariate 
+# bind all together to single results df 
+results_dx <- bind_rows(uni_results, con_dx_results)
+results_dx
+
+p <- adj_vs_unadj_regression_plot(results_dx, 'Home: Log T25FW ~ Metric + MS DX', 1)
+p
+ggsave(file.path(output_dir, "t25fw_home_metric_regression_adj_MSDX.png"), 
+       bg = "white", width= 10, height=10)
+
+```
+
+
+```{r}
+## race_ethnicity -----------------------------------------------------
+con1_re <- lm(t25fw_log ~ log_delta_pix_h_rel_median_pose_hv + race_ethnicity_clean, data = home_df)
+hist(resid(con1_re))
+
+con2_re <- lm(t25fw_log ~ stride_time_median_sec_pose_hv + race_ethnicity_clean, data = home_df)
+hist(resid(con2_re))
+
+con3_re <- lm(t25fw_log ~ mean_cadence_step_per_min_pose_hv + race_ethnicity_clean, data = home_df)
+hist(resid(con3_re))
+
+con4_re <- lm(t25fw_log ~ stride_width_median_cm_pose_hv + race_ethnicity_clean, data = home_df)
+hist(resid(con4_re))
+
+
+con_re_results <- bind_rows(
+  tidy(con1_re, conf.int = TRUE) %>% mutate(Variable = "log_delta_pix_h_rel_median_pose_hv"),
+  tidy(con2_re, conf.int = TRUE) %>% mutate(Variable = "stride_time_median_sec_pose_hv"),
+  tidy(con3_re, conf.int = TRUE) %>% mutate(Variable = "mean_cadence_step_per_min_pose_hv"),
+  tidy(con4_re, conf.int = TRUE) %>% mutate(Variable = "stride_width_median_cm_pose_hv")) %>% 
+  filter(term != "(Intercept)")  # Remove intercept term
+
+confounders <- c("race_ethnicity_clean")  # Define confounders to remove
+
+con_re_results
+
+con_re_results <- con_re_results %>% 
+  filter(!grepl(confounders, term)) %>% # Remove confounders
+  mutate(Model = "Adjusted") 
+
+con_re_results
+
+# plot adjusted for age vs not adjusted univariate 
+# bind all together to single results df 
+results_re <- bind_rows(uni_results, con_re_results)
+results_re
+
+p <- adj_vs_unadj_regression_plot(results_re, 'Home: Log T25FW ~ Metric + race_ethnicity_clean', 1)
+p
+ggsave(file.path(output_dir, "t25fw_home_metric_regression_adj_RaceEthnicity.png"), 
+       bg = "white", width= 10, height=10)
+```
+
+```{r}
+## sex -------------------------------------------------------------------
+con1_sex <- lm(t25fw_log ~ log_delta_pix_h_rel_median_pose_hv + clean_sex, data = home_df)
+hist(resid(con1_sex))
+
+con2_sex <- lm(t25fw_log ~ stride_time_median_sec_pose_hv + clean_sex, data = home_df)
+hist(resid(con2_sex))
+
+con3_sex <- lm(t25fw_log ~ mean_cadence_step_per_min_pose_hv + clean_sex, data = home_df)
+hist(resid(con3_sex))
+
+con4_sex <- lm(t25fw_log ~ stride_width_median_cm_pose_hv + clean_sex, data = home_df)
+hist(resid(con4_sex))
+
+
+con_sex_results <- bind_rows(
+  tidy(con1_sex, conf.int = TRUE) %>% mutate(Variable = "log_delta_pix_h_rel_median_pose_hv"),
+  tidy(con2_sex, conf.int = TRUE) %>% mutate(Variable = "stride_time_median_sec_pose_hv"),
+  tidy(con3_sex, conf.int = TRUE) %>% mutate(Variable = "mean_cadence_step_per_min_pose_hv"),
+  tidy(con4_sex, conf.int = TRUE) %>% mutate(Variable = "stride_width_median_cm_pose_hv")) %>% 
+  filter(term != "(Intercept)")  # Remove intercept term
+
+confounders <- c("clean_sex")  # Define confounders to remove
+
+con_sex_results
+
+con_sex_results <- con_sex_results %>% 
+  filter(!grepl(confounders, term)) %>% # Remove confounders
+  mutate(Model = "Adjusted") 
+
+con_sex_results
+
+# plot adjusted for age vs not adjusted univariate 
+# bind all together to single results df 
+results_sex <- bind_rows(uni_results, con_sex_results)
+results_sex
+
+p <- adj_vs_unadj_regression_plot(results_sex, 'Home: Log T25FW ~ Metric + Sex', 1)
+p
+ggsave(file.path(output_dir, "t25fw_home_metric_regression_adj_sex.png"), 
+       bg = "white", width= 10, height=10)
+```
+
+
+
+
+### Multivariate - Home --> T25fw
+
+Metrics only - not including double support/stance measures, too many missing. May include after improving code 
+```{r}
+# HOme 
+
+# Unadjusted 
+all_unadj <- lm(t25fw_log ~ log_delta_pix_h_rel_median_pose_hv + 
+                  stride_time_median_sec_pose_hv + 
+                  mean_cadence_step_per_min_pose_hv + 
+                  stride_width_median_cm_pose_hv, 
+                data = home_df)
+
+summary(all_unadj)
+hist(resid(all_unadj))
+
+# Adjusted 
+all_adjusted <- lm(t25fw_log ~ log_delta_pix_h_rel_median_pose_hv + 
+                     stride_time_median_sec_pose_hv + 
+                     mean_cadence_step_per_min_pose_hv + 
+                     stride_width_median_cm_pose_hv + 
+                     demoEHR_Age + 
+                     demoEHR_DiseaseDuration +
+                     ms_dx_condensed + 
+                     race_ethnicity_clean + 
+                     clean_sex, 
+                   data = home_df)
+
+summary(all_adjusted)
+hist(resid(all_adjusted))
+
+# format for plotting 
+# Unadjusted 
+unadj_all_results <- tidy(all_unadj, conf.int = TRUE) %>% 
+  mutate(Model = "Unadjusted",
+         AdjRsquared = summary(all_unadj)$adj.r.squared)
+
+# Adjusted 
+adj_all_results <- tidy(all_adjusted, conf.int = TRUE) %>% 
+  mutate(Model = "Adjusted",
+         AdjRsquared = summary(all_adjusted)$adj.r.squared)
+
+# combine and plot 
+multivar_results <- bind_rows(unadj_all_results, adj_all_results) %>% 
+  filter(term != "(Intercept)")  
+  
+adj_rsqu_df <- multivar_results[c("Model", "AdjRsquared")]  %>% 
+  distinct() # remove duplicates 
+adj_rsqu_df$AdjRsquared <- round(adj_rsqu_df$AdjRsquared, 2)
+adj_rsqu_df
+write.csv(adj_rsqu_df, file.path(output_dir, "t25fw_home_allMetrics_unadjusted_vs_adjusted_adjR.csv")) 
+
+
+p <- adj_vs_unadj_regression_plot(multivar_results, 'Home: Log T25FW Multivariate - Unadjusted vs Adjusted', 1)
+p
+ggsave(file.path(output_dir, "t25fw_home_allMetrics_unadjusted_vs_adjusted.png"), 
+       bg = "white", width= 10, height=10)
+
+```
+
+# PWS Velocity Zeno Velocity  Linear Regression 
+
+```{r}
+ggplot(data = zeno_pws_df, aes(PWS_velocitycmsecmean)) + 
+  geom_histogram()
+
+home_df$log_PWS_velocitycmsecmean <- log(home_df$PWS_velocitycmsecmean)
+ggplot(data = home_df, aes(PWS_velocitycmsecmean)) + 
+  geom_histogram()
+```
+
+## PWS Zeno Videos --> PWS Velocity Zeno Velocity 
+### Demographics  univariate models 
+
+```{r}
+# PWS ------------------------------------------
+uni1 <- lm(PWS_velocitycmsecmean ~ demoEHR_Age, data = zeno_pws_df)
+hist(resid(uni1)) 
+
+uni2 <- lm(PWS_velocitycmsecmean ~ demoEHR_DiseaseDuration, data = zeno_pws_df)
+hist(resid(uni2)) 
+
+uni3 <- lm(PWS_velocitycmsecmean ~ ms_dx_condensed, data = zeno_pws_df)
+hist(resid(uni3)) 
+
+uni4 <- lm(PWS_velocitycmsecmean ~ race_ethnicity_clean, data = zeno_pws_df)
+hist(resid(uni4)) 
+
+uni5 <- lm(PWS_velocitycmsecmean ~ clean_sex, data = zeno_pws_df)
+hist(resid(uni4)) 
+
+
+## Extract regression results from each model 
+results <- bind_rows(
+  tidy(uni1, conf.int = TRUE) %>% mutate(Variable = "demoEHR_Age", 
+                                         AdjRsquared = summary(uni1)$adj.r.squared),
+  tidy(uni2, conf.int = TRUE) %>% mutate(Variable = "demoEHR_DiseaseDuration", 
+                                         AdjRsquared = summary(uni2)$adj.r.squared),
+  tidy(uni3, conf.int = TRUE) %>% mutate(Variable = "ms_dx_condensed", 
+                                         AdjRsquared = summary(uni3)$adj.r.squared),
+  tidy(uni4, conf.int = TRUE) %>% mutate(Variable = "race_ethnicity_clean", 
+                                         AdjRsquared = summary(uni4)$adj.r.squared),
+  tidy(uni5, conf.int = TRUE) %>% mutate(Variable = "clean_sex", 
+                                         AdjRsquared = summary(uni5)$adj.r.squared)) %>% 
+  filter(term != "(Intercept)")  # Remove intercept term
+
+adj_rsqu_df <- results[c("Variable","AdjRsquared")] %>% 
+  distinct() # remove duplicates
+adj_rsqu_df$AdjRsquared <- round(adj_rsqu_df$AdjRsquared, 2)
+adj_rsqu_df
+write.csv(adj_rsqu_df, file.path(output_dir, "PWSvel_pws_demographics_univariate_regression_adjR.csv")) 
+
+# Plot 
+title <- "PWS: PWS_velocitycmsecmean ~ Demographic/Disease Info"
+p <- univariate_regression_plot(results, title, 5)
+p
+ggsave(file.path(output_dir, "PWSvel_pws_demographics_univariate_regression_estimates.png"), 
+       bg = "white", width= 10, height=10)
+```
+
+
+### Metric univariate models - PWS video metrics 
+
+```{r}
+### Univariate video metrics 
+uni1 <- lm(PWS_velocitycmsecmean ~ log_delta_pix_h_rel_median_pose_zv, data = zeno_pws_df)
+ggplot(data = zeno_pws_df, aes(x = log_delta_pix_h_rel_median_pose_zv, y = PWS_velocitycmsecmean)) + geom_point()
+summary(uni1)
+hist(resid(uni1))
+
+uni2 <- lm(PWS_velocitycmsecmean ~ stride_time_median_sec_pose_zv, data = zeno_pws_df)
+ggplot(data = zeno_pws_df, aes(x = stride_time_median_sec_pose_zv, y = PWS_velocitycmsecmean)) + geom_point()
+hist(resid(uni2))
+
+uni3 <- lm(PWS_velocitycmsecmean ~ mean_cadence_step_per_min_pose_zv, data = zeno_pws_df)
+ggplot(data = zeno_pws_df, aes(x = mean_cadence_step_per_min_pose_zv, y = PWS_velocitycmsecmean)) + geom_point()
+hist(resid(uni3))
+
+uni4 <- lm(PWS_velocitycmsecmean ~ stride_width_median_cm_pose_zv, data = zeno_pws_df)
+ggplot(data = zeno_pws_df, aes(x = stride_width_median_cm_pose_zv, y = PWS_velocitycmsecmean)) + geom_point()
+hist(resid(uni4))
+
+uni_results <- bind_rows(
+  tidy(uni1, conf.int = TRUE) %>% mutate(Variable = "log_delta_pix_h_rel_median_pose_zv",
+                                         AdjRsquared = summary(uni1)$adj.r.squared),
+  tidy(uni2, conf.int = TRUE) %>% mutate(Variable = "stride_time_median_sec_pose_zv",
+                                         AdjRsquared = summary(uni2)$adj.r.squared),
+  tidy(uni3, conf.int = TRUE) %>% mutate(Variable = "mean_cadence_step_per_min_pose_zv",
+                                         AdjRsquared = summary(uni3)$adj.r.squared),
+  tidy(uni4, conf.int = TRUE) %>% mutate(Variable = "stride_width_median_cm_pose_zv",
+                                         AdjRsquared = summary(uni4)$adj.r.squared)) %>% 
+  filter(term != "(Intercept)")  # Remove intercept term
+
+uni_results <- uni_results %>% mutate(Model = "Unadjusted")
+
+adj_rsqu_df <- uni_results[c("Variable", "AdjRsquared")] %>% 
+  distinct() # remove duplicates 
+adj_rsqu_df$AdjRsquared <- round(adj_rsqu_df$AdjRsquared, 2)
+adj_rsqu_df
+write.csv(adj_rsqu_df, file.path(output_dir, "PWSvel_pws_metrics_univariate_regression_adjR.csv")) 
+
+p <- univariate_regression_plot(uni_results, 'PWS: PWS_velocitycmsecmean ~ Metric', 35)
+p
+ggsave(file.path(output_dir, "PWSvel_pws_metrics_univariate_regression_estimates.png"), 
+       bg = "white", width= 10, height=10)
+```
+
+### Single Metric, adjust 1 confounder - PWS video metrics 
+
+```{r}
+## age ---------------------------------------------------
+con1_age <- lm(PWS_velocitycmsecmean ~ log_delta_pix_h_rel_median_pose_zv + demoEHR_Age, data = zeno_pws_df)
+hist(resid(con1_age))
+
+con2_age <- lm(PWS_velocitycmsecmean ~ stride_time_median_sec_pose_zv + demoEHR_Age, data = zeno_pws_df)
+hist(resid(con2_age))
+
+con3_age <- lm(PWS_velocitycmsecmean ~ mean_cadence_step_per_min_pose_zv + demoEHR_Age, data = zeno_pws_df)
+hist(resid(con3_age))
+
+con4_age <- lm(PWS_velocitycmsecmean ~ stride_width_median_cm_pose_zv + demoEHR_Age, data = zeno_pws_df)
+hist(resid(con4_age))
+
+
+con_age_results <- bind_rows(
+  tidy(con1_age, conf.int = TRUE) %>% mutate(Variable = "log_delta_pix_h_rel_median_pose_zv"),
+  tidy(con2_age, conf.int = TRUE) %>% mutate(Variable = "stride_time_median_sec_pose_zv"),
+  tidy(con3_age, conf.int = TRUE) %>% mutate(Variable = "mean_cadence_step_per_min_pose_zv"),
+  tidy(con4_age, conf.int = TRUE) %>% mutate(Variable = "stride_width_median_cm_pose_zv")) %>% 
+  filter(term != "(Intercept)")  # Remove intercept term
+
+confounders <- c("demoEHR_Age")  # Define confounders to remove
+
+con_age_results <- con_age_results %>% 
+  filter(!grepl(confounders, term)) %>% # Remove confounders
+  mutate(Model = "Adjusted") 
+
+con_age_results
+
+# plot adjusted for age vs not adjusted univariate 
+# bind all together to single results df 
+results_age <- bind_rows(uni_results, con_age_results)
+results_age
+
+p <- adj_vs_unadj_regression_plot(results_age, 'PWS: PWS_velocitycmsecmean~ Metric + demoEHR_Age', 35)
+p
+ggsave(file.path(output_dir, "PWSvel_pws_metric_regression_adj_age.png"), 
+       bg = "white", width= 10, height=10)
+  
+```
+
+```{r}
+## disease duration -----------------------------------------------------
+con1_dur <- lm(PWS_velocitycmsecmean ~ log_delta_pix_h_rel_median_pose_zv + demoEHR_DiseaseDuration, data = zeno_pws_df)
+hist(resid(con1_dur))
+
+con2_dur <- lm(PWS_velocitycmsecmean ~ stride_time_median_sec_pose_zv + demoEHR_DiseaseDuration, data = zeno_pws_df)
+hist(resid(con2_dur))
+
+con3_dur <- lm(PWS_velocitycmsecmean ~ mean_cadence_step_per_min_pose_zv + demoEHR_DiseaseDuration, data = zeno_pws_df)
+hist(resid(con3_dur))
+
+con4_dur <- lm(PWS_velocitycmsecmean ~ stride_width_median_cm_pose_zv + demoEHR_DiseaseDuration, data = zeno_pws_df)
+hist(resid(con4_dur))
+
+
+con_dur_results <- bind_rows(
+  tidy(con1_dur, conf.int = TRUE) %>% mutate(Variable = "log_delta_pix_h_rel_median_pose_zv"),
+  tidy(con2_dur, conf.int = TRUE) %>% mutate(Variable = "stride_time_median_sec_pose_zv"),
+  tidy(con3_dur, conf.int = TRUE) %>% mutate(Variable = "mean_cadence_step_per_min_pose_zv"),
+  tidy(con4_dur, conf.int = TRUE) %>% mutate(Variable = "stride_width_median_cm_pose_zv")) %>% 
+  filter(term != "(Intercept)")  # Remove intercept term
+
+confounders <- c("demoEHR_DiseaseDuration")  # Define confounders to remove
+
+con_dur_results
+
+con_dur_results <- con_dur_results %>% 
+  filter(!grepl(confounders, term)) %>% # Remove confounders
+  mutate(Model = "Adjusted") 
+
+con_dur_results
+
+# plot adjusted for age vs not adjusted univariate 
+# bind all together to single results df 
+results_dur <- bind_rows(uni_results, con_dur_results)
+results_dur
+
+p <- adj_vs_unadj_regression_plot(results_dur, 'PWS: PWS_velocitycmsecmean~ Metric + demoEHR_DiseaseDuration', 35)
+p
+ggsave(file.path(output_dir, "PWSvel_pws_metric_regression_adj_duration.png"), 
+       bg = "white", width= 10, height=10)
+```
+
+```{r}
+## MS DX ---------------------------------------------------------------
+con1_dx <- lm(PWS_velocitycmsecmean ~ log_delta_pix_h_rel_median_pose_zv + ms_dx_condensed, data = zeno_pws_df)
+hist(resid(con1_dx))
+
+con2_dx <- lm(PWS_velocitycmsecmean ~ stride_time_median_sec_pose_zv + ms_dx_condensed, data = zeno_pws_df)
+hist(resid(con2_dx))
+
+con3_dx <- lm(PWS_velocitycmsecmean ~ mean_cadence_step_per_min_pose_zv + ms_dx_condensed, data = zeno_pws_df)
+hist(resid(con3_dx))
+
+con4_dx <- lm(PWS_velocitycmsecmean ~ stride_width_median_cm_pose_zv + ms_dx_condensed, data = zeno_pws_df)
+hist(resid(con4_dx))
+
+
+con_dx_results <- bind_rows(
+  tidy(con1_dx, conf.int = TRUE) %>% mutate(Variable = "log_delta_pix_h_rel_median_pose_zv"),
+  tidy(con2_dx, conf.int = TRUE) %>% mutate(Variable = "stride_time_median_sec_pose_zv"),
+  tidy(con3_dx, conf.int = TRUE) %>% mutate(Variable = "mean_cadence_step_per_min_pose_zv"),
+  tidy(con4_dx, conf.int = TRUE) %>% mutate(Variable = "stride_width_median_cm_pose_zv")) %>% 
+  filter(term != "(Intercept)")  # Remove intercept term
+
+confounders <- c("ms_dx_condensed")  # Define confounders to remove
+
+con_dx_results
+
+con_dx_results <- con_dx_results %>% 
+  filter(!grepl(confounders, term)) %>% # Remove confounders
+  mutate(Model = "Adjusted") 
+
+con_dx_results
+
+# plot adjusted for age vs not adjusted univariate 
+# bind all together to single results df 
+results_dx <- bind_rows(uni_results, con_dx_results)
+results_dx
+
+p <- adj_vs_unadj_regression_plot(results_dx, 'PWS: PWS_velocitycmsecmean~ Metric + MS DX',35)
+p
+ggsave(file.path(output_dir, "PWSvel_pws_metric_regression_adj_MSDX.png"), 
+       bg = "white", width= 10, height=10)
+
+```
+
+
+
+
+```{r}
+## race_ethnicity -----------------------------------------------------
+con1_re <- lm(PWS_velocitycmsecmean ~ log_delta_pix_h_rel_median_pose_zv + race_ethnicity_clean, data = zeno_pws_df)
+hist(resid(con1_re))
+
+con2_re <- lm(PWS_velocitycmsecmean ~ stride_time_median_sec_pose_zv + race_ethnicity_clean, data = zeno_pws_df)
+hist(resid(con2_re))
+
+con3_re <- lm(PWS_velocitycmsecmean ~ mean_cadence_step_per_min_pose_zv + race_ethnicity_clean, data = zeno_pws_df)
+hist(resid(con3_re))
+
+con4_re <- lm(PWS_velocitycmsecmean ~ stride_width_median_cm_pose_zv + race_ethnicity_clean, data = zeno_pws_df)
+hist(resid(con4_re))
+
+
+con_re_results <- bind_rows(
+  tidy(con1_re, conf.int = TRUE) %>% mutate(Variable = "log_delta_pix_h_rel_median_pose_zv"),
+  tidy(con2_re, conf.int = TRUE) %>% mutate(Variable = "stride_time_median_sec_pose_zv"),
+  tidy(con3_re, conf.int = TRUE) %>% mutate(Variable = "mean_cadence_step_per_min_pose_zv"),
+  tidy(con4_re, conf.int = TRUE) %>% mutate(Variable = "stride_width_median_cm_pose_zv")) %>% 
+  filter(term != "(Intercept)")  # Remove intercept term
+
+confounders <- c("race_ethnicity_clean")  # Define confounders to remove
+
+con_re_results
+
+con_re_results <- con_re_results %>% 
+  filter(!grepl(confounders, term)) %>% # Remove confounders
+  mutate(Model = "Adjusted") 
+
+con_re_results
+
+# plot adjusted for age vs not adjusted univariate 
+# bind all together to single results df 
+results_re <- bind_rows(uni_results, con_re_results)
+results_re
+
+p <- adj_vs_unadj_regression_plot(results_re, 'PWS: PWS_velocitycmsecmean~ Metric + race_ethnicity_clean', 35)
+p
+ggsave(file.path(output_dir, "PWSvel_pws_metric_regression_adj_RaceEthnicity.png"), 
+       bg = "white", width= 10, height=10)
+```
+
+
+```{r}
+## sex -------------------------------------------------------------------
+con1_sex <- lm(PWS_velocitycmsecmean ~ log_delta_pix_h_rel_median_pose_zv + clean_sex, data = zeno_pws_df)
+hist(resid(con1_sex))
+
+con2_sex <- lm(PWS_velocitycmsecmean ~ stride_time_median_sec_pose_zv + clean_sex, data = zeno_pws_df)
+hist(resid(con2_sex))
+
+con3_sex <- lm(PWS_velocitycmsecmean ~ mean_cadence_step_per_min_pose_zv + clean_sex, data = zeno_pws_df)
+hist(resid(con3_sex))
+
+con4_sex <- lm(PWS_velocitycmsecmean ~ stride_width_median_cm_pose_zv + clean_sex, data = zeno_pws_df)
+hist(resid(con4_sex))
+
+
+con_sex_results <- bind_rows(
+  tidy(con1_sex, conf.int = TRUE) %>% mutate(Variable = "log_delta_pix_h_rel_median_pose_zv"),
+  tidy(con2_sex, conf.int = TRUE) %>% mutate(Variable = "stride_time_median_sec_pose_zv"),
+  tidy(con3_sex, conf.int = TRUE) %>% mutate(Variable = "mean_cadence_step_per_min_pose_zv"),
+  tidy(con4_sex, conf.int = TRUE) %>% mutate(Variable = "stride_width_median_cm_pose_zv")) %>% 
+  filter(term != "(Intercept)")  # Remove intercept term
+
+confounders <- c("clean_sex")  # Define confounders to remove
+
+con_sex_results
+
+con_sex_results <- con_sex_results %>% 
+  filter(!grepl(confounders, term)) %>% # Remove confounders
+  mutate(Model = "Adjusted") 
+
+con_sex_results
+
+# plot adjusted for age vs not adjusted univariate 
+# bind all together to single results df 
+results_sex <- bind_rows(uni_results, con_sex_results)
+results_sex
+
+p <- adj_vs_unadj_regression_plot(results_sex, 'PWS: PWS_velocitycmsecmean~ Metric + Sex', 35)
+p
+ggsave(file.path(output_dir, "PWSvel_pws_metric_regression_adj_sex.png"), 
+       bg = "white", width= 10, height=10)
+```
+
+
+### Multivariate - PWS 
+
+Metrics only - not including double support/stance measures, too many missing. May include after improving code 
+```{r}
+# PWS 
+
+# Unadjusted 
+all_unadj <- lm(PWS_velocitycmsecmean ~ log_delta_pix_h_rel_median_pose_zv + 
+                  stride_time_median_sec_pose_zv + 
+                  mean_cadence_step_per_min_pose_zv + 
+                  stride_width_median_cm_pose_zv, 
+                data = zeno_pws_df)
+
+summary(all_unadj)
+hist(resid(all_unadj))
+
+# Adjusted 
+all_adjusted <- lm(PWS_velocitycmsecmean ~ log_delta_pix_h_rel_median_pose_zv + 
+                     stride_time_median_sec_pose_zv + 
+                     mean_cadence_step_per_min_pose_zv + 
+                     stride_width_median_cm_pose_zv + 
+                     demoEHR_Age + 
+                     demoEHR_DiseaseDuration +
+                     ms_dx_condensed + 
+                     race_ethnicity_clean + 
+                     clean_sex, 
+                   data = zeno_pws_df)
+
+summary(all_adjusted)
+hist(resid(all_adjusted))
+
+# format for plotting 
+# Unadjusted 
+unadj_all_results <- tidy(all_unadj, conf.int = TRUE) %>% 
+  mutate(Model = "Unadjusted",
+         AdjRsquared = summary(all_unadj)$adj.r.squared)
+
+
+# Adjusted 
+adj_all_results <- tidy(all_adjusted, conf.int = TRUE) %>% 
+  mutate(Model = "Adjusted",
+         AdjRsquared = summary(all_adjusted)$adj.r.squared)
+
+
+# combine and plot 
+multivar_results <- bind_rows(unadj_all_results, adj_all_results) %>% 
+  filter(term != "(Intercept)")  # Remove intercept term
+  
+adj_rsqu_df <- multivar_results[c("Model", "AdjRsquared")] %>% 
+  distinct() # remove duplicates 
+adj_rsqu_df$AdjRsquared <- round(adj_rsqu_df$AdjRsquared, 2)
+adj_rsqu_df
+write.csv(adj_rsqu_df, file.path(output_dir, "PWSvel_pws_allMetrics_unadjusted_vs_adjusted_adjR.csv"))
+
+p <- adj_vs_unadj_regression_plot(multivar_results, 'PWS: PWS_velocitycmsecmean Multivariate - Unadjusted vs Adjusted', 35)
+p
+ggsave(file.path(output_dir, "PWSvel_pws_allMetrics_unadjusted_vs_adjusted.png"), 
+       bg = "white", width= 10, height=10)
+
+```
+
+
+##  Home Videos --> PWS Velocity Zeno Velocity 
+### Home Univariate models with disease info and demographics
+
+```{r}
+uni1 <- lm(PWS_velocitycmsecmean ~ demoEHR_Age, data = home_df)
+hist(resid(uni1)) 
+
+uni2 <- lm(PWS_velocitycmsecmean ~ demoEHR_DiseaseDuration, data = home_df)
+hist(resid(uni2)) 
+
+uni3 <- lm(PWS_velocitycmsecmean ~ ms_dx_condensed, data = home_df)
+hist(resid(uni3)) 
+
+uni4 <- lm(PWS_velocitycmsecmean ~ race_ethnicity_clean, data = home_df)
+hist(resid(uni4)) 
+
+uni5 <- lm(PWS_velocitycmsecmean ~ clean_sex, data = home_df)
+hist(resid(uni4)) 
+
+## Extract regression results from each model 
+results <- bind_rows(
+  tidy(uni1, conf.int = TRUE) %>% mutate(Variable = "demoEHR_Age", 
+                                         AdjRsquared = summary(uni1)$adj.r.squared),
+  tidy(uni2, conf.int = TRUE) %>% mutate(Variable = "demoEHR_DiseaseDuration", 
+                                         AdjRsquared = summary(uni2)$adj.r.squared),
+  tidy(uni3, conf.int = TRUE) %>% mutate(Variable = "ms_dx_condensed", 
+                                         AdjRsquared = summary(uni3)$adj.r.squared),
+  tidy(uni4, conf.int = TRUE) %>% mutate(Variable = "race_ethnicity_clean", 
+                                         AdjRsquared = summary(uni4)$adj.r.squared),
+  tidy(uni5, conf.int = TRUE) %>% mutate(Variable = "clean_sex", 
+                                         AdjRsquared = summary(uni5)$adj.r.squared)) %>% 
+  filter(term != "(Intercept)")  # Remove intercept term
+
+adj_rsqu_df <- results[c("Variable","AdjRsquared")] %>% 
+  distinct() # remove duplicates 
+adj_rsqu_df$AdjRsquared <- round(adj_rsqu_df$AdjRsquared, 2)
+adj_rsqu_df
+write.csv(adj_rsqu_df, file.path(output_dir, "PWSvel_home_demographics_univariate_regression_adjR.csv"))
+
+# Apply rounding function to p-value columns 
+results <- results %>% mutate(pval_text = paste0("p=", sapply(p.value, format_p_value)))  # Format p-values
+
+# Apply formatting function and create significance indicators
+results <- results %>%
+  mutate(
+    pval_text = paste0("p=", sapply(p.value, format_p_value)),
+    sig = ifelse(p.value < 0.05, "Significant", "Non-Significant"),  # Create significance group
+    alpha_level = ifelse(p.value < 0.05, 1, 0.3)  # More transparency for non-sig points
+  )
+
+# Determine x position for p-values (offset to the right of the max estimate)
+x_max <- max(results$conf.high, na.rm = TRUE)  # Get max confidence interval upper bound
+results <- results %>% mutate(pval_x_pos = x_max + 1)  # Place p-values slightly to the right of max x range
+
+# Plot 
+title <- "Home: PWS_velocitycmsecmean ~ Demographic/MS Info"
+p <- univariate_regression_plot(results, title, 35)
+p
+ggsave(file.path(output_dir, "PWSvel_home_demographics_univariate_regression_estimates.png"), 
+       bg = "white", width= 10, height=10)
+```
+
+
+
+
+### Metric univariate models - Home video metrics 
+
+```{r}
+### Univariate video metrics 
+uni1 <- lm(PWS_velocitycmsecmean ~ log_delta_pix_h_rel_median_pose_hv, data = home_df)
+ggplot(data = home_df, aes(x = log_delta_pix_h_rel_median_pose_hv, y = PWS_velocitycmsecmean)) + geom_point()
+hist(resid(uni1))
+
+uni2 <- lm(PWS_velocitycmsecmean ~ stride_time_median_sec_pose_hv, data = home_df)
+ggplot(data = home_df, aes(x = stride_time_median_sec_pose_hv, y = PWS_velocitycmsecmean)) + geom_point()
+hist(resid(uni2))
+
+uni3 <- lm(PWS_velocitycmsecmean ~ mean_cadence_step_per_min_pose_hv, data = home_df)
+ggplot(data = home_df, aes(x = mean_cadence_step_per_min_pose_hv, y = PWS_velocitycmsecmean)) + geom_point()
+hist(resid(uni3))
+
+uni4 <- lm(PWS_velocitycmsecmean ~ stride_width_median_cm_pose_hv, data = home_df)
+ggplot(data = home_df, aes(x = stride_width_median_cm_pose_hv, y = PWS_velocitycmsecmean)) + geom_point()
+hist(resid(uni4))
+
+uni_results <- bind_rows(
+  tidy(uni1, conf.int = TRUE) %>% mutate(Variable = "log_delta_pix_h_rel_median_pose_hv",
+                                         AdjRsquared = summary(uni1)$adj.r.squared),
+  tidy(uni2, conf.int = TRUE) %>% mutate(Variable = "stride_time_median_sec_pose_hv",
+                                         AdjRsquared = summary(uni2)$adj.r.squared),
+  tidy(uni3, conf.int = TRUE) %>% mutate(Variable = "mean_cadence_step_per_min_pose_hv",
+                                         AdjRsquared = summary(uni3)$adj.r.squared),
+  tidy(uni4, conf.int = TRUE) %>% mutate(Variable = "stride_width_median_cm_pose_hv",
+                                         AdjRsquared = summary(uni4)$adj.r.squared)) %>% 
+  filter(term != "(Intercept)")  # Remove intercept term
+
+uni_results <- uni_results %>% mutate(Model = "Unadjusted")
+
+adj_rsqu_df <- uni_results[c("Variable", "AdjRsquared")] %>% 
+  distinct() # remove duplicates 
+adj_rsqu_df$AdjRsquared <- round(adj_rsqu_df$AdjRsquared, 2)
+adj_rsqu_df
+write.csv(adj_rsqu_df, file.path(output_dir, "PWSvel_home_metrics_univariate_regression_adjR.csv"))
+
+p <- univariate_regression_plot(uni_results, 'PWS_velocitycmsecmean ~ Metric', 35)
+p
+ggsave(file.path(output_dir, "PWSvel_home_metrics_univariate_regression_estimates.png"), 
+       bg = "white", width= 10, height=10)
+```
+
+
+### Single Metric, adjust 1 confounder - PWS video metrics 
+
+```{r}
+## age ---------------------------------------------------
+con1_age <- lm(PWS_velocitycmsecmean ~ log_delta_pix_h_rel_median_pose_hv + demoEHR_Age, data = home_df)
+hist(resid(con1_age))
+
+con2_age <- lm(PWS_velocitycmsecmean ~ stride_time_median_sec_pose_hv + demoEHR_Age, data = home_df)
+hist(resid(con2_age))
+
+con3_age <- lm(PWS_velocitycmsecmean ~ mean_cadence_step_per_min_pose_hv + demoEHR_Age, data = home_df)
+hist(resid(con3_age))
+
+con4_age <- lm(PWS_velocitycmsecmean ~ stride_width_median_cm_pose_hv + demoEHR_Age, data = home_df)
+hist(resid(con4_age))
+
+
+con_age_results <- bind_rows(
+  tidy(con1_age, conf.int = TRUE) %>% mutate(Variable = "log_delta_pix_h_rel_median_pose_hv"),
+  tidy(con2_age, conf.int = TRUE) %>% mutate(Variable = "stride_time_median_sec_pose_hv"),
+  tidy(con3_age, conf.int = TRUE) %>% mutate(Variable = "mean_cadence_step_per_min_pose_hv"),
+  tidy(con4_age, conf.int = TRUE) %>% mutate(Variable = "stride_width_median_cm_pose_hv")) %>% 
+  filter(term != "(Intercept)")  # Remove intercept term
+
+confounders <- c("demoEHR_Age")  # Define confounders to remove
+
+con_age_results <- con_age_results %>% 
+  filter(!grepl(confounders, term)) %>% # Remove confounders
+  mutate(Model = "Adjusted") 
+
+con_age_results
+
+# plot adjusted for age vs not adjusted univariate 
+# bind all together to single results df 
+results_age <- bind_rows(uni_results, con_age_results)
+results_age
+
+p <- adj_vs_unadj_regression_plot(results_age, 'Home: PWS_velocitycmsecmean ~ Metric + demoEHR_Age', 35)
+p
+ggsave(file.path(output_dir, "PWSvel_home_metric_regression_adj_age.png"), 
+       bg = "white", width= 10, height=10)
+  
+```
+
+```{r}
+## disease duration -----------------------------------------------------
+con1_dur <- lm(PWS_velocitycmsecmean ~ log_delta_pix_h_rel_median_pose_hv + demoEHR_DiseaseDuration, data = home_df)
+hist(resid(con1_dur))
+
+con2_dur <- lm(PWS_velocitycmsecmean ~ stride_time_median_sec_pose_hv + demoEHR_DiseaseDuration, data = home_df)
+hist(resid(con2_dur))
+
+con3_dur <- lm(PWS_velocitycmsecmean ~ mean_cadence_step_per_min_pose_hv + demoEHR_DiseaseDuration, data = home_df)
+hist(resid(con3_dur))
+
+con4_dur <- lm(PWS_velocitycmsecmean ~ stride_width_median_cm_pose_hv + demoEHR_DiseaseDuration, data = home_df)
+hist(resid(con4_dur))
+
+
+con_dur_results <- bind_rows(
+  tidy(con1_dur, conf.int = TRUE) %>% mutate(Variable = "log_delta_pix_h_rel_median_pose_hv"),
+  tidy(con2_dur, conf.int = TRUE) %>% mutate(Variable = "stride_time_median_sec_pose_hv"),
+  tidy(con3_dur, conf.int = TRUE) %>% mutate(Variable = "mean_cadence_step_per_min_pose_hv"),
+  tidy(con4_dur, conf.int = TRUE) %>% mutate(Variable = "stride_width_median_cm_pose_hv")) %>% 
+  filter(term != "(Intercept)")  # Remove intercept term
+
+confounders <- c("demoEHR_DiseaseDuration")  # Define confounders to remove
+
+con_dur_results
+
+con_dur_results <- con_dur_results %>% 
+  filter(!grepl(confounders, term)) %>% # Remove confounders
+  mutate(Model = "Adjusted") 
+
+con_dur_results
+
+# plot adjusted for age vs not adjusted univariate 
+# bind all together to single results df 
+results_dur <- bind_rows(uni_results, con_dur_results)
+results_dur
+
+p <- adj_vs_unadj_regression_plot(results_dur, 'Home: PWS_velocitycmsecmean ~ Metric + demoEHR_DiseaseDuration', 35)
+p
+ggsave(file.path(output_dir, "PWSvel_home_metric_regression_adj_duration.png"), 
+       bg = "white", width= 10, height=10)
+```
+
+```{r}
+## MS DX ---------------------------------------------------------------
+con1_dx <- lm(PWS_velocitycmsecmean ~ log_delta_pix_h_rel_median_pose_hv + ms_dx_condensed, data = home_df)
+hist(resid(con1_dx))
+
+con2_dx <- lm(PWS_velocitycmsecmean ~ stride_time_median_sec_pose_hv + ms_dx_condensed, data = home_df)
+hist(resid(con2_dx))
+
+con3_dx <- lm(PWS_velocitycmsecmean ~ mean_cadence_step_per_min_pose_hv + ms_dx_condensed, data = home_df)
+hist(resid(con3_dx))
+
+con4_dx <- lm(PWS_velocitycmsecmean ~ stride_width_median_cm_pose_hv + ms_dx_condensed, data = home_df)
+hist(resid(con4_dx))
+
+
+con_dx_results <- bind_rows(
+  tidy(con1_dx, conf.int = TRUE) %>% mutate(Variable = "log_delta_pix_h_rel_median_pose_hv"),
+  tidy(con2_dx, conf.int = TRUE) %>% mutate(Variable = "stride_time_median_sec_pose_hv"),
+  tidy(con3_dx, conf.int = TRUE) %>% mutate(Variable = "mean_cadence_step_per_min_pose_hv"),
+  tidy(con4_dx, conf.int = TRUE) %>% mutate(Variable = "stride_width_median_cm_pose_hv")) %>% 
+  filter(term != "(Intercept)")  # Remove intercept term
+
+confounders <- c("ms_dx_condensed")  # Define confounders to remove
+
+con_dx_results
+
+con_dx_results <- con_dx_results %>% 
+  filter(!grepl(confounders, term)) %>% # Remove confounders
+  mutate(Model = "Adjusted") 
+
+con_dx_results
+
+# plot adjusted for age vs not adjusted univariate 
+# bind all together to single results df 
+results_dx <- bind_rows(uni_results, con_dx_results)
+results_dx
+
+p <- adj_vs_unadj_regression_plot(results_dx, 'Home: PWS_velocitycmsecmean ~ Metric + MS DX', 35)
+p
+ggsave(file.path(output_dir, "PWSvel_home_metric_regression_adj_MSDX.png"), 
+       bg = "white", width= 10, height=10)
+
+```
+
+
+```{r}
+## race_ethnicity -----------------------------------------------------
+con1_re <- lm(PWS_velocitycmsecmean ~ log_delta_pix_h_rel_median_pose_hv + race_ethnicity_clean, data = home_df)
+hist(resid(con1_re))
+
+con2_re <- lm(PWS_velocitycmsecmean ~ stride_time_median_sec_pose_hv + race_ethnicity_clean, data = home_df)
+hist(resid(con2_re))
+
+con3_re <- lm(PWS_velocitycmsecmean ~ mean_cadence_step_per_min_pose_hv + race_ethnicity_clean, data = home_df)
+hist(resid(con3_re))
+
+con4_re <- lm(PWS_velocitycmsecmean ~ stride_width_median_cm_pose_hv + race_ethnicity_clean, data = home_df)
+hist(resid(con4_re))
+
+
+con_re_results <- bind_rows(
+  tidy(con1_re, conf.int = TRUE) %>% mutate(Variable = "log_delta_pix_h_rel_median_pose_hv"),
+  tidy(con2_re, conf.int = TRUE) %>% mutate(Variable = "stride_time_median_sec_pose_hv"),
+  tidy(con3_re, conf.int = TRUE) %>% mutate(Variable = "mean_cadence_step_per_min_pose_hv"),
+  tidy(con4_re, conf.int = TRUE) %>% mutate(Variable = "stride_width_median_cm_pose_hv")) %>% 
+  filter(term != "(Intercept)")  # Remove intercept term
+
+confounders <- c("race_ethnicity_clean")  # Define confounders to remove
+
+con_re_results
+
+con_re_results <- con_re_results %>% 
+  filter(!grepl(confounders, term)) %>% # Remove confounders
+  mutate(Model = "Adjusted") 
+
+con_re_results
+
+# plot adjusted for age vs not adjusted univariate 
+# bind all together to single results df 
+results_re <- bind_rows(uni_results, con_re_results)
+results_re
+
+p <- adj_vs_unadj_regression_plot(results_re, 'Home: PWS_velocitycmsecmean ~ Metric + race_ethnicity_clean', 35)
+p
+ggsave(file.path(output_dir, "PWSvel_home_metric_regression_adj_RaceEthnicity.png"), 
+       bg = "white", width= 10, height=10)
+```
+
+```{r}
+## sex -------------------------------------------------------------------
+con1_sex <- lm(PWS_velocitycmsecmean ~ log_delta_pix_h_rel_median_pose_hv + clean_sex, data = home_df)
+hist(resid(con1_sex))
+
+con2_sex <- lm(PWS_velocitycmsecmean ~ stride_time_median_sec_pose_hv + clean_sex, data = home_df)
+hist(resid(con2_sex))
+
+con3_sex <- lm(PWS_velocitycmsecmean ~ mean_cadence_step_per_min_pose_hv + clean_sex, data = home_df)
+hist(resid(con3_sex))
+
+con4_sex <- lm(PWS_velocitycmsecmean ~ stride_width_median_cm_pose_hv + clean_sex, data = home_df)
+hist(resid(con4_sex))
+
+
+con_sex_results <- bind_rows(
+  tidy(con1_sex, conf.int = TRUE) %>% mutate(Variable = "log_delta_pix_h_rel_median_pose_hv"),
+  tidy(con2_sex, conf.int = TRUE) %>% mutate(Variable = "stride_time_median_sec_pose_hv"),
+  tidy(con3_sex, conf.int = TRUE) %>% mutate(Variable = "mean_cadence_step_per_min_pose_hv"),
+  tidy(con4_sex, conf.int = TRUE) %>% mutate(Variable = "stride_width_median_cm_pose_hv")) %>% 
+  filter(term != "(Intercept)")  # Remove intercept term
+
+confounders <- c("clean_sex")  # Define confounders to remove
+
+con_sex_results
+
+con_sex_results <- con_sex_results %>% 
+  filter(!grepl(confounders, term)) %>% # Remove confounders
+  mutate(Model = "Adjusted") 
+
+con_sex_results
+
+# plot adjusted for age vs not adjusted univariate 
+# bind all together to single results df 
+results_sex <- bind_rows(uni_results, con_sex_results)
+results_sex
+
+p <- adj_vs_unadj_regression_plot(results_sex, 'Home: PWS_velocitycmsecmean ~ Metric + Sex', 35)
+p
+ggsave(file.path(output_dir, "PWSvel_home_metric_regression_adj_sex.png"), 
+       bg = "white", width= 10, height=10)
+```
+
+
+
+
+### Multivariate - HOme - all 
+
+Metrics only - not including double support/stance measures, too many missing. May include after improving code 
+```{r}
+# HOme 
+
+# Unadjusted 
+all_unadj <- lm(PWS_velocitycmsecmean ~ log_delta_pix_h_rel_median_pose_hv + 
+                  stride_time_median_sec_pose_hv + 
+                  mean_cadence_step_per_min_pose_hv + 
+                  stride_width_median_cm_pose_hv, 
+                data = home_df)
+
+summary(all_unadj)
+hist(resid(all_unadj))
+
+# Adjusted 
+all_adjusted <- lm(PWS_velocitycmsecmean ~ log_delta_pix_h_rel_median_pose_hv + 
+                     stride_time_median_sec_pose_hv + 
+                     mean_cadence_step_per_min_pose_hv + 
+                     stride_width_median_cm_pose_hv + 
+                     demoEHR_Age + 
+                     demoEHR_DiseaseDuration +
+                     ms_dx_condensed + 
+                     race_ethnicity_clean + 
+                     clean_sex, 
+                   data = home_df)
+
+summary(all_adjusted)
+hist(resid(all_adjusted))
+
+# format for plotting 
+# Unadjusted 
+unadj_all_results <- tidy(all_unadj, conf.int = TRUE) %>% 
+  mutate(Model = "Unadjusted",
+         AdjRsquared = summary(all_unadj)$adj.r.squared)
+unadj_all_results
+
+# Adjusted 
+adj_all_results <- tidy(all_adjusted, conf.int = TRUE) %>% 
+  mutate(Model = "Adjusted",
+         AdjRsquared = summary(all_adjusted)$adj.r.squared)
+
+adj_all_results
+
+# combine and plot 
+multivar_results <- bind_rows(unadj_all_results, adj_all_results) %>% 
+  filter(term != "(Intercept)")  # remove intercept term 
+  
+adj_rsqu_df <- multivar_results[c("Model", "AdjRsquared")] %>% 
+  distinct() # remove duplicates
+adj_rsqu_df$AdjRsquared <- round(adj_rsqu_df$AdjRsquared, 2)
+adj_rsqu_df
+write.csv(adj_rsqu_df, file.path(output_dir, "PWSvel_home_allMetrics_unadjusted_vs_adjusted_adjR.csv"))
+
+p <- adj_vs_unadj_regression_plot(multivar_results, 'Home: PWS_velocitycmsecmean Multivariate - Unadjusted vs Adjusted', 35)
+p
+ggsave(file.path(output_dir, "PWSvel_home_allMetrics_unadjusted_vs_adjusted.png"), 
+       bg = "white", width= 10, height=10)
+
+```
+# FW Velocity Zeno Velocity Linear Regression   
+## FW Zeno Videos --> FW Velocity Zeno Velocity 
+### Demographics univariate models  
+```{r}
+# FW ------------------------------------------
+uni1 <- lm(FW_velocitycmsecmean ~ demoEHR_Age, data = zeno_fw_df)
+hist(resid(uni1)) 
+
+uni2 <- lm(FW_velocitycmsecmean ~ demoEHR_DiseaseDuration, data = zeno_fw_df)
+hist(resid(uni2)) 
+
+uni3 <- lm(FW_velocitycmsecmean ~ ms_dx_condensed, data = zeno_fw_df)
+hist(resid(uni3)) 
+
+uni4 <- lm(FW_velocitycmsecmean ~ race_ethnicity_clean, data = zeno_fw_df)
+hist(resid(uni4)) 
+
+uni5 <- lm(FW_velocitycmsecmean ~ clean_sex, data = zeno_fw_df)
+hist(resid(uni4)) 
+
+
+## Extract regression results from each model 
+results <- bind_rows(
+  tidy(uni1, conf.int = TRUE) %>% mutate(Variable = "demoEHR_Age", 
+                                         AdjRsquared = summary(uni1)$adj.r.squared),
+  tidy(uni2, conf.int = TRUE) %>% mutate(Variable = "demoEHR_DiseaseDuration", 
+                                         AdjRsquared = summary(uni2)$adj.r.squared),
+  tidy(uni3, conf.int = TRUE) %>% mutate(Variable = "ms_dx_condensed", 
+                                         AdjRsquared = summary(uni3)$adj.r.squared),
+  tidy(uni4, conf.int = TRUE) %>% mutate(Variable = "race_ethnicity_clean", 
+                                         AdjRsquared = summary(uni4)$adj.r.squared),
+  tidy(uni5, conf.int = TRUE) %>% mutate(Variable = "clean_sex", 
+                                         AdjRsquared = summary(uni5)$adj.r.squared)) %>% 
+  filter(term != "(Intercept)")  # Remove intercept term
+
+adj_rsqu_df <- results[c("Variable","AdjRsquared")] %>% 
+  distinct() # remove duplicates 
+adj_rsqu_df$AdjRsquared <- round(adj_rsqu_df$AdjRsquared, 2)
+adj_rsqu_df
+write.csv(adj_rsqu_df, file.path(output_dir, "FWvel_fw_demographics_univariate_regression_adjR.csv"))
+
+# Plot 
+title <- "FW: FW_velocitycmsecmean ~ Demographic/MS Info"
+p <- univariate_regression_plot(results, title, 35)
+p
+ggsave(file.path(output_dir, "FWvel_fw_demographics_univariate_regression_estimates.png"), 
+       bg = "white", width= 10, height=10)
+```
+
+
+### Metric univariate models - FW video metrics 
+```{r}
+### Univariate video metrics 
+uni1 <- lm(FW_velocitycmsecmean ~ log_delta_pix_h_rel_median_pose_zv, data = zeno_fw_df)
+ggplot(data = zeno_fw_df, aes(x = log_delta_pix_h_rel_median_pose_zv, y = FW_velocitycmsecmean)) + geom_point()
+hist(resid(uni1))
+
+uni2 <- lm(FW_velocitycmsecmean ~ stride_time_median_sec_pose_zv, data = zeno_fw_df)
+ggplot(data = zeno_fw_df, aes(x = stride_time_median_sec_pose_zv, y = FW_velocitycmsecmean)) + geom_point()
+hist(resid(uni2))
+
+uni3 <- lm(FW_velocitycmsecmean ~ mean_cadence_step_per_min_pose_zv, data = zeno_fw_df)
+ggplot(data = zeno_fw_df, aes(x = mean_cadence_step_per_min_pose_zv, y = FW_velocitycmsecmean)) + geom_point()
+hist(resid(uni3))
+
+uni4 <- lm(FW_velocitycmsecmean ~ stride_width_median_cm_pose_zv, data = zeno_fw_df)
+ggplot(data = zeno_fw_df, aes(x = stride_width_median_cm_pose_zv, y = FW_velocitycmsecmean)) + geom_point()
+hist(resid(uni4))
+
+uni_results <- bind_rows(
+  tidy(uni1, conf.int = TRUE) %>% mutate(Variable = "log_delta_pix_h_rel_median_pose_zv",
+                                         AdjRsquared = summary(uni1)$adj.r.squared),
+  tidy(uni2, conf.int = TRUE) %>% mutate(Variable = "stride_time_median_sec_pose_zv",
+                                         AdjRsquared = summary(uni2)$adj.r.squared),
+  tidy(uni3, conf.int = TRUE) %>% mutate(Variable = "mean_cadence_step_per_min_pose_zv",
+                                         AdjRsquared = summary(uni3)$adj.r.squared),
+  tidy(uni4, conf.int = TRUE) %>% mutate(Variable = "stride_width_median_cm_pose_zv",
+                                         AdjRsquared = summary(uni4)$adj.r.squared)) %>% 
+  filter(term != "(Intercept)")  # Remove intercept term
+
+uni_results <- uni_results %>% mutate(Model = "Unadjusted")
+
+adj_rsqu_df <- uni_results[c("Variable", "AdjRsquared")] %>% 
+  distinct() # remove duplicates 
+adj_rsqu_df$AdjRsquared <- round(adj_rsqu_df$AdjRsquared, 2)
+adj_rsqu_df
+write.csv(adj_rsqu_df, file.path(output_dir, "FWvel_fw_metrics_univariate_regression_adjR.csv"))
+
+p <- univariate_regression_plot(uni_results, 'FW: FW_velocitycmsecmean ~ Metric', 35)
+p
+ggsave(file.path(output_dir, "FWvel_fw_metrics_univariate_regression_estimates.png"), 
+       bg = "white", width= 10, height=10)
+```
+
+### Single Metric, adjust 1 confounder - FW video metrics 
+```{r}
+## age ---------------------------------------------------
+con1_age <- lm(FW_velocitycmsecmean ~ log_delta_pix_h_rel_median_pose_zv + demoEHR_Age, data = zeno_fw_df)
+hist(resid(con1_age))
+
+con2_age <- lm(FW_velocitycmsecmean ~ stride_time_median_sec_pose_zv + demoEHR_Age, data = zeno_fw_df)
+hist(resid(con2_age))
+
+con3_age <- lm(FW_velocitycmsecmean ~ mean_cadence_step_per_min_pose_zv + demoEHR_Age, data = zeno_fw_df)
+hist(resid(con3_age))
+
+con4_age <- lm(FW_velocitycmsecmean ~ stride_width_median_cm_pose_zv + demoEHR_Age, data = zeno_fw_df)
+hist(resid(con4_age))
+
+
+con_age_results <- bind_rows(
+  tidy(con1_age, conf.int = TRUE) %>% mutate(Variable = "log_delta_pix_h_rel_median_pose_zv"),
+  tidy(con2_age, conf.int = TRUE) %>% mutate(Variable = "stride_time_median_sec_pose_zv"),
+  tidy(con3_age, conf.int = TRUE) %>% mutate(Variable = "mean_cadence_step_per_min_pose_zv"),
+  tidy(con4_age, conf.int = TRUE) %>% mutate(Variable = "stride_width_median_cm_pose_zv")) %>% 
+  filter(term != "(Intercept)")  # Remove intercept term
+
+confounders <- c("demoEHR_Age")  # Define confounders to remove
+
+con_age_results <- con_age_results %>% 
+  filter(!grepl(confounders, term)) %>% # Remove confounders
+  mutate(Model = "Adjusted") 
+
+con_age_results
+
+# plot adjusted for age vs not adjusted univariate 
+# bind all together to single results df 
+results_age <- bind_rows(uni_results, con_age_results)
+results_age
+
+p <- adj_vs_unadj_regression_plot(results_age, 'FW: FW_velocitycmsecmean ~ Metric + demoEHR_Age', 35)
+p
+ggsave(file.path(output_dir, "FWvel_fw_metric_regression_adj_age.png"), 
+       bg = "white", width= 10, height=10)
+  
+```
+
+```{r}
+## disease duration -----------------------------------------------------
+con1_dur <- lm(FW_velocitycmsecmean ~ log_delta_pix_h_rel_median_pose_zv + demoEHR_DiseaseDuration, data = zeno_fw_df)
+hist(resid(con1_dur))
+
+con2_dur <- lm(FW_velocitycmsecmean ~ stride_time_median_sec_pose_zv + demoEHR_DiseaseDuration, data = zeno_fw_df)
+hist(resid(con2_dur))
+
+con3_dur <- lm(FW_velocitycmsecmean ~ mean_cadence_step_per_min_pose_zv + demoEHR_DiseaseDuration, data = zeno_fw_df)
+hist(resid(con3_dur))
+
+con4_dur <- lm(FW_velocitycmsecmean ~ stride_width_median_cm_pose_zv + demoEHR_DiseaseDuration, data = zeno_fw_df)
+hist(resid(con4_dur))
+
+
+con_dur_results <- bind_rows(
+  tidy(con1_dur, conf.int = TRUE) %>% mutate(Variable = "log_delta_pix_h_rel_median_pose_zv"),
+  tidy(con2_dur, conf.int = TRUE) %>% mutate(Variable = "stride_time_median_sec_pose_zv"),
+  tidy(con3_dur, conf.int = TRUE) %>% mutate(Variable = "mean_cadence_step_per_min_pose_zv"),
+  tidy(con4_dur, conf.int = TRUE) %>% mutate(Variable = "stride_width_median_cm_pose_zv")) %>% 
+  filter(term != "(Intercept)")  # Remove intercept term
+
+confounders <- c("demoEHR_DiseaseDuration")  # Define confounders to remove
+
+con_dur_results
+
+con_dur_results <- con_dur_results %>% 
+  filter(!grepl(confounders, term)) %>% # Remove confounders
+  mutate(Model = "Adjusted") 
+
+con_dur_results
+
+# plot adjusted for age vs not adjusted univariate 
+# bind all together to single results df 
+results_dur <- bind_rows(uni_results, con_dur_results)
+results_dur
+
+p <- adj_vs_unadj_regression_plot(results_dur, 'FW: FW_velocitycmsecmean ~ Metric + demoEHR_DiseaseDuration', 35)
+p
+ggsave(file.path(output_dir, "FWvel_fw_metric_regression_adj_duration.png"), 
+       bg = "white", width= 10, height=10)
+```
+
+```{r}
+## MS DX ---------------------------------------------------------------
+con1_dx <- lm(FW_velocitycmsecmean ~ log_delta_pix_h_rel_median_pose_zv + ms_dx_condensed, data = zeno_fw_df)
+hist(resid(con1_dx))
+
+con2_dx <- lm(FW_velocitycmsecmean ~ stride_time_median_sec_pose_zv + ms_dx_condensed, data = zeno_fw_df)
+hist(resid(con2_dx))
+
+con3_dx <- lm(FW_velocitycmsecmean ~ mean_cadence_step_per_min_pose_zv + ms_dx_condensed, data = zeno_fw_df)
+hist(resid(con3_dx))
+
+con4_dx <- lm(FW_velocitycmsecmean ~ stride_width_median_cm_pose_zv + ms_dx_condensed, data = zeno_fw_df)
+hist(resid(con4_dx))
+
+
+con_dx_results <- bind_rows(
+  tidy(con1_dx, conf.int = TRUE) %>% mutate(Variable = "log_delta_pix_h_rel_median_pose_zv"),
+  tidy(con2_dx, conf.int = TRUE) %>% mutate(Variable = "stride_time_median_sec_pose_zv"),
+  tidy(con3_dx, conf.int = TRUE) %>% mutate(Variable = "mean_cadence_step_per_min_pose_zv"),
+  tidy(con4_dx, conf.int = TRUE) %>% mutate(Variable = "stride_width_median_cm_pose_zv")) %>% 
+  filter(term != "(Intercept)")  # Remove intercept term
+
+confounders <- c("ms_dx_condensed")  # Define confounders to remove
+
+con_dx_results
+
+con_dx_results <- con_dx_results %>% 
+  filter(!grepl(confounders, term)) %>% # Remove confounders
+  mutate(Model = "Adjusted") 
+
+con_dx_results
+
+# plot adjusted for age vs not adjusted univariate 
+# bind all together to single results df 
+results_dx <- bind_rows(uni_results, con_dx_results)
+results_dx
+
+p <- adj_vs_unadj_regression_plot(results_dx, 'FW: FW_velocitycmsecmean ~ Metric + MS DX', 35)
+p
+ggsave(file.path(output_dir, "FWvel_fw_metric_regression_adj_MSDX.png"), 
+       bg = "white", width= 10, height=10)
+
+```
+
+
+
+
+```{r}
+## race_ethnicity -----------------------------------------------------
+con1_re <- lm(FW_velocitycmsecmean ~ log_delta_pix_h_rel_median_pose_zv + race_ethnicity_clean, data = zeno_fw_df)
+hist(resid(con1_re))
+
+con2_re <- lm(FW_velocitycmsecmean ~ stride_time_median_sec_pose_zv + race_ethnicity_clean, data = zeno_fw_df)
+hist(resid(con2_re))
+
+con3_re <- lm(FW_velocitycmsecmean ~ mean_cadence_step_per_min_pose_zv + race_ethnicity_clean, data = zeno_fw_df)
+hist(resid(con3_re))
+
+con4_re <- lm(FW_velocitycmsecmean ~ stride_width_median_cm_pose_zv + race_ethnicity_clean, data = zeno_fw_df)
+hist(resid(con4_re))
+
+
+con_re_results <- bind_rows(
+  tidy(con1_re, conf.int = TRUE) %>% mutate(Variable = "log_delta_pix_h_rel_median_pose_zv"),
+  tidy(con2_re, conf.int = TRUE) %>% mutate(Variable = "stride_time_median_sec_pose_zv"),
+  tidy(con3_re, conf.int = TRUE) %>% mutate(Variable = "mean_cadence_step_per_min_pose_zv"),
+  tidy(con4_re, conf.int = TRUE) %>% mutate(Variable = "stride_width_median_cm_pose_zv")) %>% 
+  filter(term != "(Intercept)")  # Remove intercept term
+
+confounders <- c("race_ethnicity_clean")  # Define confounders to remove
+
+con_re_results
+
+con_re_results <- con_re_results %>% 
+  filter(!grepl(confounders, term)) %>% # Remove confounders
+  mutate(Model = "Adjusted") 
+
+con_re_results
+
+# plot adjusted for age vs not adjusted univariate 
+# bind all together to single results df 
+results_re <- bind_rows(uni_results, con_re_results)
+results_re
+
+p <- adj_vs_unadj_regression_plot(results_re, 'FW: FW_velocitycmsecmean~ Metric + race_ethnicity_clean', 35)
+p
+ggsave(file.path(output_dir, "FWvel_fw_metric_regression_adj_RaceEthnicity.png"), 
+       bg = "white", width= 10, height=10)
+```
+
+
+```{r}
+## sex -------------------------------------------------------------------
+con1_sex <- lm(FW_velocitycmsecmean ~ log_delta_pix_h_rel_median_pose_zv + clean_sex, data = zeno_fw_df)
+hist(resid(con1_sex))
+
+con2_sex <- lm(FW_velocitycmsecmean ~ stride_time_median_sec_pose_zv + clean_sex, data = zeno_fw_df)
+hist(resid(con2_sex))
+
+con3_sex <- lm(FW_velocitycmsecmean ~ mean_cadence_step_per_min_pose_zv + clean_sex, data = zeno_fw_df)
+hist(resid(con3_sex))
+
+con4_sex <- lm(FW_velocitycmsecmean ~ stride_width_median_cm_pose_zv + clean_sex, data = zeno_fw_df)
+hist(resid(con4_sex))
+
+
+con_sex_results <- bind_rows(
+  tidy(con1_sex, conf.int = TRUE) %>% mutate(Variable = "log_delta_pix_h_rel_median_pose_zv"),
+  tidy(con2_sex, conf.int = TRUE) %>% mutate(Variable = "stride_time_median_sec_pose_zv"),
+  tidy(con3_sex, conf.int = TRUE) %>% mutate(Variable = "mean_cadence_step_per_min_pose_zv"),
+  tidy(con4_sex, conf.int = TRUE) %>% mutate(Variable = "stride_width_median_cm_pose_zv")) %>% 
+  filter(term != "(Intercept)")  # Remove intercept term
+
+confounders <- c("clean_sex")  # Define confounders to remove
+
+con_sex_results
+
+con_sex_results <- con_sex_results %>% 
+  filter(!grepl(confounders, term)) %>% # Remove confounders
+  mutate(Model = "Adjusted") 
+
+con_sex_results
+
+# plot adjusted for age vs not adjusted univariate 
+# bind all together to single results df 
+results_sex <- bind_rows(uni_results, con_sex_results)
+results_sex
+
+p <- adj_vs_unadj_regression_plot(results_sex, 'FW: FW_velocitycmsecmean ~ Metric + Sex', 35)
+p
+ggsave(file.path(output_dir, "FWvel_fw_metric_regression_adj_sex.png"), 
+       bg = "white", width= 10, height=10)
+```
+
+
+### Multivariate - FW 
+
+Metrics only - not including double support/stance measures, too many missing. May include after improving code 
+```{r}
+# FW 
+
+# Unadjusted 
+all_unadj <- lm(FW_velocitycmsecmean ~ log_delta_pix_h_rel_median_pose_zv + 
+                  stride_time_median_sec_pose_zv + 
+                  mean_cadence_step_per_min_pose_zv + 
+                  stride_width_median_cm_pose_zv, 
+                data = zeno_fw_df)
+
+summary(all_unadj)
+hist(resid(all_unadj))
+
+# Adjusted 
+all_adjusted <- lm(FW_velocitycmsecmean ~ log_delta_pix_h_rel_median_pose_zv + 
+                     stride_time_median_sec_pose_zv + 
+                     mean_cadence_step_per_min_pose_zv + 
+                     stride_width_median_cm_pose_zv + 
+                     demoEHR_Age + 
+                     demoEHR_DiseaseDuration +
+                     ms_dx_condensed + 
+                     race_ethnicity_clean + 
+                     clean_sex, 
+                   data = zeno_fw_df)
+
+summary(all_adjusted)
+hist(resid(all_adjusted))
+
+# format for plotting 
+# Unadjusted 
+unadj_all_results <- tidy(all_unadj, conf.int = TRUE) %>% 
+  mutate(Model = "Unadjusted",
+         AdjRsquared = summary(all_unadj)$adj.r.squared)
+
+# Adjusted 
+adj_all_results <- tidy(all_adjusted, conf.int = TRUE) %>% 
+  mutate(Model = "Adjusted",
+         AdjRsquared = summary(all_adjusted)$adj.r.squared)
+
+# combine and plot 
+multivar_results <- bind_rows(unadj_all_results, adj_all_results) %>% 
+  filter(term != "(Intercept)")  # Remove intercept term
+  
+adj_rsqu_df <- multivar_results[c("Model", "AdjRsquared")] %>% 
+  distinct() # remove duplicates 
+adj_rsqu_df$AdjRsquared <- round(adj_rsqu_df$AdjRsquared, 2)
+adj_rsqu_df
+write.csv(adj_rsqu_df, file.path(output_dir, "FWvel_fw_allMetrics_unadjusted_vs_adjusted_adjR.csv"))
+
+p <- adj_vs_unadj_regression_plot(multivar_results, 'FW: FW_velocitycmsecmean Multivariate - Unadjusted vs Adjusted', 35)
+p
+ggsave(file.path(output_dir, "FWvel_fw_allMetrics_unadjusted_vs_adjusted.png"), 
+       bg = "white", width= 10, height=10)
+
+```
+
+# EDSS  Ordinal Regression 
+## Preferred Walking Spped --> EDSS 
+## Fast Walking Speed --> EDSS 
+## Home Videos --> EDSS

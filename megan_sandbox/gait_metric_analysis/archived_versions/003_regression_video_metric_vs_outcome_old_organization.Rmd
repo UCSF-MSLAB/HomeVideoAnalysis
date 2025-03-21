@@ -1,0 +1,1543 @@
+---
+title: "Megan Dissertation - Regression Models"
+author: "Megan"
+date: "2025-02-21"
+output: html_document
+---
+
+Manually set working directory to source file location (Session Tab)
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(readxl)
+library(dplyr)
+library(tidyverse)
+library(ggplot2)
+```
+
+
+# TO DO -
+REDO INTERPRETATION SECTION WITH UDPATED RACE AND MS SUBTYPE COLUMNS 
+
+  - maybe excel: sig or no? 
+  
+Home videos - Log T25FW still not super linear... -> drop outliers?
+
+Home videos - re-do with improved vel pixel proxy metrics 
+
+# Load In-Person Video Data   
+All videos included in analysis. Videos were included based on if a walking segment could be identified. 
+Some participants may have both a fast walk and preferred walking speed video. Some may have just fast walk or just preferred walking speed. 
+
+Each row = 1 video 
+
+Preferred walking speed 
+
+```{r}
+# Preferred Walking Speed 
+zeno_pws_df <- read.csv("C:/Users/mmccu/Box/MM_Personal/5_Projects/BoveLab/3_Data_and_Code/gait_bw_zeno_home_analysis/004/000_merged_cleaned_data/zv_bw_merged_gait_vertical_PWS_1_clean.csv")
+table(zeno_pws_df$task_pose)
+```
+
+```{r}
+# assign levels to categorical variables 
+table(zeno_pws_df$race_ethnicity_clean)
+
+zeno_pws_df$race_ethnicity_clean <- factor(zeno_pws_df$race_ethnicity_clean, 
+                                           levels = c('Asian', 
+                                                      'Black Or African American',
+                                                      'Hispanic or Latino',
+                                                      'White Not Hispanic',
+                                                      'Other/Unknown/Declined'), 
+                                           ordered = FALSE)
+print(levels(zeno_pws_df$race_ethnicity_clean))
+
+table(zeno_pws_df$ms_dx_condensed)
+zeno_pws_df$ms_dx_condensed <- factor(zeno_pws_df$ms_dx_condensed, 
+                                           levels = c('RRMS', 
+                                                      'Progressive MS',
+                                                      'MS, Subtype Not Specified'), 
+                                           ordered = FALSE)
+print(levels(zeno_pws_df$ms_dx_condensed))
+
+table(zeno_pws_df$clean_sex)
+zeno_pws_df$clean_sex <- factor(zeno_pws_df$clean_sex, 
+                                           levels = c('Female', 
+                                                      'Male',
+                                                      'Non-Binary'), 
+                                           ordered = FALSE)
+print(levels(zeno_pws_df$clean_sex))
+```
+
+Drop healthy controls - no EDSS and T25FW 
+```{r}
+zeno_pws_df <- zeno_pws_df[grepl('MS', zeno_pws_df$demographic_diagnosis), ]
+table(zeno_pws_df$demographic_diagnosis)
+
+# convert infinite values to NA 
+zeno_pws_df[] <- lapply(zeno_pws_df, function(x) {
+  if (is.numeric(x)) replace(x, is.infinite(x), NA) else x
+})
+```
+```{r}
+# filter to unique IDs - one row per person, select first video 
+nrow(zeno_pws_df)
+zeno_pws_uniqueid_df <- zeno_pws_df %>%
+  arrange(visit_date_video) %>%   # Sort by date
+  distinct(bw_id, .keep_all = TRUE)  # Keep the first occurrence of each ID
+
+nrow(zeno_pws_uniqueid_df)
+```
+
+Missing Data 
+```{r}
+# count number of missing variables in preferred walking speed data frame 
+sum(is.na(zeno_pws_df$delta_pix_h_rel_median_pose_zv))
+sum(is.na(zeno_pws_df$stride_time_mean_sec_pose_zv))
+sum(is.na(zeno_pws_df$mean_cadence_step_per_min_pose_zv))
+sum(is.na(zeno_pws_df$stride_width_mean_cm_pose_zv))
+# stance and all double support measures 
+sum(is.na(zeno_pws_df$foot1_gait_cycle_time_mean_pose_zv))
+# ground truth preferred walk zeno mat data 
+sum(is.na(zeno_pws_df$PWS_cadencestepsminmean))
+sum(is.na(zeno_pws_df$bingoEHR_EDSS_measure_value))
+sum(is.na(zeno_pws_df$msfcEHR_T25FW.SPEED.AVG))
+# demographics 
+sum(is.na(zeno_pws_df$demoEHR_Age))
+sum(is.na(zeno_pws_df$demoEHR_DiseaseDuration)) 
+sum(is.na(zeno_pws_df$ms_dx_condensed))
+sum(is.na(zeno_pws_df$clean_ethnicity))
+sum(is.na(zeno_pws_df$clean_sex))
+sum(is.na(zeno_pws_df$ms_dx_condensed))
+```
+
+Fast walking speed videos  
+
+```{r}
+zeno_fw_df <- read.csv("C:/Users/mmccu/Box/MM_Personal/5_Projects/BoveLab/3_Data_and_Code/gait_bw_zeno_home_analysis/004/000_merged_cleaned_data/zv_bw_merged_gait_vertical_FW_1_clean.csv")
+table(zeno_fw_df$task_pose)
+```
+```{r}
+# assign levels to categorical variables 
+table(zeno_fw_df$race_ethnicity_clean)
+
+zeno_fw_df$race_ethnicity_clean <- factor(zeno_fw_df$race_ethnicity_clean, 
+                                           levels = c('Asian', 
+                                                      'Black Or African American',
+                                                      'Hispanic or Latino',
+                                                      'White Not Hispanic',
+                                                      'Other/Unknown/Declined'), 
+                                           ordered = FALSE)
+print(levels(zeno_fw_df$race_ethnicity_clean))
+
+table(zeno_fw_df$ms_dx_condensed)
+zeno_fw_df$ms_dx_condensed <- factor(zeno_fw_df$ms_dx_condensed, 
+                                           levels = c('RRMS', 
+                                                      'Progressive MS',
+                                                      'MS, Subtype Not Specified'), 
+                                           ordered = FALSE)
+print(levels(zeno_fw_df$ms_dx_condensed))
+
+table(zeno_fw_df$clean_sex)
+zeno_fw_df$clean_sex <- factor(zeno_fw_df$clean_sex, 
+                                           levels = c('Female', 
+                                                      'Male',
+                                                      'Non-Binary'), 
+                                           ordered = FALSE)
+print(levels(zeno_fw_df$clean_sex))
+```
+
+
+
+```{r}
+zeno_fw_df <- zeno_fw_df[grepl('MS', zeno_fw_df$demographic_diagnosis), ]
+table(zeno_fw_df$demographic_diagnosis)
+
+
+# convert infinite values to NA 
+zeno_fw_df[] <- lapply(zeno_fw_df, function(x) {
+  if (is.numeric(x)) replace(x, is.infinite(x), NA) else x
+})
+```
+
+
+```{r}
+# filter to unique IDs - one row per person, select first video 
+nrow(zeno_fw_df)
+zeno_fw_uniqueid_df <- zeno_fw_df %>%
+  arrange(visit_date_video) %>%   # Sort by date
+  distinct(bw_id, .keep_all = TRUE)  # Keep the first occurrence of each ID
+
+nrow(zeno_fw_uniqueid_df)
+
+```
+
+```{r}
+# count number of missing variables in fast walking speed data frame 
+sum(is.na(zeno_fw_df$delta_pix_h_rel_median_pose_zv))
+sum(is.na(zeno_fw_df$stride_time_mean_sec_pose_zv))
+sum(is.na(zeno_fw_df$mean_cadence_step_per_min_pose_zv))
+sum(is.na(zeno_fw_df$stride_width_mean_cm_pose_zv))
+# stance and all double support measures 
+sum(is.na(zeno_fw_df$foot1_gait_cycle_time_mean_pose_zv))
+# ground truth preferred walk zeno mat data 
+sum(is.na(zeno_fw_df$PWS_cadencestepsminmean))
+sum(is.na(zeno_fw_df$bingoEHR_EDSS_measure_value))
+sum(is.na(zeno_fw_df$msfcEHR_T25FW.SPEED.AVG))
+# demographics 
+sum(is.na(zeno_fw_df$demoEHR_Age))
+sum(is.na(zeno_fw_df$demoEHR_DiseaseDuration)) 
+sum(is.na(zeno_fw_df$race_ethnicity_clean))
+sum(is.na(zeno_fw_df$clean_sex))
+sum(is.na(zeno_fw_df$ms_dx_condensed))
+
+```
+
+# Load home video data 
+Some participants have videos from multiple timepoints (baseline and follow up)
+At each timepoint, participants sent back two videos - one turning to the right (gait_vertical_right task) and one turning to the left (gait_vertical_left task)
+
+```{r}
+home_df <- read.csv("C:/Users/mmccu/Box/MM_Personal/5_Projects/BoveLab/3_Data_and_Code/gait_bw_zeno_home_analysis/004/000_merged_cleaned_data/hv_bw_merged_clean.csv")
+nrow(home_df)
+table(home_df$demographic_diagnosis)
+table(home_df$task_pose_hv)
+
+```
+
+```{r}
+# assign levels to categorical variables 
+table(home_df$race_ethnicity_clean)
+
+home_df$race_ethnicity_clean <- factor(home_df$race_ethnicity_clean, 
+                                           levels = c('Asian', 
+                                                      'Black Or African American',
+                                                      'Hispanic or Latino',
+                                                      'White Not Hispanic',
+                                                      'Other/Unknown/Declined'), 
+                                           ordered = FALSE)
+print(levels(home_df$race_ethnicity_clean))
+
+table(home_df$ms_dx_condensed)
+home_df$ms_dx_condensed <- factor(home_df$ms_dx_condensed, 
+                                           levels = c('RRMS', 
+                                                      'Progressive MS',
+                                                      'MS, Subtype Not Specified'), 
+                                           ordered = FALSE)
+print(levels(home_df$ms_dx_condensed))
+
+table(home_df$clean_sex)
+home_df$clean_sex <- factor(home_df$clean_sex, 
+                                           levels = c('Female', 
+                                                      'Male',
+                                                      'Non-Binary'), 
+                                           ordered = FALSE)
+print(levels(home_df$clean_sex))
+```
+
+```{r}
+# convert infinite values to NA 
+home_df[] <- lapply(home_df, function(x) {
+  if (is.numeric(x)) replace(x, is.infinite(x), NA) else x
+})
+```
+
+
+Group by left and right turning videos, unique IDs
+
+```{r}
+# right turning videos  
+home_r_df <- home_df[grepl('gait_vertical_right', home_df$task_pose_hv), ]
+nrow(home_r_df)
+table(home_r_df$task_pose_hv)
+
+# left turning videos 
+home_l_df <- home_df[grepl('gait_vertical_left', home_df$task_pose_hv), ]
+nrow(home_l_df)
+table(home_l_df$task_pose_hv)
+
+# filter to unique IDs - one row per person, select first video 
+home_uniqueid_df <- home_df %>%
+  arrange(visit_date_video) %>%   # Sort by date
+  distinct(bw_id, .keep_all = TRUE)  # Keep the first occurrence of each ID
+
+nrow(home_uniqueid_df)
+```
+
+```{r}
+# count number of missing variables in home video data frame 
+sum(is.na(home_df$delta_pix_h_rel_median_pose_hv))
+sum(is.na(home_df$stride_time_mean_sec_pose_hv))
+sum(is.na(home_df$mean_cadence_step_per_min_pose_hv))
+sum(is.na(home_df$stride_width_mean_cm_pose_hv))
+# stance and all double support measures 
+sum(is.na(home_df$foot1_gait_cycle_time_mean_pose_hv))
+# ground truth preferred walk zeno mat data 
+sum(is.na(home_df$PWS_cadencestepsminmean))
+sum(is.na(home_df$bingoEHR_EDSS_measure_value))
+sum(is.na(home_df$msfcEHR_T25FW.SPEED.AVG))
+# demographics 
+sum(is.na(home_df$demoEHR_Age))
+sum(is.na(home_df$demoEHR_DiseaseDuration)) 
+sum(is.na(home_df$race_ethnicity_clean))
+sum(is.na(home_df$clean_sex))
+sum(is.na(home_df$ms_dx_condensed))
+
+```
+# Function - Linear Regression Models 
+```{r}
+metric_regression <- function(data_frame, outcome, predictor) {
+  
+  outcome_string <- deparse(substitute(outcome))
+  predictor_string <- deparse(substitute(predictor))
+  
+  # plot 
+  print(ggplot(data = data_frame, aes_string(x = predictor_string, 
+                                             y = outcome_string,
+                                             color = "demoEHR_Age", 
+                                             shape = "ms_dx_condensed")) + geom_point())
+  
+  
+  # univariate model - just metric and outcome 
+  outcome_predictor_string <- paste(outcome_string, "~", predictor_string, collapse = " ")
+  print(outcome_predictor_string)
+  
+  model_1 <- lm(as.formula(outcome_predictor_string),
+                data = data_frame)
+
+  print(summary(model_1))
+  hist(resid(model_1))
+
+
+  # confounding: model + disease info and demographics
+  additional_vars <- "demoEHR_Age + demoEHR_DiseaseDuration + 
+                      ms_dx_condensed + 
+                      race_ethnicity_clean + 
+                      clean_sex"
+  
+  full_formula_string = paste(outcome_predictor_string, "+", additional_vars,  collapse = " ")
+  print(full_formula_string)
+  
+  model_2 <- lm(as.formula(full_formula_string),
+                data = data_frame)
+  
+  print(summary(model_2))
+  hist(resid(model_2))
+}
+
+```
+
+
+# Linear Regression - T25FW 
+
+## Transform T25FW 
+
+```{r}
+# preferred walking speed videos 
+zeno_pws_df$t25fw_log <- log(zeno_pws_df$msfcEHR_T25FW.SPEED.AVG)
+
+ggplot(data = zeno_pws_df, mapping = aes(msfcEHR_T25FW.SPEED.AVG)) + 
+  geom_histogram()
+
+ggplot(data = zeno_pws_df, mapping = aes(t25fw_log)) + 
+  geom_histogram()
+
+# unique IDS 
+zeno_pws_uniqueid_df$t25fw_log <- log(zeno_pws_uniqueid_df$msfcEHR_T25FW.SPEED.AVG)
+
+ggplot(data = zeno_pws_uniqueid_df, mapping = aes(msfcEHR_T25FW.SPEED.AVG)) + 
+  geom_histogram()
+
+ggplot(data = zeno_pws_uniqueid_df, mapping = aes(t25fw_log)) + 
+  geom_histogram()
+
+```
+
+```{r}
+# fast walking speed videos 
+zeno_fw_df$t25fw_log <- log(zeno_fw_df$msfcEHR_T25FW.SPEED.AVG)
+
+ggplot(data = zeno_fw_df, mapping = aes(msfcEHR_T25FW.SPEED.AVG)) + 
+  geom_histogram()
+
+ggplot(data = zeno_fw_df, mapping = aes(t25fw_log)) + 
+  geom_histogram()
+
+# unique IDs 
+zeno_fw_uniqueid_df$t25fw_log <- log(zeno_fw_uniqueid_df$msfcEHR_T25FW.SPEED.AVG)
+
+ggplot(data = zeno_fw_uniqueid_df, mapping = aes(msfcEHR_T25FW.SPEED.AVG)) + 
+  geom_histogram()
+
+ggplot(data = zeno_fw_uniqueid_df, mapping = aes(t25fw_log)) + 
+  geom_histogram()
+```
+
+```{r}
+# home - all videos  
+
+home_df$t25fw_log <- log(home_df$msfcEHR_T25FW.SPEED.AVG)
+
+ggplot(data = home_df, mapping = aes(msfcEHR_T25FW.SPEED.AVG)) + 
+  geom_histogram()
+
+ggplot(data = home_df, mapping = aes(t25fw_log)) + 
+  geom_histogram()
+
+
+# home - right 
+home_r_df$t25fw_log <- log(home_r_df$msfcEHR_T25FW.SPEED.AVG)
+
+ggplot(data = home_r_df, mapping = aes(msfcEHR_T25FW.SPEED.AVG)) + 
+  geom_histogram()
+
+ggplot(data = home_r_df, mapping = aes(t25fw_log)) + 
+  geom_histogram()
+
+# home - left
+home_l_df$t25fw_log <- log(home_l_df$msfcEHR_T25FW.SPEED.AVG)
+
+ggplot(data = home_l_df, mapping = aes(msfcEHR_T25FW.SPEED.AVG)) + 
+  geom_histogram()
+
+ggplot(data = home_l_df, mapping = aes(t25fw_log)) + 
+  geom_histogram()
+
+# home - unique 
+home_uniqueid_df$t25fw_log <- log(home_uniqueid_df$msfcEHR_T25FW.SPEED.AVG)
+
+ggplot(data = home_uniqueid_df, mapping = aes(msfcEHR_T25FW.SPEED.AVG)) + 
+  geom_histogram()
+
+ggplot(data = home_uniqueid_df, mapping = aes(t25fw_log)) + 
+  geom_histogram()
+
+```
+
+
+## Demographics and Disease Info --> Log T25FW
+
+```{r}
+# Preferred walking speed participants 
+
+# model 
+pws_dem_model <- lm(t25fw_log ~ demoEHR_Age +
+                      demoEHR_DiseaseDuration +
+                      ms_dx_condensed +
+                      race_ethnicity_clean +
+                      clean_sex,
+                    data = zeno_pws_df)
+
+summary(pws_dem_model)
+hist(resid(pws_dem_model))
+
+# model - unique IDS 
+pws_dem_model_2 <- lm(t25fw_log ~ demoEHR_Age +
+                      demoEHR_DiseaseDuration +
+                      ms_dx_condensed +
+                      race_ethnicity_clean +
+                      clean_sex,
+                    data = zeno_pws_uniqueid_df)
+
+summary(pws_dem_model_2)
+hist(resid(pws_dem_model_2))
+```
+```{r}
+# Fast Walking speed participants 
+
+fw_dem_model <- lm(t25fw_log ~ demoEHR_Age + 
+                     demoEHR_DiseaseDuration + 
+                     ms_dx_condensed + 
+                     race_ethnicity_clean + 
+                     clean_sex,
+                   data = zeno_fw_df)
+
+summary(fw_dem_model)
+hist(resid(fw_dem_model))
+
+# unique IDs 
+fw_dem_model_2 <- lm(t25fw_log ~ demoEHR_Age + 
+                     demoEHR_DiseaseDuration + 
+                     ms_dx_condensed + 
+                     ms_dx_condensed + 
+                     clean_sex,
+                   data = zeno_fw_uniqueid_df)
+
+summary(fw_dem_model_2)
+hist(resid(fw_dem_model_2))
+
+```
+
+```{r}
+# Home Videos - all 
+
+home_dem_model <- lm(t25fw_log ~ demoEHR_Age + 
+                     demoEHR_DiseaseDuration + 
+                     ms_dx_condensed + 
+                     ms_dx_condensed + 
+                     clean_sex,
+                   data = home_df)
+
+summary(home_dem_model)
+
+# check residuals 
+hist(resid(home_dem_model))
+
+# home right -------------------------
+home_r_dem_model <- lm(t25fw_log ~ demoEHR_Age + 
+                     demoEHR_DiseaseDuration + 
+                     ms_dx_condensed + 
+                     ms_dx_condensed + 
+                     clean_sex,
+                   data = home_r_df)
+
+summary(home_r_dem_model)
+
+# check residuals 
+hist(resid(home_r_dem_model))
+
+
+# home left --------------------------
+home_l_dem_model <- lm(t25fw_log ~ demoEHR_Age + 
+                     demoEHR_DiseaseDuration + 
+                     ms_dx_condensed + 
+                     ms_dx_condensed + 
+                     clean_sex,
+                   data = home_l_df)
+
+summary(home_l_dem_model)
+
+hist(resid(home_l_dem_model))
+
+# home unique IDs ----------------
+home_uniqueid_dem_model <- lm(t25fw_log ~ demoEHR_Age + 
+                                demoEHR_DiseaseDuration + 
+                                ms_dx_condensed + 
+                                ms_dx_condensed + 
+                                clean_sex,
+                              data = home_uniqueid_df)
+
+summary(home_uniqueid_dem_model)
+hist(resid(home_uniqueid_dem_model))
+
+```
+
+##  Univariate for each video metric --> Log T25FW
+
+### Delta Pixel - Velocity Proxy 
+
+```{r}
+# Preferred Walking Speed 
+sum(is.finite(zeno_pws_df$delta_pix_h_rel_median_pose_zv))
+
+zeno_pws_df$log_delta_pix_h_rel_median_pose_zv <- log(zeno_pws_df$delta_pix_h_rel_median_pose_zv)
+zeno_pws_df$sqrt_delta_pix_h_rel_median_pose_zv <- sqrt(zeno_pws_df$delta_pix_h_rel_median_pose_zv)
+
+# log velproxy and log t25Fw
+metric_regression(zeno_pws_df, t25fw_log, log_delta_pix_h_rel_median_pose_zv)
+
+# Benchmark - True PWS mat velocity and log25fw 
+metric_regression(zeno_pws_df, t25fw_log, PWS_velocitycmsecmean)
+
+# unique IDs 
+zeno_pws_uniqueid_df$log_delta_pix_h_rel_median_pose_zv <- log(zeno_pws_uniqueid_df$delta_pix_h_rel_median_pose_zv)
+
+metric_regression(zeno_pws_uniqueid_df, t25fw_log, log_delta_pix_h_rel_median_pose_zv)
+
+```
+
+```{r}
+# Fast Walking 
+sum(is.finite(zeno_fw_df$delta_pix_h_rel_median_pose_zv))
+
+zeno_fw_df$log_delta_pix_h_rel_median_pose_zv <-log(zeno_fw_df$delta_pix_h_rel_median_pose_zv)
+zeno_fw_df$sqrt_delta_pix_h_rel_median_pose_zv <- sqrt(zeno_fw_df$delta_pix_h_rel_median_pose_zv)
+
+# drop 
+zeno_fw_df <- zeno_fw_df %>% filter(is.finite(log_delta_pix_h_rel_median_pose_zv))
+nrow(zeno_fw_df)
+
+# log T25FW 
+ggplot(data = zeno_fw_df, aes(x = delta_pix_h_rel_median_pose_zv, y =  t25fw_log)) + 
+  geom_point()
+
+ggplot(data = zeno_fw_df, aes(x = log_delta_pix_h_rel_median_pose_zv, y = t25fw_log)) + 
+  geom_point()
+
+ggplot(data = zeno_fw_df, aes(x = sqrt_delta_pix_h_rel_median_pose_zv, y = t25fw_log)) + 
+  geom_point()
+
+# log velproxy and log t25Fw
+metric_regression(zeno_fw_df, t25fw_log, log_delta_pix_h_rel_median_pose_zv)
+
+# true FW velocity from mat and t25fw 
+metric_regression(zeno_fw_df, t25fw_log, FW_velocitycmsecmean)
+
+
+# unique IDs 
+zeno_fw_uniqueid_df$log_delta_pix_h_rel_median_pose_zv <- log(zeno_fw_uniqueid_df$delta_pix_h_rel_median_pose_zv)
+zeno_fw_uniqueid_df[] <- lapply(zeno_fw_uniqueid_df, function(x) {
+  if (is.numeric(x)) replace(x, is.infinite(x), NA) else x
+})
+
+metric_regression(zeno_fw_uniqueid_df, t25fw_log, log_delta_pix_h_rel_median_pose_zv)
+```
+
+```{r}
+# Home All 
+sum(is.finite(home_df$delta_pix_h_rel_median_pose_hv))
+
+home_df$log_delta_pix_h_rel_median_pose_hv <-log(home_df$delta_pix_h_rel_median_pose_hv)
+home_df$sqrt_delta_pix_h_rel_median_pose_hv <- sqrt(home_df$delta_pix_h_rel_median_pose_hv)
+
+#log velproxy and log t25Fw
+metric_regression(home_df, t25fw_log, log_delta_pix_h_rel_median_pose_hv)
+
+#sqrt velproxy and log t25fw 
+metric_regression(home_df, t25fw_log, sqrt_delta_pix_h_rel_median_pose_hv)
+
+
+# benchmark - pressure mat velocity and log t25fw + demographics and disease 
+metric_regression(home_df, t25fw_log, PWS_velocitycmsecmean)
+
+# left turns only 
+home_l_df$sqrt_delta_pix_h_rel_median_pose_hv <- sqrt(home_l_df$delta_pix_h_rel_median_pose_hv)
+
+metric_regression(home_l_df, t25fw_log, sqrt_delta_pix_h_rel_median_pose_hv)
+
+# right turns only 
+home_r_df$sqrt_delta_pix_h_rel_median_pose_hv <- sqrt(home_r_df$delta_pix_h_rel_median_pose_hv)
+
+metric_regression(home_r_df, t25fw_log, sqrt_delta_pix_h_rel_median_pose_hv)
+
+# unique ids 
+home_uniqueid_df$sqrt_delta_pix_h_rel_median_pose_hv <- sqrt(home_uniqueid_df$delta_pix_h_rel_median_pose_hv)
+
+metric_regression(home_uniqueid_df, t25fw_log, sqrt_delta_pix_h_rel_median_pose_hv)
+```
+
+
+*Interesting* - Vel pixel proxy seems not as good (in this version) in home vs in-person video. Maybe due to variability in recoridng set up at home? In this dataset, demographics seems to explain a lot of variance (maybe small sample size + outliers, even after log transform?)
+
+**To do**: try again with eye to ankle distance, seemed a lot better in previous versions. Not sure why it's gotten worse 
+
+
+### Stride Time 
+```{r}
+# Preferred Walking speed 
+sum(is.finite(zeno_pws_df$stride_time_mean_sec_pose_zv))
+
+# stride time mean 
+ggplot(data = zeno_pws_df, aes(x = stride_time_mean_sec_pose_zv, y = t25fw_log)) + 
+  geom_point()
+
+# stride time median 
+ggplot(data = zeno_pws_df, aes(x = stride_time_median_sec_pose_zv, y = t25fw_log)) +
+  geom_point()
+
+# stride time max 
+ggplot(data = zeno_pws_df, aes(x = stride_time_max_pose_zv, y = t25fw_log)) + 
+  geom_point()
+
+# stride time min 
+ggplot(data = zeno_pws_df, aes(x = stride_time_min_pose_zv, y = t25fw_log)) + 
+  geom_point()
+
+# stride time std 
+ggplot(data = zeno_pws_df, aes(x = stride_time_std_pose_zv, y = t25fw_log)) + 
+  geom_point()
+
+# stride time cv 
+ggplot(data = zeno_pws_df, aes(x = stride_time_cv_pose_zv, y = t25fw_log)) + 
+  geom_point()
+
+# Selected median, seemed most linear 
+metric_regression(zeno_pws_df, t25fw_log, stride_time_median_sec_pose_zv)
+
+# benchmark - true PWS stride time 
+metric_regression(zeno_pws_df, t25fw_log, PWS_stridetimesecmean)
+
+# video unique IDs
+metric_regression(zeno_pws_uniqueid_df, t25fw_log, stride_time_median_sec_pose_zv)
+
+```
+
+```{r}
+# Fast Walking Speed 
+sum(is.finite(zeno_fw_df$stride_time_mean_sec_pose_zv))
+
+metric_regression(zeno_fw_df, t25fw_log, stride_time_median_sec_pose_zv)
+
+# true fast walk - stride time from mat 
+metric_regression(zeno_fw_df, t25fw_log, FW_stridetimesecmean)
+
+# video unique IDs
+metric_regression(zeno_fw_uniqueid_df, t25fw_log, FW_stridetimesecmean)
+```
+
+```{r}
+sum(is.finite(home_df$stride_time_median_sec_pose_hv))
+
+# Home Videos 
+metric_regression(home_df, t25fw_log, stride_time_median_sec_pose_hv)
+
+# PWS from mat 
+metric_regression(home_df, t25fw_log, PWS_stridetimesecmean)
+
+# left only - video 
+metric_regression(home_l_df, t25fw_log, stride_time_median_sec_pose_hv)
+
+# right only - video 
+metric_regression(home_r_df, t25fw_log, stride_time_median_sec_pose_hv)
+
+# unique IDs - video 
+metric_regression(home_uniqueid_df, t25fw_log, stride_time_median_sec_pose_hv)
+```
+
+
+### Cadence 
+```{r}
+# PWS 
+sum(is.finite(zeno_pws_df$mean_cadence_step_per_min_pose_zv))
+
+# cadence model 
+metric_regression(zeno_pws_df, t25fw_log, mean_cadence_step_per_min_pose_zv)
+
+# ground truth cadence from mat 
+metric_regression(zeno_pws_df, t25fw_log, PWS_cadencestepsminmean)
+
+# unique ID 
+metric_regression(zeno_pws_uniqueid_df, t25fw_log, mean_cadence_step_per_min_pose_zv)
+```
+
+
+```{r}
+#FWS 
+sum(is.finite(zeno_fw_df$mean_cadence_step_per_min_pose_zv))
+
+# cadence model 
+metric_regression(zeno_fw_df, t25fw_log, mean_cadence_step_per_min_pose_zv)
+
+# ground truth cadence from mat 
+metric_regression(zeno_fw_df, t25fw_log, FW_cadencestepsminmean)
+
+# unique IDs 
+metric_regression(zeno_fw_uniqueid_df, t25fw_log, mean_cadence_step_per_min_pose_zv)
+```
+
+
+```{r}
+# Home Videos 
+sum(is.finite(home_df$mean_cadence_step_per_min_pose_hv))
+
+# cadence model 
+metric_regression(home_df, t25fw_log, mean_cadence_step_per_min_pose_hv)
+
+# ground truth cadence from mat 
+metric_regression(home_df, t25fw_log, PWS_cadencestepsminmean)
+
+# Left turns only 
+metric_regression(home_l_df, t25fw_log, mean_cadence_step_per_min_pose_hv)
+
+# right turns only 
+metric_regression(home_r_df, t25fw_log, mean_cadence_step_per_min_pose_hv)
+
+# unique IDs 
+metric_regression(home_uniqueid_df, t25fw_log, mean_cadence_step_per_min_pose_hv)
+```
+
+### Stride Width 
+```{r}
+sum(is.finite(zeno_pws_df$stride_width_mean_cm_pose_zv))
+
+# Preferred Walking Speed 
+ggplot(data = zeno_pws_df, aes(x = stride_width_mean_cm_pose_zv, y = t25fw_log)) + 
+  geom_point()
+
+ggplot(data = zeno_pws_df, aes(x = stride_width_median_cm_pose_zv, y = t25fw_log)) + 
+  geom_point()
+
+ggplot(data = zeno_pws_df, aes(x = stride_width_min_pose_zv, y = t25fw_log)) + 
+  geom_point()
+
+ggplot(data = zeno_pws_df, aes(x = stride_width_max_pose_zv, y = t25fw_log)) + 
+  geom_point()
+
+ggplot(data = zeno_pws_df, aes(x = stride_width_std_pose_zv, y = t25fw_log)) + 
+  geom_point()
+
+ggplot(data = zeno_pws_df, aes(x = stride_width_cv_pose_zv, y = t25fw_log)) + 
+  geom_point()
+
+## model  
+metric_regression(zeno_pws_df, t25fw_log, stride_width_median_cm_pose_zv)
+
+## pressure mat stride width model
+metric_regression(zeno_pws_df, t25fw_log, PWS_stridewidthcmmean)
+
+# unique IDs 
+metric_regression(zeno_pws_uniqueid_df, t25fw_log, stride_width_median_cm_pose_zv)
+```
+
+
+```{r}
+# Fast Walking Speed 
+sum(is.finite(zeno_fw_df$stride_width_mean_cm_pose_zv))
+
+## model  
+metric_regression(zeno_fw_df, t25fw_log, stride_width_median_cm_pose_zv)
+
+## pressure mat stride width model  
+metric_regression(zeno_fw_df, t25fw_log, FW_stridewidthcmmean)
+
+## unique IDs 
+metric_regression(zeno_fw_uniqueid_df, t25fw_log, stride_width_median_cm_pose_zv)
+```
+
+
+```{r}
+# Home Videos 
+sum(is.finite(home_df$stride_width_median_cm_pose_hv))
+
+## model  
+metric_regression(home_df, t25fw_log, stride_width_median_cm_pose_hv)
+
+## pressure mat stride width model  
+metric_regression(home_df, t25fw_log, PWS_stridewidthcmmean)
+
+# left only 
+metric_regression(home_l_df, t25fw_log, stride_width_median_cm_pose_hv)
+
+# right only 
+metric_regression(home_r_df, t25fw_log, stride_width_median_cm_pose_hv)
+
+# unique IDs 
+metric_regression(home_uniqueid_df, t25fw_log, stride_width_median_cm_pose_hv)
+```
+**Interesting** 
+Stride width associated with T25FW in home videos, but not in person videos? 
+
+### Stance Time 
+```{r}
+# PWS 
+sum(is.finite(zeno_pws_df$foot1_stance_time_mean_pose_zv))
+
+ggplot(data = zeno_pws_df, aes(x = foot1_stance_time_mean_pose_zv, y = t25fw_log)) + 
+  geom_point()
+
+ggplot(data = zeno_pws_df, aes(x = foot1_stance_per_mean_pose_zv, y = t25fw_log)) + 
+  geom_point()
+
+#video model  
+metric_regression(zeno_pws_df, t25fw_log, foot1_stance_time_mean_pose_zv)
+
+# no pressure mat value 
+
+# unique IDs 
+metric_regression(zeno_pws_uniqueid_df, t25fw_log, foot1_stance_time_mean_pose_zv)
+```
+
+```{r}
+# FW 
+sum(is.finite(zeno_fw_df$foot1_stance_time_mean_pose_zv))
+
+#video model  
+metric_regression(zeno_fw_df, t25fw_log, foot1_stance_time_mean_pose_zv)
+
+# no pressure mat value 
+
+# unique IDs 
+metric_regression(zeno_fw_uniqueid_df, t25fw_log, foot1_stance_time_mean_pose_zv)
+
+```
+
+```{r}
+# Home Video  
+sum(is.finite(home_df$foot1_stance_time_mean_pose_hv))
+
+#video model  
+metric_regression(home_df, t25fw_log, foot1_stance_time_mean_pose_hv)
+
+# no pressure mat value 
+
+# left only 
+metric_regression(home_l_df, t25fw_log, foot1_stance_time_mean_pose_hv)
+
+# right only 
+metric_regression(home_r_df, t25fw_log, foot1_stance_time_mean_pose_hv)
+
+# unique IDs - insufficent data? - less than one factor group
+# metric_regression(home_uniqueid_df, t25fw_log, foot1_stance_time_mean_pose_hv)
+```
+### Swing Time  
+```{r}
+# PWS 
+sum(is.finite(zeno_pws_df$foot1_swing_time_mean_pose_zv))
+
+ggplot(data = zeno_pws_df, aes(x = foot1_swing_time_mean_pose_zv, y = t25fw_log)) + 
+  geom_point()
+
+ggplot(data = zeno_pws_df, aes(x = foot1_swing_per_mean_pose_zv, y = t25fw_log)) + 
+  geom_point()
+
+#video model  
+metric_regression(zeno_pws_df, t25fw_log, foot1_swing_time_mean_pose_zv)
+# no pressure mat value 
+
+# unique IDs 
+metric_regression(zeno_pws_uniqueid_df, t25fw_log, foot1_swing_time_mean_pose_zv)
+
+```
+
+```{r}
+# FW  
+sum(is.finite(zeno_fw_df$foot1_swing_time_mean_pose_zv))
+
+ggplot(data = zeno_fw_df, aes(x = foot1_swing_time_mean_pose_zv, y = t25fw_log)) + 
+  geom_point()
+
+ggplot(data = zeno_fw_df, aes(x = foot1_swing_per_mean_pose_zv, y = t25fw_log)) + 
+  geom_point()
+
+```
+
+```{r}
+# Home  
+sum(is.finite(home_df$foot1_swing_time_mean_pose_hv))
+
+ggplot(data = home_df, aes(x = foot1_swing_time_mean_pose_hv, y = t25fw_log)) + 
+  geom_point()
+
+ggplot(data = home_df, aes(x = foot1_swing_per_mean_pose_hv, y = t25fw_log)) + 
+  geom_point()
+
+# home all 
+metric_regression(home_df, t25fw_log, foot1_swing_per_mean_pose_hv)
+
+# left 
+metric_regression(home_l_df, t25fw_log, foot1_swing_per_mean_pose_hv)
+
+# right 
+metric_regression(home_r_df, t25fw_log, foot1_swing_per_mean_pose_hv)
+
+# unique IDs 
+#metric_regression(home_uniqueid_df, t25fw_log, foot1_swing_per_mean_pose_hv)
+```
+
+### Double/Single Support 
+```{r}
+# PWS 
+sum(is.finite(zeno_pws_df$foot1_double_support_per_mean_pose_zv))
+
+ggplot(data = zeno_pws_df, aes(x = foot1_double_support_per_mean_pose_zv, y = t25fw_log)) + 
+  geom_point()
+
+ggplot(data = zeno_pws_df, aes(x = foot1_ini_double_support_time_mean_pose_zv, y = t25fw_log)) + 
+  geom_point()
+
+ggplot(data = zeno_pws_df, aes(x = foot1_single_support_per_mean_pose_zv, y = t25fw_log)) + 
+  geom_point()
+
+ggplot(data = zeno_pws_df, aes(x = foot1_term_double_support_time_mean_pose_zv, y = t25fw_log)) + 
+  geom_point()
+
+ggplot(data = zeno_pws_df, aes(x = foot1_tot_double_support_time_mean_pose_zv, y = t25fw_log)) + 
+  geom_point()
+
+# try terminal double support time 
+metric_regression(zeno_pws_df, t25fw_log, foot1_term_double_support_time_mean_pose_zv)
+
+# unique IDs 
+metric_regression(zeno_pws_uniqueid_df, t25fw_log, foot1_term_double_support_time_mean_pose_zv)
+
+# mat double support 
+metric_regression(zeno_pws_df, t25fw_log, PWS_totaldsupportmean)
+
+zeno_pws_df$log_PWS_totaldsupportmean <- log(zeno_pws_df$PWS_totaldsupportmean)
+metric_regression(zeno_pws_df, t25fw_log, log_PWS_totaldsupportmean)
+
+```
+
+```{r}
+# Fast Walking 
+sum(is.finite(zeno_fw_df$foot1_term_double_support_time_mean_pose_zv))
+
+# try terminal double support time 
+metric_regression(zeno_fw_df, t25fw_log, foot1_term_double_support_time_mean_pose_zv)
+
+# unique IDs 
+metric_regression(zeno_pws_uniqueid_df, t25fw_log, foot1_term_double_support_time_mean_pose_zv)
+
+# mat double support 
+metric_regression(zeno_fw_df, t25fw_log, FW_totaldsupportmean)
+
+zeno_fw_df$log_FW_totaldsupportmean <- log(zeno_fw_df$FW_totaldsupportmean)
+metric_regression(zeno_fw_df, t25fw_log, log_FW_totaldsupportmean)
+
+```
+
+**FW** - remove outlier?? %, shouldn't be greater than 100...
+
+```{r}
+# home 
+sum(is.finite(home_df$foot1_double_support_per_mean_pose_zv))
+
+ggplot(data = home_df, aes(x = foot1_double_support_per_mean_pose_hv, y = t25fw_log)) + 
+  geom_point()
+
+ggplot(data = home_df, aes(x = foot1_ini_double_support_time_mean_pose_hv, y = t25fw_log)) + 
+  geom_point()
+
+ggplot(data = home_df, aes(x = foot1_single_support_per_mean_pose_hv, y = t25fw_log)) + 
+  geom_point()
+
+ggplot(data = home_df, aes(x = foot1_term_double_support_time_mean_pose_hv, y = t25fw_log)) + 
+  geom_point()
+
+ggplot(data = home_df, aes(x = foot1_tot_double_support_time_mean_pose_hv, y = t25fw_log)) + 
+  geom_point()
+
+# home all 
+metric_regression(home_df, t25fw_log, foot1_ini_double_support_time_mean_pose_hv)
+
+metric_regression(home_df, t25fw_log, foot1_term_double_support_time_mean_pose_hv)
+
+metric_regression(home_df, t25fw_log, foot1_tot_double_support_time_mean_pose_hv)
+
+# home left 
+metric_regression(home_l_df, t25fw_log, foot1_tot_double_support_time_mean_pose_hv)
+
+# home right 
+metric_regression(home_r_df, t25fw_log, foot1_tot_double_support_time_mean_pose_hv)
+
+```
+**Home summary** 
+Foot 1 double support measures 
+
+## Multivariate(significant univariate metrics --> log t25fw)
+```{r}
+# PWS 
+
+# Metrics only - not including double support/stance measures, too many missing 
+# confounding + 
+pws_t25fw_multivar_model <- lm(t25fw_log ~ log_delta_pix_h_rel_median_pose_zv + 
+                                 stride_time_median_sec_pose_zv + 
+                                 mean_cadence_step_per_min_pose_zv + 
+                                 stride_width_median_cm_pose_zv, 
+                               data = zeno_pws_df)
+
+summary(pws_t25fw_multivar_model)
+hist(resid(pws_t25fw_multivar_model))
+
+# PWS interaction * 
+pws_t25fw_multivar_model_2 <- lm(t25fw_log ~ log_delta_pix_h_rel_median_pose_zv * 
+                                 stride_time_median_sec_pose_zv * 
+                                 mean_cadence_step_per_min_pose_zv * 
+                                 stride_width_median_cm_pose_zv, 
+                               data = zeno_pws_df)
+
+summary(pws_t25fw_multivar_model_2)
+hist(resid(pws_t25fw_multivar_model_2))
+
+```
+
+```{r}
+# PWS 
+# Metrics + disease and demographic info 
+# add MS subtype 
+pws_t25fw_multivar_model_3 <- lm(t25fw_log ~ log_delta_pix_h_rel_median_pose_zv + 
+                                 stride_time_median_sec_pose_zv + 
+                                 mean_cadence_step_per_min_pose_zv + 
+                                 stride_width_median_cm_pose_zv + 
+                                 ms_dx_condensed, 
+                               data = zeno_pws_df)
+
+summary(pws_t25fw_multivar_model_3)
+hist(resid(pws_t25fw_multivar_model_3))
+
+# add age 
+pws_t25fw_multivar_model_4 <- lm(t25fw_log ~ log_delta_pix_h_rel_median_pose_zv + 
+                                 stride_time_median_sec_pose_zv + 
+                                 mean_cadence_step_per_min_pose_zv + 
+                                 stride_width_median_cm_pose_zv + 
+                                 ms_dx_condensed + 
+                                 demoEHR_Age, 
+                               data = zeno_pws_df)
+
+summary(pws_t25fw_multivar_model_4)
+hist(resid(pws_t25fw_multivar_model_4))
+
+
+# add disease duration 
+pws_t25fw_multivar_model_5 <- lm(t25fw_log ~ log_delta_pix_h_rel_median_pose_zv + 
+                                 stride_time_median_sec_pose_zv + 
+                                 mean_cadence_step_per_min_pose_zv + 
+                                 stride_width_median_cm_pose_zv + 
+                                 ms_dx_condensed + 
+                                 demoEHR_Age + 
+                                 demoEHR_DiseaseDuration, 
+                               data = zeno_pws_df)
+
+summary(pws_t25fw_multivar_model_5)
+hist(resid(pws_t25fw_multivar_model_5))
+
+# add race and ethnicity 
+pws_t25fw_multivar_model_6 <- lm(t25fw_log ~ log_delta_pix_h_rel_median_pose_zv + 
+                                 stride_time_median_sec_pose_zv + 
+                                 mean_cadence_step_per_min_pose_zv + 
+                                 stride_width_median_cm_pose_zv + 
+                                 ms_dx_condensed + 
+                                 demoEHR_Age + 
+                                 demoEHR_DiseaseDuration + 
+                                 race_ethnicity_clean, 
+                               data = zeno_pws_df)
+
+summary(pws_t25fw_multivar_model_6)
+hist(resid(pws_t25fw_multivar_model_6))
+```
+**Preferred walking speed** 
+lm 6 - Adjusted R-squared = 0.3943, log_delta_pix_h_rel_median_pose_zv is only video metric associated with outcomes 
+
+```{r}
+# FW 
+fw_t25fw_multivar_model <- lm(t25fw_log ~ log_delta_pix_h_rel_median_pose_zv + 
+                                stride_time_median_sec_pose_zv + 
+                                mean_cadence_step_per_min_pose_zv + 
+                                stride_width_median_cm_pose_zv, 
+                               data = zeno_fw_df)
+
+summary(fw_t25fw_multivar_model)
+hist(resid(fw_t25fw_multivar_model))
+
+fw_t25fw_multivar_model_2 <- lm(t25fw_log ~ log_delta_pix_h_rel_median_pose_zv * 
+                                stride_time_median_sec_pose_zv * 
+                                mean_cadence_step_per_min_pose_zv * 
+                                stride_width_median_cm_pose_zv, 
+                               data = zeno_fw_df)
+
+summary(fw_t25fw_multivar_model_2)
+hist(resid(fw_t25fw_multivar_model_2))
+```
+
+```{r}
+# FW 
+# add MS subtype 
+fw_t25fw_multivar_model_3 <- lm(t25fw_log ~ log_delta_pix_h_rel_median_pose_zv + 
+                                 stride_time_median_sec_pose_zv + 
+                                 mean_cadence_step_per_min_pose_zv + 
+                                 stride_width_median_cm_pose_zv + 
+                                 ms_dx_condensed, 
+                                data = zeno_fw_df) 
+
+summary(fw_t25fw_multivar_model_3)
+hist(resid(fw_t25fw_multivar_model_3))
+
+# add age 
+fw_t25fw_multivar_model_4 <- lm(t25fw_log ~ log_delta_pix_h_rel_median_pose_zv + 
+                                 stride_time_median_sec_pose_zv + 
+                                 mean_cadence_step_per_min_pose_zv + 
+                                 stride_width_median_cm_pose_zv + 
+                                 ms_dx_condensed + 
+                                 demoEHR_Age, 
+                                data = zeno_fw_df) 
+
+summary(fw_t25fw_multivar_model_4)
+hist(resid(fw_t25fw_multivar_model_4))
+
+# add disease duration 
+fw_t25fw_multivar_model_5 <- lm(t25fw_log ~ log_delta_pix_h_rel_median_pose_zv + 
+                                 stride_time_median_sec_pose_zv + 
+                                 mean_cadence_step_per_min_pose_zv + 
+                                 stride_width_median_cm_pose_zv + 
+                                 ms_dx_condensed + 
+                                 demoEHR_Age + 
+                                 demoEHR_DiseaseDuration, 
+                                data = zeno_fw_df) 
+
+summary(fw_t25fw_multivar_model_5)
+hist(resid(fw_t25fw_multivar_model_5))
+
+# add race and ethnicity 
+fw_t25fw_multivar_model_6 <- lm(t25fw_log ~ log_delta_pix_h_rel_median_pose_zv + 
+                                 stride_time_median_sec_pose_zv + 
+                                 mean_cadence_step_per_min_pose_zv + 
+                                 stride_width_median_cm_pose_zv + 
+                                 ms_dx_condensed + 
+                                 demoEHR_Age + 
+                                 demoEHR_DiseaseDuration + 
+                                 race_ethnicity_clean, 
+                                data = zeno_fw_df) 
+
+summary(fw_t25fw_multivar_model_6)
+hist(resid(fw_t25fw_multivar_model_6))
+```
+
+**Fast Walking** 
+Model 6 - Adjusted R-squared 0.5856; log delta pixel, stride time, and cadence video metrics significant Beta coefficients 
+
+```{r}
+# Home 
+
+
+# confounding +
+home_t25fw_multivar_model <- lm(t25fw_log ~  log_delta_pix_h_rel_median_pose_hv + 
+                                 stride_time_median_sec_pose_hv + 
+                                 mean_cadence_step_per_min_pose_hv + 
+                                 stride_width_median_cm_pose_hv,  
+                               data = home_df)
+
+summary(home_t25fw_multivar_model)
+hist(resid(home_t25fw_multivar_model))
+
+# interaction * 
+home_t25fw_multivar_model_2 <- lm(t25fw_log ~  log_delta_pix_h_rel_median_pose_hv * 
+                                 stride_time_median_sec_pose_hv * 
+                                 mean_cadence_step_per_min_pose_hv * 
+                                 stride_width_median_cm_pose_hv,  
+                               data = home_df)
+
+summary(home_t25fw_multivar_model_2)
+hist(resid(home_t25fw_multivar_model_2))
+```
+**Home video metrics only** 
+Delta pix, stride time, and stride width associated with log t25fw speed 
+
+```{r}
+# Home  
+# Metrics + disease and demographic info  
+# add MS subtype 
+home_t25fw_multivar_model_3 <- lm(t25fw_log ~  log_delta_pix_h_rel_median_pose_hv + 
+                                 stride_time_median_sec_pose_hv + 
+                                 mean_cadence_step_per_min_pose_hv + 
+                                 stride_width_median_cm_pose_hv +
+                                  ms_dx_condensed, 
+                               data = home_df)
+
+summary(home_t25fw_multivar_model_3)
+hist(resid(home_t25fw_multivar_model_3))
+
+# add age 
+home_t25fw_multivar_model_4 <- lm(t25fw_log ~  log_delta_pix_h_rel_median_pose_hv + 
+                                 stride_time_median_sec_pose_hv + 
+                                 mean_cadence_step_per_min_pose_hv + 
+                                 stride_width_median_cm_pose_hv +
+                                 ms_dx_condensed + 
+                                 demoEHR_Age, 
+                               data = home_df)
+
+summary(home_t25fw_multivar_model_4)
+hist(resid(home_t25fw_multivar_model_4))
+
+# add disease duration 
+home_t25fw_multivar_model_5 <- lm(t25fw_log ~  log_delta_pix_h_rel_median_pose_hv + 
+                                 stride_time_median_sec_pose_hv + 
+                                 mean_cadence_step_per_min_pose_hv + 
+                                 stride_width_median_cm_pose_hv +
+                                 ms_dx_condensed + 
+                                  demoEHR_Age +  
+                                 demoEHR_DiseaseDuration, 
+                               data = home_df)
+
+summary(home_t25fw_multivar_model_5)
+hist(resid(home_t25fw_multivar_model_5))
+
+# add race and ethnicity 
+home_t25fw_multivar_model_6 <- lm(t25fw_log ~  log_delta_pix_h_rel_median_pose_hv + 
+                                  stride_time_median_sec_pose_hv + 
+                                  stride_width_median_cm_pose_hv + 
+                                  ms_dx_condensed + 
+                                  demoEHR_Age + 
+                                  demoEHR_DiseaseDuration + 
+                                  race_ethnicity_clean, 
+                               data = home_df)
+
+summary(home_t25fw_multivar_model_6)
+hist(resid(home_t25fw_multivar_model_6))
+```
+**Home Videos**
+Adjusted R-squared 0.7381; Stride width only video significant after adjusting for diseae and demographics  
+
+# Linear Regression  --> PWS Velocity  Zeno Velocity 
+
+## Demographics Only 
+
+```{r}
+pws_matvel_dem_model <- lm(PWS_velocitycmsecmean ~ 
+                      ms_dx_condensed + 
+                      demoEHR_Age + 
+                      demoEHR_DiseaseDuration + 
+                      race_ethnicity_clean, 
+                    data = zeno_pws_df)
+
+summary(pws_matvel_dem_model)
+hist(resid(pws_matvel_dem_model))
+
+
+pws_matvel_dem_model_2 <- lm(PWS_velocitycmsecmean ~ 
+                      ms_dx_condensed + 
+                      demoEHR_Age + 
+                      demoEHR_DiseaseDuration + 
+                      race_ethnicity_clean, 
+                    data = zeno_pws_uniqueid_df)
+
+summary(pws_matvel_dem_model_2)
+hist(resid(pws_matvel_dem_model_2))
+
+```
+
+```{r}
+# Preferred walking speed Zeno 
+
+hist(zeno_pws_df$PWS_velocitycmsecmean)
+ggplot(data = zeno_pws_df, aes(x = log_delta_pix_h_rel_median_pose_zv, PWS_velocitycmsecmean)) + 
+  geom_point()
+
+ggplot(data = zeno_pws_df, aes(x = stride_time_median_sec_pose_zv, PWS_velocitycmsecmean)) + 
+  geom_point()
+
+ggplot(data = zeno_pws_df, aes(x = mean_cadence_step_per_min_pose_zv, PWS_velocitycmsecmean)) + 
+  geom_point()
+
+ggplot(data = zeno_pws_df, aes(x = stride_width_median_cm_pose_zv, PWS_velocitycmsecmean)) + 
+  geom_point()
+```
+
+## Univariate regressions - each video metric
+
+```{r}
+metric_regression(zeno_pws_df, PWS_velocitycmsecmean, log_delta_pix_h_rel_median_pose_zv)
+metric_regression(zeno_pws_df, PWS_velocitycmsecmean, stride_time_median_sec_pose_zv)
+metric_regression(zeno_pws_df, PWS_velocitycmsecmean, mean_cadence_step_per_min_pose_zv)
+metric_regression(zeno_pws_df, PWS_velocitycmsecmean, stride_width_median_cm_pose_zv)
+```
+
+### Multivariate regression 
+
+```{r}
+
+# Metrics only - not including double support/stance measures, too many missing 
+# confounding + 
+pws_matvel_multivar_model <- lm(PWS_velocitycmsecmean ~ log_delta_pix_h_rel_median_pose_zv + 
+                                 stride_time_median_sec_pose_zv + 
+                                 mean_cadence_step_per_min_pose_zv + 
+                                 stride_width_median_cm_pose_zv, 
+                               data = zeno_pws_df)
+
+summary(pws_matvel_multivar_model)
+hist(resid(pws_matvel_multivar_model))
+
+# PWS interaction * 
+pws_matvel_multivar_model_2 <- lm(PWS_velocitycmsecmean ~ log_delta_pix_h_rel_median_pose_zv * 
+                                 stride_time_median_sec_pose_zv * 
+                                 mean_cadence_step_per_min_pose_zv * 
+                                 stride_width_median_cm_pose_zv, 
+                               data = zeno_pws_df)
+
+summary(pws_matvel_multivar_model_2)
+hist(resid(pws_matvel_multivar_model_2))
+
+
+```
+
+```{r}
+# PWS 
+# Metrics + disease and demographic info 
+# add MS subtype 
+pws_matvel_multivar_model_3 <- lm(PWS_velocitycmsecmean ~ log_delta_pix_h_rel_median_pose_zv + 
+                                 stride_time_median_sec_pose_zv + 
+                                 mean_cadence_step_per_min_pose_zv + 
+                                 stride_width_median_cm_pose_zv + 
+                                 ms_dx_condensed, 
+                               data = zeno_pws_df)
+
+summary(pws_matvel_multivar_model_3)
+hist(resid(pws_matvel_multivar_model_3))
+
+# add age 
+pws_matvel_multivar_model_4 <- lm(PWS_velocitycmsecmean ~ log_delta_pix_h_rel_median_pose_zv + 
+                                 stride_time_median_sec_pose_zv + 
+                                 mean_cadence_step_per_min_pose_zv + 
+                                 stride_width_median_cm_pose_zv + 
+                                 ms_dx_condensed + 
+                                 demoEHR_Age, 
+                               data = zeno_pws_df)
+
+summary(pws_matvel_multivar_model_4)
+hist(resid(pws_matvel_multivar_model_4))
+
+
+# add disease duration 
+pws_matvel_multivar_model_5 <- lm(PWS_velocitycmsecmean ~ log_delta_pix_h_rel_median_pose_zv + 
+                                 stride_time_median_sec_pose_zv + 
+                                 mean_cadence_step_per_min_pose_zv + 
+                                 stride_width_median_cm_pose_zv + 
+                                 ms_dx_condensed + 
+                                 demoEHR_Age + 
+                                 demoEHR_DiseaseDuration, 
+                               data = zeno_pws_df)
+
+summary(pws_matvel_multivar_model_5)
+hist(resid(pws_matvel_multivar_model_5))
+
+# add race and ethnicity 
+pws_matvel_multivar_model_6 <- lm(PWS_velocitycmsecmean ~ log_delta_pix_h_rel_median_pose_zv + 
+                                 stride_time_median_sec_pose_zv + 
+                                 mean_cadence_step_per_min_pose_zv + 
+                                 stride_width_median_cm_pose_zv + 
+                                 ms_dx_condensed + 
+                                 demoEHR_Age + 
+                                 demoEHR_DiseaseDuration + 
+                                 race_ethnicity_clean, 
+                               data = zeno_pws_df)
+
+summary(pws_matvel_multivar_model_6)
+hist(resid(pws_matvel_multivar_model_6))
+
+```
+
+# Linear Regression  --> PWS Velocity Home Video 
+
+## Demographics Only 
+
+```{r}
+home_matvel_dem_model <- lm(PWS_velocitycmsecmean ~ 
+                      ms_dx_condensed + 
+                      demoEHR_Age + 
+                      demoEHR_DiseaseDuration + 
+                      race_ethnicity_clean, 
+                    data = home_df)
+
+summary(home_matvel_dem_model)
+hist(resid(home_matvel_dem_model))
+
+
+home_matvel_dem_model_2 <- lm(PWS_velocitycmsecmean ~ 
+                      ms_dx_condensed + 
+                      demoEHR_Age + 
+                      demoEHR_DiseaseDuration + 
+                      race_ethnicity_clean, 
+                    data = home_uniqueid_df)
+
+summary(home_matvel_dem_model_2)
+hist(resid(home_matvel_dem_model_2))
+
+```
+```{r}
+# Home videos - pws 
+
+hist(home_df$PWS_velocitycmsecmean)
+
+ggplot(data = home_df, aes(x = log_delta_pix_h_rel_median_pose_hv, PWS_velocitycmsecmean)) + 
+  geom_point()
+
+ggplot(data = home_df, aes(x = stride_time_median_sec_pose_hv, PWS_velocitycmsecmean)) + 
+  geom_point()
+
+ggplot(data = home_df, aes(x = mean_cadence_step_per_min_pose_hv, PWS_velocitycmsecmean)) + 
+  geom_point()
+
+ggplot(data = home_df, aes(x = stride_width_median_cm_pose_hv, PWS_velocitycmsecmean)) + 
+  geom_point()
+```
+## Univariate regressions - each video metric
+
+# all videos 
+```{r}
+metric_regression(home_df, PWS_velocitycmsecmean, log_delta_pix_h_rel_median_pose_hv)
+metric_regression(home_df, PWS_velocitycmsecmean, stride_time_median_sec_pose_hv)
+metric_regression(home_df, PWS_velocitycmsecmean, mean_cadence_step_per_min_pose_hv)
+metric_regression(home_df, PWS_velocitycmsecmean, stride_width_median_cm_pose_hv)
+```
+### Multivariate regression 
+Metrics only 
+```{r}
+
+# Metrics only - not including double support/stance measures, too many missing 
+# confounding + 
+home_matvel_multivar_model <- lm(PWS_velocitycmsecmean ~ log_delta_pix_h_rel_median_pose_hv + 
+                                 stride_time_median_sec_pose_hv + 
+                                 mean_cadence_step_per_min_pose_hv + 
+                                 stride_width_median_cm_pose_hv, 
+                               data = home_df)
+
+summary(home_matvel_multivar_model)
+hist(resid(home_matvel_multivar_model))
+
+# PWS interaction * 
+home_matvel_multivar_model_2 <- lm(PWS_velocitycmsecmean ~ log_delta_pix_h_rel_median_pose_hv * 
+                                 stride_time_median_sec_pose_hv * 
+                                 mean_cadence_step_per_min_pose_hv * 
+                                 stride_width_median_cm_pose_hv, 
+                               data = home_df)
+
+summary(home_matvel_multivar_model_2)
+hist(resid(home_matvel_multivar_model_2))
+
+
+```
+```{r}
+# Metrics + disease and demographic info 
+# add MS subtype 
+home_matvel_multivar_model_3 <- lm(PWS_velocitycmsecmean ~ log_delta_pix_h_rel_median_pose_hv + 
+                                 stride_time_median_sec_pose_hv + 
+                                 mean_cadence_step_per_min_pose_hv + 
+                                 stride_width_median_cm_pose_hv + 
+                                 ms_dx_condensed, 
+                               data = home_df)
+
+summary(home_matvel_multivar_model_3)
+hist(resid(home_matvel_multivar_model_3))
+
+# add age 
+home_matvel_multivar_model_4 <- lm(PWS_velocitycmsecmean ~ log_delta_pix_h_rel_median_pose_hv + 
+                                 stride_time_median_sec_pose_hv + 
+                                 mean_cadence_step_per_min_pose_hv + 
+                                 stride_width_median_cm_pose_hv + 
+                                 ms_dx_condensed + 
+                                 demoEHR_Age, 
+                               data = home_df)
+
+summary(home_matvel_multivar_model_4)
+hist(resid(home_matvel_multivar_model_4))
+
+
+# add disease duration 
+home_matvel_multivar_model_5 <- lm(PWS_velocitycmsecmean ~ log_delta_pix_h_rel_median_pose_hv + 
+                                 stride_time_median_sec_pose_hv + 
+                                 mean_cadence_step_per_min_pose_hv + 
+                                 stride_width_median_cm_pose_hv + 
+                                 ms_dx_condensed + 
+                                 demoEHR_Age + 
+                                 demoEHR_DiseaseDuration, 
+                               data = home_df)
+
+summary(home_matvel_multivar_model_5)
+hist(resid(home_matvel_multivar_model_5))
+
+# add race and ethnicity 
+home_matvel_multivar_model_6 <- lm(PWS_velocitycmsecmean ~ log_delta_pix_h_rel_median_pose_hv + 
+                                 stride_time_median_sec_pose_hv + 
+                                 mean_cadence_step_per_min_pose_hv + 
+                                 stride_width_median_cm_pose_hv + 
+                                 ms_dx_condensed + 
+                                 demoEHR_Age + 
+                                 demoEHR_DiseaseDuration + 
+                                 race_ethnicity_clean, 
+                               data = home_df)
+
+summary(home_matvel_multivar_model_6)
+hist(resid(home_matvel_multivar_model_6))
+
+```
+**Home Video** 
+significant association of PWS velocity with log delta pix h rel median after adjusting for dem and disease info
+
+# Linear Regression  --> FW velocity   (check distribution)
+FW Zeno videos 
+
+
+
+# Ordinal Regression --> EDSS
