@@ -99,7 +99,7 @@ def run_pipes_on_frame(image, frame_i, latents):
                 extract_mpipe_pose_data(image,
                                         yolo_handler.box,
                                         frame_i,
-                                        True)
+                                        False)
             # perform depth estimation
             # since this takes so long, let's only do it 1x per second
             if frame_i % FPS == 0:
