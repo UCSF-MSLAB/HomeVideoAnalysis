@@ -39,7 +39,7 @@ def pivot_merge_yolo_df(mp_all_df, yolo_df, fps):
         normalized_cutoff = 0.066 # typically 30Hz --> normalized cutoff of 1 / 15
     else: 
        
-        cutoff_frequency = 1  # less than 0.5 * fps 
+        cutoff_frequency = 0.7  # less than 0.5 * fps 
 
         # Create a Butterworth filter
         nyquist_frequency = 0.5 * fps  # Nyquist frequency
@@ -84,7 +84,7 @@ def find_valid_segments(df):
     # Step 2: Identify continuous segments of increasing or decreasing patterns
     df['pattern_change'] = (df['pattern'] != df['pattern'].shift()).cumsum()
 
-    # Frame diff - gaps with missing hip data --> likeley too close to camera 
+    # Frame diff - gaps with missing yolo hip data --> likeley too close to camera 
     df['seconds_diff'] = df['time_seconds'].diff()
     
     # Step 3: Group by segment and filter based on criteria
@@ -95,8 +95,8 @@ def find_valid_segments(df):
         
         if (duration >= 2 and  # greater than 2 seconds 
             (segment_data['seconds_diff'] <= 0.25).all() and # no missing hip data for more than 1/4 of a second 
-            (segment_data.iloc[:, 0:3] > 0.25).all().all() and # no vis scores less than 0.25
-            segment_data.iloc[:, 0:3].values.mean() >= 0.75): # mean vis score >= 0.75
+            (segment_data.iloc[:, 0:3] != 0).all().all() and # no vis scores equal 0
+            segment_data.iloc[:, 0:3].values.mean() >= 0.50): # mean vis score >= 0.50
 
             # make current segment data frame and append to list 
             segment_data_df = pd.DataFrame(data = segment_data)
@@ -120,7 +120,7 @@ def plot_valid_walking_segments(mp_yolo_df, mp_all_df, valid_segments, vid_in_pa
     fig1.suptitle(os.path.splitext(os.path.basename(vid_in_path))[0])
 
     # suplot 1 - hip x width 
-    ax1.scatter(mp_yolo_df['time_seconds'], mp_yolo_df['hip_x_width_yolo'], label = 'raw hip_width_yolo_x', color = 'black', alpha = 0.25, s =1)
+  #  ax1.scatter(mp_yolo_df['time_seconds'], mp_yolo_df['hip_x_width_yolo'], label = 'raw hip_width_yolo_x', color = 'black', alpha = 0.25, s =1)
     ax1.scatter(mp_yolo_df['time_seconds'], mp_yolo_df['hip_x_width_yolo_filt'], label = 'filtered hip_width_yolo_x', color = 'grey', alpha = 0.3, s = 1)
 
     # subplot 2 - landmark visibility 
@@ -177,13 +177,11 @@ def plot_valid_walking_segments(mp_yolo_df, mp_all_df, valid_segments, vid_in_pa
     output_file = os.path.normpath(os.path.join(output_folder, input_file_no_ext +'_walking_segment_selected.png'))
 
     # save figure 
+#    plt.show()
     fig1.savefig(output_file, bbox_inches = 'tight')
     plt.close(fig1)
     plt.close()
-    # plt.show(fig1)
-
-
-# In[ ]:
+    
 
 
 # run on all 
