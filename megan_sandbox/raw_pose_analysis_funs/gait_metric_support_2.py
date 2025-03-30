@@ -19,50 +19,62 @@ import scipy.signal as sig
 def plot_events_per_stride(all_gait_events_df, mp_r_ank_df, mp_l_ank_df, output_folder, vid_in_path_no_ext, walk_num): 
     ## Plot each set of gait events data 
     for index, row in all_gait_events_df.iterrows():
+        fig, axs = plt.subplots(figsize=(10, 6)) 
         # right ankle y position 
         sns.lineplot(x = 'frame', y = 'Y_pose_negative_smooth', 
                      data = mp_r_ank_df, 
-                     color = 'black', label = 'right ankle Y', alpha = 0.5) 
+                     color = 'black', label = 'right ankle Y', alpha = 0.5, ax = axs) 
         # left ankle y position 
         sns.lineplot(x = 'frame', y = 'Y_pose_negative_smooth', 
                      data = mp_l_ank_df, 
-                     color = 'grey', label = 'left ankle Y', alpha = 0.5) 
+                     color = 'grey', label = 'left ankle Y', alpha = 0.5, ax = axs) 
     
         # foot 1 toe off a
-        plt.axvline(row['foot_1_toe_off_a'], color = 'red', linestyle = '--', alpha = 0.5, label = 'foot_1_toe_off_a')
+        axs.axvline(row['foot_1_toe_off_a'], color = 'red', 
+                       linestyle = '--', alpha = 0.5, label = 'foot_1_toe_off_a')
     
         # foot 1 heel strike a 
-        plt.axvline(row['foot_1_heel_strike_a'], color = 'orange', linestyle = '--', alpha = 0.5, label = 'foot_1_heel_strike_a')
+        axs.axvline(row['foot_1_heel_strike_a'], color = 'orange', 
+                       linestyle = '-', alpha = 0.3, label = 'foot_1_heel_strike_a')
     
         # foot 2 toe off 
-        plt.axvline(row['foot_2_toe_off'], color = 'yellow', linestyle = '--', alpha = 0.5, label = 'foot_2_toe_off')
+        axs.axvline(row['foot_2_toe_off'], color = 'yellow', 
+                       linestyle = '--', alpha = 0.5, label = 'foot_2_toe_off')
 
         # foot 2 heel strike 
-        plt.axvline(row['foot_2_heel_strike'], color = 'green', linestyle = '--', alpha = 0.5, label = 'foot_2_heel_strike')
+        axs.axvline(row['foot_2_heel_strike'], color = 'green', 
+                    linestyle = '-', alpha = 0.3, label = 'foot_2_heel_strike')
 
         # foot 1 toe off b 
-        plt.axvline(row['foot_1_toe_off_b'], color = 'blue', linestyle = '--', alpha = 0.5, label = 'foot_1_toe_off_b')
+        axs.axvline(row['foot_1_toe_off_b'], color = 'blue', 
+                    linestyle = '--', alpha = 0.5, label = 'foot_1_toe_off_b')
 
         # foot 1 heel strike 2 
-        plt.axvline(row['foot_1_heel_strike_b'], color = 'purple', linestyle = '--', alpha = 0.5, label = 'foot_1_heel_strike_b')
+        axs.axvline(row['foot_1_heel_strike_b'], color = 'purple', 
+                    linestyle = '-', alpha = 0.3, label = 'foot_1_heel_strike_b')
 
         # title = foot 1 
         if row['first_toe_off_foot'] == 'left':
-            plt.title("Foot 1 = Left Foot") 
+            fig.suptitle("Foot 1 = Left Foot") 
         elif row['first_toe_off_foot'] == 'right':
-            plt.title("Foot 1 = Right Foot")
+            fig.suptitle("Foot 1 = Right Foot")
 
-        plt.ylim([-1, 0])
-        plt.xlim([row['foot_1_toe_off_a'] - 25, row['foot_1_heel_strike_b'] + 25]) 
+        axs.set_ylim([-1, 0])
+        axs.set_xlabel('Frame')
+        axs.set_ylabel('Landmark Y Position')
+       # axs.set_xlim([row['foot_1_toe_off_a'] - 25, row['foot_1_heel_strike_b'] + 25]) 
     
-        plt.legend(loc='upper left', bbox_to_anchor=(1, 1))
-        plt.show()
-        plt.close() 
-
+        axs.legend(loc='upper left', bbox_to_anchor=(1, 1))
+       # fig.show()
+       # plt.show()
+        
         # save plot 
-        outpath_plot = os.path.normpath(os.path.join(output_folder, (vid_in_path_no_ext + '_' + walk_num + 'gait_events.png')))
-        plt.savefig(outpath_plot, bbox_inches = 'tight')
-
+        outpath_plot = os.path.normpath(os.path.join(output_folder, (vid_in_path_no_ext + '_' + walk_num + # walk number 
+                                                                     '_' + str(index) + # stride index 
+                                                                     '_gait_events.png')))
+        fig.savefig(outpath_plot, bbox_inches = 'tight')
+        plt.close()
+        plt.close(fig) 
 
 # In[ ]:
 
@@ -105,8 +117,8 @@ def id_calc_support_metrics(mp_df, fps, vid_in_path, dir_out_prefix, walk_num):
     mp_l_hip_df.set_index('frame', inplace=True)
 
     # calculate the difference between hip and ankle at each frame 
-    r_hip_ank_diff = abs(mp_r_hip_df['Y_smooth'] - mp_r_ank_df['Y_smooth'])
-    l_hip_ank_diff = abs(mp_l_hip_df['Y_smooth'] - mp_l_ank_df['Y_smooth'])
+    r_hip_ank_diff = abs(mp_r_hip_df['Y_pose'] - mp_r_ank_df['Y_pose'])
+    l_hip_ank_diff = abs(mp_l_hip_df['Y_pose'] - mp_l_ank_df['Y_pose'])
 
     diff_df = pd.DataFrame({'r_diff' : r_hip_ank_diff,
                             'l_diff' : l_hip_ank_diff}) 
@@ -189,45 +201,62 @@ def id_calc_support_metrics(mp_df, fps, vid_in_path, dir_out_prefix, walk_num):
             hs_df_1 = l_diff_peaks_df
             to_df_2 = r_ank_y_cross
             hs_df_2 = r_diff_peaks_df
-    
+
+        # toe offs ------------------------
         # foot 1  toe off 1 = first y cross 
         toe_off_1a = row['frame_tenth']
 
-        # foot 1 heel strike 1 = frame of first max ank to hip dist of foot 1 
-        hs_1a_rows = hs_df_1.loc[hs_df_1['frame'] > toe_off_1a]
-        if len(hs_1a_rows) > 0: 
-            heel_strike_1a = hs_1a_rows['frame'].iloc[0]
-        else:
-            heel_strike_1a = None
-
         # foot 2 toe off 1 = next y cross 
-        to_2_rows = to_df_2.loc[to_df_2['frame_tenth'] >= heel_strike_1a]
+        to_2_rows = to_df_2.loc[to_df_2['frame_tenth'] > toe_off_1a]
         if len(to_2_rows) > 0: 
             toe_off_2 = to_2_rows['frame_tenth'].iloc[0]
         else:
             toe_off_2 = None
 
-        # foot 2 heel strike = frame of first max ank to hip dist of foot 2 
-        hs_2_rows = hs_df_2.loc[hs_df_2['frame'] > toe_off_2] 
-        if len(hs_2_rows) > 0: 
-            heel_strike_2 = hs_2_rows['frame'].iloc[0]
-        else: 
-            heel_strike_2 = None
-
         # foot 1 toe off # 2 
-        to_1b_rows = to_df_1.loc[to_df_1['frame_tenth'] >= heel_strike_2] 
+        to_1b_rows = to_df_1.loc[to_df_1['frame_tenth'] > toe_off_1a] 
         if len(to_1b_rows) > 0: 
             toe_off_1b = to_1b_rows['frame_tenth'].iloc[0]
         else: 
-            toe_off_1b = None 
-    
-        # foot 1 heel strike #2 
-        hs_1b_rows = hs_df_1.loc[hs_df_1['frame'] > toe_off_1b] 
-        if len(hs_1b_rows) > 0:
-            heel_strike_1b = hs_1b_rows['frame'].iloc[0]
+            toe_off_1b = None
+            
+        # -----------------------------------------
+        
+        # Heel strikes - between toe offs and at least 5 frames after previous toe off 
+
+        # if none of the toe off values = none, calculate heel strikes 
+        if (toe_off_1a is None) or (toe_off_2 is None) or (toe_off_1b is None) == False: 
+            
+            # foot 1 heel strike #1 
+            hs_1a_rows = hs_df_1.loc[(hs_df_1['frame'] > toe_off_1a + 5) & (hs_df_1['frame'] <= toe_off_2)]
+            if len(hs_1a_rows) > 0: 
+                heel_strike_1a = hs_1a_rows['frame'].iloc[0]
+            else:
+                heel_strike_1a = None
+
+            # foot 2 heel strike 
+            hs_2_rows = hs_df_2.loc[(hs_df_2['frame'] > toe_off_2 + 5) & (hs_df_2['frame'] <= toe_off_1b)] 
+            if len(hs_2_rows) > 0: 
+                heel_strike_2 = hs_2_rows['frame'].iloc[0]
+            else: 
+                heel_strike_2 = None
+
+            # foot 1 heel strike #2 
+            hs_1b_rows = hs_df_1.loc[hs_df_1['frame'] > toe_off_1b + 5] 
+            if len(hs_1b_rows) > 0:
+                heel_strike_1b = hs_1b_rows['frame'].iloc[0]
+            else: 
+                heel_strike_1b = None
+
+        # if any of the toe offs = none, all heel strikes = none 
         else: 
+            heel_strike_1a = None 
+            heel_strike_2 = None 
             heel_strike_1b = None 
-        # combine and 
+
+        # -----------------------------
+        
+        # combine and save 
         current_gait_events = pd.DataFrame(data = {'y_cross_row_index' : [index],
                                                    'first_toe_off_foot' : [first_toe_off_foot],
                                                    'foot_1_toe_off_a' : [toe_off_1a], 
@@ -240,11 +269,25 @@ def id_calc_support_metrics(mp_df, fps, vid_in_path, dir_out_prefix, walk_num):
 
         all_gait_events.append(current_gait_events) 
 
-
-    # concatenate all strides into single data frame and drop None 
-    all_gait_events_df = pd.concat(all_gait_events)
-    all_gait_events_df = all_gait_events_df.reset_index(drop = True)
-    all_gait_events_df = all_gait_events_df.dropna()
+    # if no strides identified, save empty data frame 
+    if len(all_gait_events) == 0: 
+        print('no strides identfied') 
+        all_gait_events_df = pd.DataFrame(columns = ['y_cross_row_index',
+                                                     'first_toe_off_foot',	
+                                                     'foot_1_toe_off_a',	
+                                                     'foot_1_heel_strike_a',
+                                                     'foot_2_toe_off',
+                                                     'foot_2_heel_strike',
+                                                     'foot_1_toe_off_b',
+                                                     'foot_1_heel_strike_b'], 
+                                          index = [walk_num]) 
+        
+    # if strides found, 
+    # # concatenate all strides into single data frame and drop None 
+    else: 
+        all_gait_events_df = pd.concat(all_gait_events)
+        all_gait_events_df = all_gait_events_df.reset_index(drop = True)
+        all_gait_events_df = all_gait_events_df.dropna()
 
     # Plot events per stide 
     plot_events_per_stride(all_gait_events_df, mp_r_ank_df, mp_l_ank_df, output_folder, vid_in_path_no_ext, walk_num)
@@ -273,7 +316,7 @@ def id_calc_support_metrics(mp_df, fps, vid_in_path, dir_out_prefix, walk_num):
     # period of time when only the current foot is in contact with the ground 
     all_gait_events_df['singlesupport_time_sec'] = (all_gait_events_df['foot_2_heel_strike'] - all_gait_events_df['foot_2_toe_off']) / fps
     all_gait_events_df['singlesupport_per'] = (all_gait_events_df['singlesupport_time_sec'] / all_gait_events_df['gait_cycle_time_sec']) * 100
-
+    
     # double support time 
     all_gait_events_df['ini_dsupport_sec'] = (all_gait_events_df['foot_2_toe_off'] - all_gait_events_df['foot_1_heel_strike_a']) / fps
     all_gait_events_df['term_dsupport_sec'] = (all_gait_events_df['foot_1_toe_off_b'] - all_gait_events_df['foot_2_heel_strike']) / fps
@@ -286,17 +329,43 @@ def id_calc_support_metrics(mp_df, fps, vid_in_path, dir_out_prefix, walk_num):
     all_gait_events_df = all_gait_events_df.round(2)
     all_gait_events_df['first_toe_off_foot'] = temp_foot 
 
-    csv_path = os.path.normpath(os.path.join(output_folder, (vid_in_path_no_ext + '_' + walk_num + 'all_gait_events_df.png')))
+    csv_path = os.path.normpath(os.path.join(output_folder, (vid_in_path_no_ext + '_' + walk_num + '_all_gait_events_df.csv')))
     all_gait_events_df.to_csv(csv_path) 
 
     return all_gait_events_df
 
 
-# In[ ]:
-
-
 # calculate stats per walk (mean, median, std)
-# def calc_save_support_metrics()
+def calc_support_stats(all_gait_events_df): 
+    # median 
+    median_df = pd.DataFrame(all_gait_events_df.median(numeric_only = True))
+    median_df = median_df.reset_index() 
+    median_df = median_df.rename(columns = {'index' : 'metric', 0 : 'median'}) 
+    
+    # mean 
+    mean_df = pd.DataFrame(all_gait_events_df.mean(numeric_only = True))
+    mean_df = mean_df.reset_index() 
+    mean_df = mean_df.rename(columns = {'index' : 'metric', 0 : 'mean'})
+
+    # standard devaition 
+    std_df = pd.DataFrame(all_gait_events_df.std(numeric_only = True))
+    std_df = std_df.reset_index()
+    std_df = std_df.rename(columns = {'index' : 'metric', 0 : 'std'}) 
+
+    # merge together 
+    merged_stats_df = pd.merge(mean_df, median_df, on = 'metric', how = 'inner')
+    merged_stats_df = pd.merge(merged_stats_df, std_df,  on = 'metric', how = 'inner')
+
+    # make long and drop temporary index column 
+    merged_stats_df['temp_idx'] = 0 
+    merged_stats_df_long = merged_stats_df.pivot(index = 'temp_idx',
+                                                    columns = 'metric')
+    merged_stats_df_long.columns = [f'{col[1]}_{col[0]}' for col in merged_stats_df_long.columns]
+    merged_stats_df_long = merged_stats_df_long.reset_index() 
+    merged_stats_df_long.drop(['temp_idx'], axis=1, inplace=True)
+    merged_stats_df_long = merged_stats_df_long.round(2)
+
+    return merged_stats_df_long
 
 
 
