@@ -33,12 +33,14 @@ library(performance)
 
 - Interaction? - test diff with aov()
 
+# Notes and rationale 
+Ran each metric through univariate models, using correlation differences for similar measures. For stance/swing/support metrics - selected for inclusion in multivar models based on highest R-squared for fixed effects in univariate models  
 
 # Set directories and load data 
 ## output directory 
 ```{r}
 # analysis folder 
-analysis_version <- '005'
+analysis_version <- '006'
 
 ```
 
@@ -72,10 +74,10 @@ table(zeno_pws_df$task_pose)
 str(zeno_pws_df)
 zeno_pws_df <- zeno_pws_df %>% 
   mutate_at(c("video_id_date_name_pose_zv", "id_date_pose_zv", "task_pose_zv", 
-              "id_video", "bw_id", "clean_sex", "bingoEHR_DX_MS.DX", 
+              "id_video", "bw_id", "clean_Sex", "bingoEHR_DX_MS.DX", 
               "demographic_diagnosis", "race_ethnicity_clean", 
               "race_ethnicity_clean", "ms_dx_condensed",
-              "redcap_event_name", "bingoEHR_EDSS_measure_value"), 
+              "redcap_event_name", "clean_EDSS"), 
             as.factor)
 str(zeno_pws_df)
 
@@ -99,13 +101,13 @@ zeno_pws_df$ms_dx_condensed <- factor(zeno_pws_df$ms_dx_condensed,
                                       ordered = FALSE)
 print(levels(zeno_pws_df$ms_dx_condensed))
 
-table(zeno_pws_df$clean_sex)
-zeno_pws_df$clean_sex <- factor(zeno_pws_df$clean_sex, 
+table(zeno_pws_df$clean_Sex)
+zeno_pws_df$clean_Sex <- factor(zeno_pws_df$clean_Sex, 
                                 levels = c('Female', 
                                            'Male',
                                            'Non-Binary'), 
                                 ordered = FALSE)
-print(levels(zeno_pws_df$clean_sex))
+print(levels(zeno_pws_df$clean_Sex))
 
 table(zeno_pws_df$edss_severity_cat)
 zeno_pws_df$edss_severity_cat <- factor(zeno_pws_df$edss_severity_cat, 
@@ -146,10 +148,10 @@ table(zeno_fw_df$task_pose)
 str(zeno_fw_df)
 zeno_fw_df <- zeno_fw_df %>% 
   mutate_at(c("video_id_date_name_pose_zv", "id_date_pose_zv", "task_pose_zv", 
-              "id_video", "bw_id", "clean_sex", "bingoEHR_DX_MS.DX", 
+              "id_video", "bw_id", "clean_Sex", "bingoEHR_DX_MS.DX", 
               "demographic_diagnosis", "race_ethnicity_clean", 
               "race_ethnicity_clean", "ms_dx_condensed",
-              "redcap_event_name", "bingoEHR_EDSS_measure_value"), 
+              "redcap_event_name", "clean_EDSS"), 
             as.factor)
 str(zeno_fw_df)
 
@@ -174,13 +176,13 @@ zeno_fw_df$ms_dx_condensed <- factor(zeno_fw_df$ms_dx_condensed,
                                      ordered = FALSE)
 print(levels(zeno_fw_df$ms_dx_condensed))
 
-table(zeno_fw_df$clean_sex)
-zeno_fw_df$clean_sex <- factor(zeno_fw_df$clean_sex, 
+table(zeno_fw_df$clean_Sex)
+zeno_fw_df$clean_Sex <- factor(zeno_fw_df$clean_Sex, 
                                levels = c('Female', 
                                           'Male',
                                           'Non-Binary'), 
                                ordered = FALSE)
-print(levels(zeno_fw_df$clean_sex))
+print(levels(zeno_fw_df$clean_Sex))
 
 table(zeno_fw_df$edss_severity_cat)
 zeno_fw_df$edss_severity_cat <- factor(zeno_fw_df$edss_severity_cat, 
@@ -217,10 +219,10 @@ table(home_df$task_pose_hv)
 str(home_df)
 home_df <- home_df %>% 
   mutate_at(c("video_id_date_name_pose_hv", "id_date_pose_hv", "task_pose_hv", 
-              "id_video", "bw_id", "clean_sex", "bingoEHR_DX_MS.DX", 
+              "id_video", "bw_id", "clean_Sex", "bingoEHR_DX_MS.DX", 
               "demographic_diagnosis", "race_ethnicity_clean", 
               "race_ethnicity_clean", "ms_dx_condensed",
-              "redcap_event_name", "bingoEHR_EDSS_measure_value"), 
+              "redcap_event_name", "clean_EDSS"), 
             as.factor)
 str(home_df)
 
@@ -245,13 +247,13 @@ home_df$ms_dx_condensed <- factor(home_df$ms_dx_condensed,
                                   ordered = FALSE)
 print(levels(zeno_fw_df$ms_dx_condensed))
 
-table(zeno_fw_df$clean_sex)
-zeno_fw_df$clean_sex <- factor(zeno_fw_df$clean_sex, 
+table(zeno_fw_df$clean_Sex)
+zeno_fw_df$clean_Sex <- factor(zeno_fw_df$clean_Sex, 
                                levels = c('Female', 
                                           'Male',
                                           'Non-Binary'), 
                                ordered = FALSE)
-print(levels(home_df$clean_sex))
+print(levels(home_df$clean_Sex))
 
 table(home_df$edss_severity_cat)
 home_df$edss_severity_cat <- factor(home_df$edss_severity_cat, 
@@ -400,28 +402,245 @@ all_univariate_mixed_effect <- function(data, outcome_column){
     mutate(R2_marginal = r2(uni4)$R2_marginal) %>% 
     mutate(Variable = 'Stride Width - Median') 
   
+  # stance time std  -------------------------------------------
+  print('stance_time_per_std_pose')
+  
+  p <- ggplot(data = data, 
+              aes(x = stance_time_sec_std_pose, 
+                  y = .data[[outcome_column]])) + 
+    geom_point()
+  print(p)
+  
+  formula10 <- as.formula(paste(outcome_column, 
+                               "~ stance_time_sec_std_pose + (1 | bw_id)"))
+  print(formula10)
+  uni10 <- lmer(formula10, data = data)
+  print(summary(uni10))
+  
+  # Residuals vs. fitted values
+  hist(resid(uni10), main = "Residuals stance_time_sec_std_pose")
+  
+  # Normality check
+  qqnorm(residuals(uni10), main = "Normal Q-Q plot: stance_time_sec_std_pose")
+  
+  # uni df 
+  uni10_df <- tidy(uni10, conf.int = TRUE) %>% 
+    mutate(R2_conditional = r2(uni10)$R2_conditional) %>% 
+    mutate(R2_marginal = r2(uni10)$R2_marginal) %>% 
+    mutate(Variable = 'Stance Time - STD') 
+  
+  # swing time std -------------------------------------------
+  print('swing_time_sec_std_pose')
+  
+  p <- ggplot(data = data, 
+              aes(x = swing_time_sec_std_pose, 
+                  y = .data[[outcome_column]])) + 
+    geom_point()
+  print(p)
+  
+  formula11 <- as.formula(paste(outcome_column, 
+                               "~ swing_time_sec_std_pose + (1 | bw_id)"))
+  print(formula11)
+  uni11 <- lmer(formula11, data = data)
+  print(summary(uni11))
+  
+  # Residuals vs. fitted values
+  hist(resid(uni11), main = "Residuals swing_time_sec_std_pose")
+  
+  # Normality check
+  qqnorm(residuals(uni11), main = "Normal Q-Q plot: swing_time_sec_std_pose")
+  
+  # uni df 
+  uni11_df <- tidy(uni11, conf.int = TRUE) %>% 
+    mutate(R2_conditional = r2(uni11)$R2_conditional) %>% 
+    mutate(R2_marginal = r2(uni11)$R2_marginal) %>% 
+    mutate(Variable = 'Swing Time - STD') 
+  
+   # stance per - median  -------------------------------------------
+  print('stance_time_per_mean_pose')
+  
+  p <- ggplot(data = data, 
+              aes(x = stance_time_per_mean_pose, 
+                  y = .data[[outcome_column]])) + 
+    geom_point()
+  print(p)
+  
+  formula12 <- as.formula(paste(outcome_column, 
+                               "~ stance_time_per_mean_pose + (1 | bw_id)"))
+  print(formula12)
+  uni12 <- lmer(formula12, data = data)
+  print(summary(uni12))
+  
+  # Residuals vs. fitted values
+  hist(resid(uni12), main = "Residuals stance_time_per_mean_pose")
+  
+  # Normality check
+  qqnorm(residuals(uni12), main = "Normal Q-Q plot: stance_time_per_mean_pose")
+  
+  # uni df 
+  uni12_df <- tidy(uni12, conf.int = TRUE) %>% 
+    mutate(R2_conditional = r2(uni12)$R2_conditional) %>% 
+    mutate(R2_marginal = r2(uni12)$R2_marginal) %>% 
+    mutate(Variable = 'Stance % - Mean') 
+  
+  # swing time -------------------------------------------
+  print('swing_time_per_mean_pose')
+  
+  p <- ggplot(data = data, 
+              aes(x = swing_time_per_mean_pose, 
+                  y = .data[[outcome_column]])) + 
+    geom_point()
+  print(p)
+  
+  formula13 <- as.formula(paste(outcome_column, 
+                               "~ swing_time_per_mean_pose + (1 | bw_id)"))
+  print(formula13)
+  uni13 <- lmer(formula13, data = data)
+  print(summary(uni13))
+  
+  # Residuals vs. fitted values
+  hist(resid(uni13), main = "Residuals swing_time_per_mean_pose")
+  
+  # Normality check
+  qqnorm(residuals(uni13), main = "Normal Q-Q plot: swing_time_per_mean_pose")
+  
+  # uni df 
+  uni13_df <- tidy(uni13, conf.int = TRUE) %>% 
+    mutate(R2_conditional = r2(uni13)$R2_conditional) %>% 
+    mutate(R2_marginal = r2(uni13)$R2_marginal) %>% 
+    mutate(Variable = 'Swing % - Mean') 
+  
+  # single support time - STD -----------------------
+  print('singlesupport_time_sec_std_pose')
+  
+  p <- ggplot(data = data, 
+              aes(x = singlesupport_time_sec_std_pose, 
+                  y = .data[[outcome_column]])) + 
+    geom_point()
+  print(p)
+  
+  formula14 <- as.formula(paste(outcome_column, 
+                               "~ singlesupport_time_sec_std_pose + (1 | bw_id)"))
+  print(formula14)
+  uni14 <- lmer(formula14, data = data)
+  print(summary(uni14))
+  
+  # Residuals vs. fitted values
+  hist(resid(uni14), main = "Residuals singlesupport_time_sec_std_pose")
+  
+  # Normality check
+  qqnorm(residuals(uni14), main = "Normal Q-Q plot: singlesupport_time_sec_std_pose")
+  
+  # uni df 
+  uni14_df <- tidy(uni14, conf.int = TRUE) %>% 
+    mutate(R2_conditional = r2(uni14)$R2_conditional) %>% 
+    mutate(R2_marginal = r2(uni14)$R2_marginal) %>% 
+    mutate(Variable = 'Single Support Time - STD') 
+  
+  # double support time - STD ------------------------
+  print('tot_dsupport_time_sec_std_pose')
+  
+  p <- ggplot(data = data, 
+              aes(x = tot_dsupport_time_sec_std_pose, 
+                  y = .data[[outcome_column]])) + 
+    geom_point()
+  print(p)
+  
+  formula15 <- as.formula(paste(outcome_column, 
+                               "~ tot_dsupport_time_sec_std_pose + (1 | bw_id)"))
+  print(formula15)
+  uni15 <- lmer(formula15, data = data)
+  print(summary(uni15))
+  
+  # Residuals vs. fitted values
+  hist(resid(uni15), main = "Residuals tot_dsupport_time_sec_std_pose")
+  
+  # Normality check
+  qqnorm(residuals(uni15), main = "Normal Q-Q plot: tot_dsupport_time_sec_std_pose")
+  
+  # uni df 
+  uni15_df <- tidy(uni15, conf.int = TRUE) %>% 
+    mutate(R2_conditional = r2(uni15)$R2_conditional) %>% 
+    mutate(R2_marginal = r2(uni15)$R2_marginal) %>% 
+    mutate(Variable = 'Double Support Time - STD') 
+  
+  # single support % - mean --------------------------
+  print('singlesupport_per_mean_pose')
+  
+  p <- ggplot(data = data, 
+              aes(x = singlesupport_per_mean_pose, 
+                  y = .data[[outcome_column]])) + 
+    geom_point()
+  print(p)
+  
+  formula16 <- as.formula(paste(outcome_column, 
+                               "~ singlesupport_per_mean_pose + (1 | bw_id)"))
+  print(formula16)
+  uni16 <- lmer(formula16, data = data)
+  print(summary(uni16))
+  
+  # Residuals vs. fitted values
+  hist(resid(uni16), main = "Residuals singlesupport_per_mean_pose")
+  
+  # Normality check
+  qqnorm(residuals(uni16), main = "Normal Q-Q plot: singlesupport_per_mean_pose")
+  
+  # uni df 
+  uni16_df <- tidy(uni16, conf.int = TRUE) %>% 
+    mutate(R2_conditional = r2(uni16)$R2_conditional) %>% 
+    mutate(R2_marginal = r2(uni16)$R2_marginal) %>% 
+    mutate(Variable = 'Single Support % - Mean') 
+  
+  # double support % - mean ------------------------- 
+  print('tot_dsupport_per_mean_pose')
+  
+  p <- ggplot(data = data, 
+              aes(x = tot_dsupport_per_mean_pose, 
+                  y = .data[[outcome_column]])) + 
+    geom_point()
+  print(p)
+  
+  formula17 <- as.formula(paste(outcome_column, 
+                               "~ tot_dsupport_per_mean_pose + (1 | bw_id)"))
+  print(formula17)
+  uni17 <- lmer(formula17, data = data)
+  print(summary(uni17))
+  
+  # Residuals vs. fitted values
+  hist(resid(uni17), main = "Residuals tot_dsupport_per_mean_pose")
+  
+  # Normality check
+  qqnorm(residuals(uni17), main = "Normal Q-Q plot: tot_dsupport_per_mean_pose")
+  
+  # uni df 
+  uni17_df <- tidy(uni17, conf.int = TRUE) %>% 
+    mutate(R2_conditional = r2(uni17)$R2_conditional) %>% 
+    mutate(R2_marginal = r2(uni17)$R2_marginal) %>% 
+    mutate(Variable = 'Double Support % - Mean') 
+  
+  
   #### demographics and MS info ################## 
   
   # Age ---------------------------------------------
-  print('demoEHR_Age')
+  print('clean_Age')
   
   p <- ggplot(data = data, 
-              aes(x = demoEHR_Age, 
+              aes(x = clean_Age, 
                   y = .data[[outcome_column]])) + 
     geom_point()
   print(p)
   
   formula5 <- as.formula(paste(outcome_column, 
-                               "~ demoEHR_Age + (1 | bw_id)"))
+                               "~ clean_Age + (1 | bw_id)"))
   print(formula5)
   uni5 <- lmer(formula5, data = data)
   print(summary(uni5))
   
   # Residuals vs. fitted values
-  hist(resid(uni5), main = "Residuals demoEHR_Age")
+  hist(resid(uni5), main = "Residuals clean_Age")
   
   # Normality check
-  qqnorm(residuals(uni5), main = "Normal Q-Q plot: demoEHR_Age")
+  qqnorm(residuals(uni5), main = "Normal Q-Q plot: clean_Age")
   
   # uni df 
   uni5_df <- tidy(uni5, conf.int = TRUE) %>% 
@@ -500,19 +719,19 @@ all_univariate_mixed_effect <- function(data, outcome_column){
     mutate(Variable = 'Race and Ethnicity') 
   
   # Sex ---------------------------------------------
-  print('clean_sex')
+  print('clean_Sex')
   
   formula9 <- as.formula(paste(outcome_column, 
-                               "~ clean_sex + (1 | bw_id)"))
+                               "~ clean_Sex + (1 | bw_id)"))
   print(formula9)
   uni9 <- lmer(formula9, data = data)
   print(summary(uni9))
   
   # Residuals vs. fitted values
-  hist(resid(uni9), main = "Residuals clean_sex")
+  hist(resid(uni9), main = "Residuals clean_Sex")
   
   # Normality check
-  qqnorm(residuals(uni9), main = "Normal Q-Q plot: clean_sex")
+  qqnorm(residuals(uni9), main = "Normal Q-Q plot: clean_Sex")
   
   # uni df 
   uni9_df <- tidy(uni9, conf.int = TRUE) %>% 
@@ -523,14 +742,15 @@ all_univariate_mixed_effect <- function(data, outcome_column){
   # tidy and bind all together --------------------------------
   tidy_uni_df <- bind_rows(uni1_df, uni2_df, uni3_df, uni4_df, 
                            uni5_df, uni6_df, uni7_df, uni8_df, 
-                           uni9_df) %>% 
+                           uni9_df, uni10_df, uni11_df, uni12_df, 
+                           uni13_df, uni14_df, uni15_df, uni16_df,
+                           uni17_df) %>% 
     mutate(Model = "Univariate Unadjusted")
   
   return(tidy_uni_df)
 }
 
 ```
-
 
 ## Round p-values for plotting 
 ```{r}
@@ -686,63 +906,63 @@ p3
 ## Plot and transform T25FW 
 ```{r}
 # preferred walking speed 
-ggplot(data = zeno_pws_df, mapping = aes(msfcEHR_T25FW.SPEED.AVG)) + 
+ggplot(data = zeno_pws_df, mapping = aes(clean_T25FW_Avg)) + 
   geom_histogram()
 
 # log transform 
-zeno_pws_df$t25fw_log <- log(zeno_pws_df$msfcEHR_T25FW.SPEED.AVG)
+zeno_pws_df$t25fw_log <- log(zeno_pws_df$clean_T25FW_Avg)
 ggplot(data = zeno_pws_df, mapping = aes(t25fw_log)) + 
   geom_histogram()
 
 # inverse transformation 
-zeno_pws_df$t25fw_inverse <- 1/zeno_pws_df$msfcEHR_T25FW.SPEED.AVG
+zeno_pws_df$t25fw_inverse <- 1/zeno_pws_df$clean_T25FW_Avg
 ggplot(data = zeno_pws_df, mapping = aes(t25fw_inverse)) + 
   geom_histogram()
 
 # square root  
-zeno_pws_df$t25fw_sqrt <- scale(zeno_pws_df$msfcEHR_T25FW.SPEED.AVG) 
+zeno_pws_df$t25fw_sqrt <- sqrt(zeno_pws_df$clean_T25FW_Avg) 
 ggplot(data = zeno_pws_df, mapping = aes(t25fw_sqrt)) + 
   geom_histogram()
 ```
 
 ```{r}
 # Fast walking speed 
-ggplot(data = zeno_fw_df, mapping = aes(msfcEHR_T25FW.SPEED.AVG)) + 
+ggplot(data = zeno_fw_df, mapping = aes(clean_T25FW_Avg)) + 
   geom_histogram()
 
 # log transform 
-zeno_fw_df$t25fw_log <- log(zeno_fw_df$msfcEHR_T25FW.SPEED.AVG) 
+zeno_fw_df$t25fw_log <- log(zeno_fw_df$clean_T25FW_Avg) 
 ggplot(data = zeno_fw_df, mapping = aes(t25fw_log)) + 
   geom_histogram()
 
 # inverse transformation 
-zeno_fw_df$t25fw_inverse <- 1/zeno_fw_df$msfcEHR_T25FW.SPEED.AVG
+zeno_fw_df$t25fw_inverse <- 1/zeno_fw_df$clean_T25FW_Avg
 ggplot(data = zeno_fw_df, mapping = aes(t25fw_inverse)) + 
   geom_histogram()
 
 # square root  
-zeno_fw_df$t25fw_sqrt <- scale(zeno_fw_df$msfcEHR_T25FW.SPEED.AVG) 
+zeno_fw_df$t25fw_sqrt <- sqrt(zeno_fw_df$clean_T25FW_Avg) 
 ggplot(data = zeno_fw_df, mapping = aes(t25fw_sqrt)) + 
   geom_histogram()
 
 ```
 ```{r}
 # Home Videos 
-ggplot(data = home_df, mapping = aes(msfcEHR_T25FW.SPEED.AVG)) + 
+ggplot(data = home_df, mapping = aes(clean_T25FW_Avg)) + 
   geom_histogram()
 
 # log transform 
-home_df$t25fw_log <- log(home_df$msfcEHR_T25FW.SPEED.AVG) 
+home_df$t25fw_log <- log(home_df$clean_T25FW_Avg) 
 ggplot(data = home_df, mapping = aes(t25fw_log)) + 
   geom_histogram()
 
 # inverse transformation 
-home_df$t25fw_inverse <- 1/home_df$msfcEHR_T25FW.SPEED.AVG
+home_df$t25fw_inverse <- 1/home_df$clean_T25FW_Avg
 ggplot(data = home_df, mapping = aes(t25fw_inverse)) + 
   geom_histogram()
 
 # square root  
-home_df$t25fw_sqrt <- scale(home_df$msfcEHR_T25FW.SPEED.AVG) 
+home_df$t25fw_sqrt <- sqrt(home_df$clean_T25FW_Avg) 
 ggplot(data = home_df, mapping = aes(t25fw_sqrt)) + 
   geom_histogram()
 ```
@@ -807,7 +1027,9 @@ zeno_pws_clean_df <- zeno_pws_df %>%
   drop_na(c("stride_time_median_sec_pose_zv", 
             "log_delta_pix_h_rel_median_pose_zv",
             "mean_cadence_step_per_min_pose_zv",
-            "stride_width_median_cm_pose_zv"))
+            "stride_width_median_cm_pose_zv", 
+            "stance_time_sec_std_pose_zv", 
+            "swing_time_sec_std_pose_zv"))
 
 colSums(is.na(zeno_pws_clean_df))
 ```
@@ -815,11 +1037,11 @@ colSums(is.na(zeno_pws_clean_df))
 ### Multivariate Demographics and MS Info 
 ```{r}
 t25fw_pws_multi_dem <- lmer(t25fw_inverse ~ 
-                              demoEHR_Age +
+                              clean_Age +
                               demoEHR_DiseaseDuration + 
                               ms_dx_condensed + 
                               race_ethnicity_clean +
-                              clean_sex + 
+                              clean_Sex + 
                               (1|bw_id), 
                             data = zeno_pws_clean_df)
 
@@ -849,6 +1071,8 @@ t25fw_pws_multi_vid_unadj <- lmer(t25fw_inverse ~
                                     log_delta_pix_h_rel_median_pose_zv + 
                                     mean_cadence_step_per_min_pose_zv + 
                                     stride_width_median_cm_pose_zv + 
+                                    stance_time_per_mean_pose_zv + 
+                                    tot_dsupport_time_sec_std_pose_zv + 
                                     (1|bw_id), 
                                   data = zeno_pws_clean_df)
 
@@ -875,12 +1099,14 @@ t25fw_pws_multi_vid_adj <- lmer(t25fw_inverse ~
                                   stride_time_median_sec_pose_zv +
                                   log_delta_pix_h_rel_median_pose_zv + 
                                   mean_cadence_step_per_min_pose_zv + 
-                                  stride_width_median_cm_pose_zv + 
-                                  demoEHR_Age +
+                                  stride_width_median_cm_pose_zv +
+                                  stance_time_per_mean_pose_zv + 
+                                  tot_dsupport_time_sec_std_pose_zv + 
+                                  clean_Age +
                                   demoEHR_DiseaseDuration + 
                                   ms_dx_condensed + 
                                   race_ethnicity_clean +
-                                  clean_sex + 
+                                  clean_Sex + 
                                   (1|bw_id), 
                                 data = zeno_pws_clean_df)
 
@@ -977,7 +1203,10 @@ zeno_fw_clean_df <- zeno_fw_df %>%
   drop_na(c("stride_time_median_sec_pose_zv", 
             "log_delta_pix_h_rel_median_pose_zv",
             "mean_cadence_step_per_min_pose_zv",
-            "stride_width_median_cm_pose_zv"))
+            "stride_width_median_cm_pose_zv",
+            "swing_time_sec_std_pose_zv",
+            "stance_time_sec_std_pose_zv"
+            ))
 
 colSums(is.na(zeno_fw_clean_df))
 ```
@@ -985,11 +1214,11 @@ colSums(is.na(zeno_fw_clean_df))
 ### Multivariate Demographics and MS Info 
 ```{r}
 t25fw_fw_multi_dem <- lmer(t25fw_inverse ~ 
-                             demoEHR_Age +
+                             clean_Age +
                              demoEHR_DiseaseDuration + 
                              ms_dx_condensed + 
                              race_ethnicity_clean +
-                             clean_sex + 
+                             clean_Sex + 
                              (1|bw_id), 
                            data = zeno_fw_clean_df)
 
@@ -1019,6 +1248,8 @@ t25fw_fw_multi_vid_unadj <- lmer(t25fw_inverse ~
                                    log_delta_pix_h_rel_median_pose_zv + 
                                    mean_cadence_step_per_min_pose_zv + 
                                    stride_width_median_cm_pose_zv + 
+                                   stance_time_per_mean_pose_zv + 
+                                   tot_dsupport_time_sec_std_pose_zv +  
                                    (1|bw_id), 
                                  data = zeno_fw_clean_df)
 
@@ -1046,11 +1277,13 @@ t25fw_fw_multi_vid_adj <- lmer(t25fw_inverse ~
                                  log_delta_pix_h_rel_median_pose_zv + 
                                  mean_cadence_step_per_min_pose_zv + 
                                  stride_width_median_cm_pose_zv + 
-                                 demoEHR_Age +
+                                 stance_time_per_mean_pose_zv + 
+                                 tot_dsupport_time_sec_std_pose_zv +  
+                                 clean_Age +
                                  demoEHR_DiseaseDuration + 
                                  ms_dx_condensed + 
                                  race_ethnicity_clean +
-                                 clean_sex + 
+                                 clean_Sex + 
                                  (1|bw_id), 
                                data = zeno_fw_clean_df)
 
@@ -1148,7 +1381,9 @@ home_clean_df <- home_df %>%
   drop_na(c("stride_time_median_sec_pose_hv", 
             "log_delta_pix_h_rel_median_pose_hv",
             "mean_cadence_step_per_min_pose_hv",
-            "stride_width_median_cm_pose_hv"))
+            "stride_width_median_cm_pose_hv", 
+            "stance_time_sec_std_pose_hv", 
+            "swing_time_sec_std_pose_hv"))
 
 colSums(is.na(home_clean_df))
 ```
@@ -1156,11 +1391,11 @@ colSums(is.na(home_clean_df))
 ### Multivariate Demographics and MS Info 
 ```{r}
 t25fw_home_multi_dem <- lmer(t25fw_inverse ~ 
-                               demoEHR_Age +
+                               clean_Age +
                                demoEHR_DiseaseDuration + 
                                ms_dx_condensed + 
                                race_ethnicity_clean +
-                               clean_sex + 
+                               clean_Sex + 
                                (1|bw_id), 
                              data = home_clean_df)
 
@@ -1189,6 +1424,8 @@ t25fw_home_multi_vid_unadj <- lmer(t25fw_inverse ~
                                      log_delta_pix_h_rel_median_pose_hv + 
                                      mean_cadence_step_per_min_pose_hv + 
                                      stride_width_median_cm_pose_hv + 
+                                     stance_time_per_mean_pose_hv + 
+                                     tot_dsupport_time_sec_std_pose_hv +  
                                      (1|bw_id), 
                                    data = home_clean_df)
 
@@ -1208,6 +1445,7 @@ t25fw_home_multi_vid_unadj_df <- tidy(t25fw_home_multi_vid_unadj, conf.int = TRU
 
 t25fw_home_multi_vid_unadj_df
 ```
+
 ### Multivariate Video Models - Adjusted  
 ```{r}
 t25fw_home_multi_vid_adj <- lmer(t25fw_inverse ~ 
@@ -1215,11 +1453,13 @@ t25fw_home_multi_vid_adj <- lmer(t25fw_inverse ~
                                    log_delta_pix_h_rel_median_pose_hv + 
                                    mean_cadence_step_per_min_pose_hv + 
                                    stride_width_median_cm_pose_hv + 
-                                   demoEHR_Age +
+                                   stance_time_per_mean_pose_hv + 
+                                   tot_dsupport_time_sec_std_pose_hv + 
+                                   clean_Age +
                                    demoEHR_DiseaseDuration + 
                                    ms_dx_condensed + 
                                    race_ethnicity_clean +
-                                   clean_sex + 
+                                   clean_Sex + 
                                    (1|bw_id), 
                                  data = home_clean_df)
 
@@ -1256,7 +1496,6 @@ anova(t25fw_home_multi_vid_unadj, t25fw_home_multi_vid_adj)
 t25fw_home_multivar_all <- bind_rows(t25fw_home_multi_dem_df, 
                                      t25fw_home_multi_vid_unadj_df, 
                                      t25fw_home_multi_vid_adj_df)
-
 
 # save R-squared 
 adj_r_squared_df <- t25fw_home_multivar_all[c('Model', 'R2_conditional', 'R2_marginal')] %>% 
@@ -1385,11 +1624,11 @@ ggsave(file.path(output_dir, 'ZenoVelPws_univariate_pws_estimates.png'),
 ### Multivariate Demographics and MS Info
 ```{r}
 pwsVel_pws_multi_dem <- lmer(PWS_velocitycmsecmean ~ 
-                               demoEHR_Age +
+                               clean_Age +
                                demoEHR_DiseaseDuration + 
                                ms_dx_condensed + 
                                race_ethnicity_clean +
-                               clean_sex + 
+                               clean_Sex + 
                                (1|bw_id), 
                              data = zeno_pws_clean_df)
 
@@ -1419,6 +1658,8 @@ pwsVel_pws_multi_vid_unadj <- lmer(PWS_velocitycmsecmean ~
                                      log_delta_pix_h_rel_median_pose_zv + 
                                      mean_cadence_step_per_min_pose_zv + 
                                      stride_width_median_cm_pose_zv + 
+                                     stance_time_per_mean_pose_zv + 
+                                     tot_dsupport_time_sec_std_pose_zv + 
                                      (1|bw_id), 
                                    data = zeno_pws_clean_df)
 
@@ -1446,11 +1687,13 @@ pwsVel_pws_multi_vid_adj <- lmer(PWS_velocitycmsecmean ~
                                    log_delta_pix_h_rel_median_pose_zv + 
                                    mean_cadence_step_per_min_pose_zv + 
                                    stride_width_median_cm_pose_zv + 
-                                   demoEHR_Age +
+                                   stance_time_per_mean_pose_zv + 
+                                   tot_dsupport_time_sec_std_pose_zv +
+                                   clean_Age +
                                    demoEHR_DiseaseDuration + 
                                    ms_dx_condensed + 
                                    race_ethnicity_clean +
-                                   clean_sex + 
+                                   clean_Sex + 
                                    (1|bw_id), 
                                  data = zeno_pws_clean_df)
 
@@ -1541,11 +1784,11 @@ ggsave(file.path(output_dir, 'ZenoVelFw_univariate_fw_estimates.png'),
 ### Multivariate Demographics and MS Info
 ```{r}
 fwVel_fw_multi_dem <- lmer(FW_velocitycmsecmean ~ 
-                             demoEHR_Age +
+                             clean_Age +
                              demoEHR_DiseaseDuration + 
                              ms_dx_condensed + 
                              race_ethnicity_clean +
-                             clean_sex + 
+                             clean_Sex + 
                              (1|bw_id), 
                            data = zeno_fw_clean_df)
 
@@ -1574,6 +1817,8 @@ fwVel_fw_multi_vid_unadj <- lmer(FW_velocitycmsecmean ~
                                    log_delta_pix_h_rel_median_pose_zv + 
                                    mean_cadence_step_per_min_pose_zv + 
                                    stride_width_median_cm_pose_zv + 
+                                   stance_time_per_mean_pose_zv + 
+                                   tot_dsupport_time_sec_std_pose_zv +
                                    (1|bw_id), 
                                  data = zeno_fw_clean_df)
 
@@ -1601,11 +1846,13 @@ fwVel_fw_multi_vid_adj <- lmer(FW_velocitycmsecmean ~
                                  log_delta_pix_h_rel_median_pose_zv + 
                                  mean_cadence_step_per_min_pose_zv + 
                                  stride_width_median_cm_pose_zv + 
-                                 demoEHR_Age +
+                                 stance_time_per_mean_pose_zv + 
+                                 tot_dsupport_time_sec_std_pose_zv +
+                                 clean_Age +
                                  demoEHR_DiseaseDuration + 
                                  ms_dx_condensed + 
                                  race_ethnicity_clean +
-                                 clean_sex + 
+                                 clean_Sex + 
                                  (1|bw_id), 
                                data = zeno_fw_clean_df)
 
@@ -1694,11 +1941,11 @@ ggsave(file.path(output_dir, 'ZenoVelFW_univariate_home_estimates.png'),
 ### Multivariate Demographics and MS Info
 ```{r}
 fwVel_home_multi_dem <- lmer(FW_velocitycmsecmean ~ 
-                               demoEHR_Age +
+                               clean_Age +
                                demoEHR_DiseaseDuration + 
                                ms_dx_condensed + 
                                race_ethnicity_clean +
-                               clean_sex + 
+                               clean_Sex + 
                                (1|bw_id), 
                              data = home_clean_df)
 
@@ -1727,6 +1974,8 @@ fwVel_home_multi_vid_unadj <- lmer(FW_velocitycmsecmean ~
                                      log_delta_pix_h_rel_median_pose_hv + 
                                      mean_cadence_step_per_min_pose_hv + 
                                      stride_width_median_cm_pose_hv + 
+                                     stance_time_per_mean_pose_hv + 
+                                     tot_dsupport_time_sec_std_pose_hv +
                                      (1|bw_id), 
                                    data = home_clean_df)
 
@@ -1753,11 +2002,13 @@ fwVel_home_multi_vid_adj <- lmer(FW_velocitycmsecmean ~
                                    log_delta_pix_h_rel_median_pose_hv + 
                                    mean_cadence_step_per_min_pose_hv + 
                                    stride_width_median_cm_pose_hv + 
-                                   demoEHR_Age +
+                                   stance_time_per_mean_pose_hv + 
+                                   tot_dsupport_time_sec_std_pose_hv +
+                                   clean_Age +
                                    demoEHR_DiseaseDuration + 
                                    ms_dx_condensed + 
                                    race_ethnicity_clean +
-                                   clean_sex + 
+                                   clean_Sex + 
                                    (1|bw_id), 
                                  data = home_clean_df)
 
@@ -1847,11 +2098,11 @@ ggsave(file.path(output_dir, 'ZenoVelPWS_univariate_home_estimates.png'),
 ### Multivariate Demographics and MS Info
 ```{r}
 pwsVel_home_multi_dem <- lmer(PWS_velocitycmsecmean ~ 
-                               demoEHR_Age +
+                               clean_Age +
                                demoEHR_DiseaseDuration + 
                                ms_dx_condensed + 
                                race_ethnicity_clean +
-                               clean_sex + 
+                               clean_Sex + 
                                (1|bw_id), 
                              data = home_clean_df)
 
@@ -1880,6 +2131,8 @@ pwsVel_home_multi_vid_unadj <- lmer(PWS_velocitycmsecmean ~
                                      log_delta_pix_h_rel_median_pose_hv + 
                                      mean_cadence_step_per_min_pose_hv + 
                                      stride_width_median_cm_pose_hv + 
+                                     stance_time_per_mean_pose_hv + 
+                                     tot_dsupport_time_sec_std_pose_hv +
                                      (1|bw_id), 
                                    data = home_clean_df)
 
@@ -1906,11 +2159,13 @@ pwsVel_home_multi_vid_adj <- lmer(PWS_velocitycmsecmean ~
                                    log_delta_pix_h_rel_median_pose_hv + 
                                    mean_cadence_step_per_min_pose_hv + 
                                    stride_width_median_cm_pose_hv + 
-                                   demoEHR_Age +
+                                   stance_time_per_mean_pose_hv + 
+                                  tot_dsupport_time_sec_std_pose_hv +
+                                   clean_Age +
                                    demoEHR_DiseaseDuration + 
                                    ms_dx_condensed + 
                                    race_ethnicity_clean +
-                                   clean_sex + 
+                                   clean_Sex + 
                                    (1|bw_id), 
                                  data = home_clean_df)
 

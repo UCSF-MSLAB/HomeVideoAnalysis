@@ -10,8 +10,6 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 # to do and questions 
-- Fix OR confidence interval error 
-
 - Improve metric - re-run delta pixel eye to foot?
 
 - Re-run with HC as outcome category: HC, mild EDSS, moderate EDSS, and severe EDSS 
@@ -20,6 +18,11 @@ knitr::opts_chunk$set(echo = TRUE)
 -Take out progressive MS as predictor? assumed progressive higher EDSS?
   
 - standardize y limits for probability plots 
+
+# notes on rationale 
+for support/stance metrics - selected measures with highest correlation vs EDSS (spearman) to run as univariate models. Univariate models with highest pseudo R2 selected for use in multivariate models 
+
+- Only used percent and std vars - time is proxy for stride time 
 
 ```{r}
 
@@ -31,20 +34,21 @@ library(foreign)
 library(MASS)
 library(Hmisc)
 library(reshape2)
+library(DescTools)
 ```
 
 # Set directories and load data 
 ## output directory 
 ```{r}
 # analysis folder 
-analysis_version <- '005'
+analysis_version <- '006'
 
 ```
 
 ```{r}
 output_dir <- file.path("C:/Users/mmccu/Box/MM_Personal/5_Projects/BoveLab/3_Data_and_Code/gait_bw_zeno_home_analysis",
                         analysis_version, 
-                        "003_ordered_logistic_regression_edss)
+                        "003_ordered_logistic_regression_edss")
 
 # create output folder if it doesn't already exist 
 if (file.exists(output_dir) == FALSE){
@@ -72,10 +76,10 @@ table(zeno_pws_df$task_pose)
 str(zeno_pws_df)
 zeno_pws_df <- zeno_pws_df %>% 
   mutate_at(c("video_id_date_name_pose_zv", "id_date_pose_zv", "task_pose_zv", 
-              "id_video", "bw_id", "clean_sex", "bingoEHR_DX_MS.DX", 
+              "id_video", "bw_id", "clean_Sex", "bingoEHR_DX_MS.DX", 
               "demographic_diagnosis", "race_ethnicity_clean", 
               "race_ethnicity_clean", "ms_dx_condensed",
-              "redcap_event_name", "bingoEHR_EDSS_measure_value"), 
+              "redcap_event_name", "clean_EDSS"), 
             as.factor)
 str(zeno_pws_df)
 
@@ -99,13 +103,13 @@ zeno_pws_df$ms_dx_condensed <- factor(zeno_pws_df$ms_dx_condensed,
                                       ordered = FALSE)
 print(levels(zeno_pws_df$ms_dx_condensed))
 
-table(zeno_pws_df$clean_sex)
-zeno_pws_df$clean_sex <- factor(zeno_pws_df$clean_sex, 
+table(zeno_pws_df$clean_Sex)
+zeno_pws_df$clean_Sex <- factor(zeno_pws_df$clean_Sex, 
                                 levels = c('Female', 
                                            'Male',
                                            'Non-Binary'), 
                                 ordered = FALSE)
-print(levels(zeno_pws_df$clean_sex))
+print(levels(zeno_pws_df$clean_Sex))
 
 table(zeno_pws_df$edss_severity_cat)
 zeno_pws_df$edss_severity_cat <- factor(zeno_pws_df$edss_severity_cat, 
@@ -154,21 +158,21 @@ print(levels(zeno_pws_df$race_ethnicity_clean_2))
 
 table(zeno_pws_df$race_ethnicity_clean_2)
 
-# clean_sex 
-print(table(zeno_pws_df$clean_sex))
+# clean_Sex 
+print(table(zeno_pws_df$clean_Sex))
 zeno_pws_df <- zeno_pws_df %>% 
-  mutate(clean_sex_2 = if_else(clean_sex == "Female", 
+  mutate(clean_Sex_2 = if_else(clean_Sex == "Female", 
                                      "Female", 
                                      "Male or Non-Binary"))
 
-zeno_pws_df$clean_sex_2 <- factor(zeno_pws_df$clean_sex_2, 
+zeno_pws_df$clean_Sex_2 <- factor(zeno_pws_df$clean_Sex_2, 
                                         levels = c("Female", 
                                                    "Male or Non-Binary"), 
                                         ordered = FALSE)
 
 
-table(zeno_pws_df$clean_sex_2)
-print(str(zeno_pws_df$clean_sex_2))
+table(zeno_pws_df$clean_Sex_2)
+print(str(zeno_pws_df$clean_Sex_2))
 ```
 
 ### missing variables in each column 
@@ -198,10 +202,10 @@ table(zeno_fw_df$task_pose)
 str(zeno_fw_df)
 zeno_fw_df <- zeno_fw_df %>% 
   mutate_at(c("video_id_date_name_pose_zv", "id_date_pose_zv", "task_pose_zv", 
-              "id_video", "bw_id", "clean_sex", "bingoEHR_DX_MS.DX", 
+              "id_video", "bw_id", "clean_Sex", "bingoEHR_DX_MS.DX", 
               "demographic_diagnosis", "race_ethnicity_clean", 
               "race_ethnicity_clean", "ms_dx_condensed",
-              "redcap_event_name", "bingoEHR_EDSS_measure_value"), 
+              "redcap_event_name", "clean_EDSS"), 
             as.factor)
 str(zeno_fw_df)
 
@@ -226,13 +230,13 @@ zeno_fw_df$ms_dx_condensed <- factor(zeno_fw_df$ms_dx_condensed,
                                      ordered = FALSE)
 print(levels(zeno_fw_df$ms_dx_condensed))
 
-table(zeno_fw_df$clean_sex)
-zeno_fw_df$clean_sex <- factor(zeno_fw_df$clean_sex, 
+table(zeno_fw_df$clean_Sex)
+zeno_fw_df$clean_Sex <- factor(zeno_fw_df$clean_Sex, 
                                levels = c('Female', 
                                           'Male',
                                           'Non-Binary'), 
                                ordered = FALSE)
-print(levels(zeno_fw_df$clean_sex))
+print(levels(zeno_fw_df$clean_Sex))
 
 table(zeno_fw_df$edss_severity_cat)
 zeno_fw_df$edss_severity_cat <- factor(zeno_fw_df$edss_severity_cat, 
@@ -278,21 +282,21 @@ zeno_fw_df$race_ethnicity_clean_2 <- factor(zeno_fw_df$race_ethnicity_clean_2,
 print(levels(zeno_fw_df$race_ethnicity_clean_2))
 table(zeno_fw_df$race_ethnicity_clean_2)
 
-# clean_sex 
-print(table(zeno_fw_df$clean_sex))
+# clean_Sex 
+print(table(zeno_fw_df$clean_Sex))
 zeno_fw_df <- zeno_fw_df %>% 
-  mutate(clean_sex_2 = if_else(clean_sex == "Female", 
+  mutate(clean_Sex_2 = if_else(clean_Sex == "Female", 
                                      "Female", 
                                      "Male or Non-Binary"))
 
-zeno_fw_df$clean_sex_2 <- factor(zeno_fw_df$clean_sex_2, 
+zeno_fw_df$clean_Sex_2 <- factor(zeno_fw_df$clean_Sex_2, 
                                         levels = c("Female", 
                                                    "Male or Non-Binary"), 
                                         ordered = FALSE)
 
 
-table(zeno_fw_df$clean_sex_2)
-print(str(zeno_fw_df$clean_sex_2))
+table(zeno_fw_df$clean_Sex_2)
+print(str(zeno_fw_df$clean_Sex_2))
 
 ```
 
@@ -324,10 +328,10 @@ table(home_df$task_pose_hv)
 str(home_df)
 home_df <- home_df %>% 
   mutate_at(c("video_id_date_name_pose_hv", "id_date_pose_hv", "task_pose_hv", 
-              "id_video", "bw_id", "clean_sex", "bingoEHR_DX_MS.DX", 
+              "id_video", "bw_id", "clean_Sex", "bingoEHR_DX_MS.DX", 
               "demographic_diagnosis", "race_ethnicity_clean", 
               "race_ethnicity_clean", "ms_dx_condensed",
-              "redcap_event_name", "bingoEHR_EDSS_measure_value"), 
+              "redcap_event_name", "clean_EDSS"), 
             as.factor)
 str(home_df)
 
@@ -352,13 +356,13 @@ home_df$ms_dx_condensed <- factor(home_df$ms_dx_condensed,
                                   ordered = FALSE)
 print(levels(zeno_fw_df$ms_dx_condensed))
 
-table(zeno_fw_df$clean_sex)
-zeno_fw_df$clean_sex <- factor(zeno_fw_df$clean_sex, 
+table(zeno_fw_df$clean_Sex)
+zeno_fw_df$clean_Sex <- factor(zeno_fw_df$clean_Sex, 
                                levels = c('Female', 
                                           'Male',
                                           'Non-Binary'), 
                                ordered = FALSE)
-print(levels(home_df$clean_sex))
+print(levels(home_df$clean_Sex))
 
 table(home_df$edss_severity_cat)
 home_df$edss_severity_cat <- factor(home_df$edss_severity_cat, 
@@ -400,23 +404,42 @@ summary_calc_p_and_odds <- function(polr_object, file_name) {
   # calculate p-value by comparing t-value vs standard normal distribution 
   ctable1 <- coef(summary(polr_object))
   ## calculate and store p values
-  p <- pnorm(abs(ctable1[, "t value"]), lower.tail = FALSE) * 2
+  p <- round(pnorm(abs(ctable1[, "t value"]), lower.tail = FALSE) * 2, digits = 3)
   
   ## combined table
-  print('Add p-value')
+  print('------------------------')
+  print('Estimates and p-value')
   print((ctable1 <- cbind(ctable1, "p.value" = p)))
   write.csv(ctable1, file.path(output_dir, paste(file_name, "estimates.csv", sep = "_"))) 
   
   # confidence intervals 
   ci <- confint(polr_object)
-  print(ci[1])
+  print('------------------------')
+  print('Estimates Confidence Interval')
+  print(round(ci, 3))
   
   ## OR and CI
-  print('Odds Ratio and CI')
-  OR <- exp(cbind("OR" = coef(polr_object), "ci_2.5%" = ci[1], "ci_97.5%"= ci[2]))
-  print(OR)
-  write.csv(OR, file.path(output_dir, paste(file_name, "odds_ratio.csv", sep = "_"))) 
+  print('------------------------')
+  print('Odds Ratio and Confidence interval')
+  var_rows <- nrow(ci)
+  if (is.null(nrow(ci))) {
+    OR <- exp(cbind("OR" = coef(polr_object), "ci_2.5%" = ci[1], "ci_97.5%"= ci[2]))
+  } else { 
+    OR <- exp(cbind("OR" = coef(polr_object), "ci_2.5%" = ci[ ,1], "ci_97.5%"= ci[ ,2]))
+  }
   
+  OR <- round(OR, digits = 3)
+  
+  print(OR)
+  write.csv(OR, file.path(output_dir, paste(file_name, "odds_ratio.csv", sep = "_")))
+  
+  # Pseudo R-squared 
+  pseudo_r <- round(PseudoR2(polr_object), digits = 2)
+  print('------------------------')
+  print('Pseudo R2')
+  print(pseudo_r)
+  pseuo_r_df <- data.frame(pseudo_r)
+  write.csv(pseuo_r_df, file.path(output_dir, paste(file_name, "pseudoR2.csv", sep = "_")))
 }
 
 ```
@@ -469,7 +492,7 @@ home_df[] <- lapply(home_df, function(x) {
 })
 ```
 
-# EDSS Ordinal Regresssion 
+# EDSS Ordered Logistic Regresssion 
 Following steps from - https://stats.oarc.ucla.edu/r/dae/ordinal-logistic-regression/ 
 
 ## Filter Videos 
@@ -513,7 +536,7 @@ print("# OF videos after dropping EDSS + only unique ID")
 print(nrow(zeno_pws_edss_df))
 
 # Histogram of EDSS: only unique ID 
-p3 <- ggplot(data = zeno_pws_edss_df, aes(bingoEHR_EDSS_measure_value)) + 
+p3 <- ggplot(data = zeno_pws_edss_df, aes(clean_EDSS)) + 
   geom_bar() + 
   labs(title = "PWS: unique ID and EDSS w/in 90 days ")
 p3
@@ -557,7 +580,7 @@ print("# OF videos after dropping EDSS + only unique ID")
 print(nrow(zeno_fw_edss_df))
 
 # Histogram of EDSS: only unique ID 
-p3 <- ggplot(data = zeno_fw_edss_df, aes(bingoEHR_EDSS_measure_value)) + 
+p3 <- ggplot(data = zeno_fw_edss_df, aes(clean_EDSS)) + 
   geom_bar() + 
   labs(title = "FW: unique ID and EDSS w/in 90 days ")
 p3
@@ -601,7 +624,7 @@ print("# OF home_edss_df after dropping EDSS + only unique ID")
 print(nrow(home_edss_df))
 
 # Histogram of EDSS: only unique ID 
-p3 <- ggplot(data = home_edss_df, aes(bingoEHR_EDSS_measure_value)) + 
+p3 <- ggplot(data = home_edss_df, aes(clean_EDSS)) + 
   geom_bar() + 
   labs(title = "Home: unique ID and EDSS w/in 90 days ")
 p3
@@ -643,7 +666,17 @@ uni1 <- polr(edss_severity_cat ~ log_delta_pix_h_rel_median_pose_zv,
 summary_calc_p_and_odds(polr_object = uni1, 
                         file_name = filename)
 
+
+
 ```
+# test confint 
+
+```{r}
+
+ci <- confint(uni1)
+ci[1]
+```
+
 If significant effect: 
 Test proportional odds assumption
 ```{r}
@@ -710,7 +743,6 @@ summary_calc_p_and_odds(polr_object = uni1,
                         file_name = filename)
 
 ```
-Stride time not significantly associated --> didn't test assumptions etc 
 
 ### Univariate - mean_cadence_step_per_min_pose
 ```{r}
@@ -730,7 +762,7 @@ summary_calc_p_and_odds(polr_object = uni1,
                         file_name = filename)
 
 ```
-Cadence not significantly associated --> didn't test assumptions etc 
+
 
 ### Univariate - stride_width_median_cm_pose
 ```{r}
@@ -780,11 +812,176 @@ ggplot(lnewdat, aes(x = stride_width_median_cm_pose_zv, y = Probability, colour 
   labs(title = filename)
 ggsave(file.path(output_dir, paste(filename, "probabilities.png", sep = "_")))
 ```
-### Univariate - demoEHR_Age
+### Univariate - stride_width_median_cm_pose
+```{r}
+filename = "PWS_univariate_stride_width_median"
+# plot 
+ggplot(zeno_pws_edss_df, aes(x = edss_severity_cat, y = stride_width_median_cm_pose_zv)) +
+  geom_boxplot(size = .75) +
+  geom_jitter(alpha = .5) + 
+  labs(title = filename)
+ggsave(file.path(output_dir, paste(filename, 'vs_edss.png', sep = "_")))
+
+# model 
+uni1 <- polr(edss_severity_cat ~ stride_width_median_cm_pose_zv, 
+             data = zeno_pws_edss_df, Hess=TRUE)
+
+summary_calc_p_and_odds(polr_object = uni1, 
+                        file_name = filename)
+```
+
+### Univariate - swing_time_sec_std_pose_zv
+```{r}
+filename = "swing_time_sec_std_pose_zv"
+# plot 
+ggplot(zeno_pws_edss_df, aes(x = edss_severity_cat, y = swing_time_sec_std_pose_zv)) +
+  geom_boxplot(size = .75) +
+  geom_jitter(alpha = .5) + 
+  labs(title = filename)
+ggsave(file.path(output_dir, paste(filename, 'vs_edss.png', sep = "_")))
+
+# model 
+uni1 <- polr(edss_severity_cat ~ swing_time_sec_std_pose_zv, 
+             data = zeno_pws_edss_df, Hess=TRUE)
+
+summary_calc_p_and_odds(polr_object = uni1, 
+                        file_name = filename)
+
+```
+### Univariate - swing_time_per_mean_pose_zv
+```{r}
+filename = "swing_time_per_mean_pose_zv"
+# plot 
+ggplot(zeno_pws_edss_df, aes(x = edss_severity_cat, y = swing_time_per_mean_pose_zv)) +
+  geom_boxplot(size = .75) +
+  geom_jitter(alpha = .5) + 
+  labs(title = filename)
+ggsave(file.path(output_dir, paste(filename, 'vs_edss.png', sep = "_")))
+
+# model 
+uni1 <- polr(edss_severity_cat ~ swing_time_per_mean_pose_zv, 
+             data = zeno_pws_edss_df, Hess=TRUE)
+
+summary_calc_p_and_odds(polr_object = uni1, 
+                        file_name = filename)
+
+```
+
+
+### Univariate - stance_time_sec_std_pose_zv
+```{r}
+filename = "stance_time_sec_std_pose_zv"
+# plot 
+ggplot(zeno_pws_edss_df, aes(x = edss_severity_cat, y = stance_time_sec_std_pose_zv)) +
+  geom_boxplot(size = .75) +
+  geom_jitter(alpha = .5) + 
+  labs(title = filename)
+ggsave(file.path(output_dir, paste(filename, 'vs_edss.png', sep = "_")))
+
+# model 
+uni1 <- polr(edss_severity_cat ~ stance_time_sec_std_pose_zv, 
+             data = zeno_pws_edss_df, Hess=TRUE)
+
+summary_calc_p_and_odds(polr_object = uni1, 
+                        file_name = filename)
+
+```
+### Univariate - stance_time_per_mean_pose_zv
+```{r}
+filename = "stance_time_per_mean_pose_zv"
+# plot 
+ggplot(zeno_pws_edss_df, aes(x = edss_severity_cat, y = stance_time_per_mean_pose_zv)) +
+  geom_boxplot(size = .75) +
+  geom_jitter(alpha = .5) + 
+  labs(title = filename)
+ggsave(file.path(output_dir, paste(filename, 'vs_edss.png', sep = "_")))
+
+# model 
+uni1 <- polr(edss_severity_cat ~ stance_time_per_mean_pose_zv, 
+             data = zeno_pws_edss_df, Hess=TRUE)
+
+summary_calc_p_and_odds(polr_object = uni1, 
+                        file_name = filename)
+
+```
+### Univariate - singlesupport_time_sec_std_pose_zv
+```{r}
+filename = "singlesupport_time_sec_std_pose_zv"
+# plot 
+ggplot(zeno_pws_edss_df, aes(x = edss_severity_cat, y = singlesupport_time_sec_std_pose_zv)) +
+  geom_boxplot(size = .75) +
+  geom_jitter(alpha = .5) + 
+  labs(title = filename)
+ggsave(file.path(output_dir, paste(filename, 'vs_edss.png', sep = "_")))
+
+# model 
+uni1 <- polr(edss_severity_cat ~ singlesupport_time_sec_std_pose_zv, 
+             data = zeno_pws_edss_df, Hess=TRUE)
+
+summary_calc_p_and_odds(polr_object = uni1, 
+                        file_name = filename)
+
+```
+### Univariate - singlesupport_per_mean_pose_zv
+```{r}
+filename = "singlesupport_per_mean_pose_zv"
+# plot 
+ggplot(zeno_pws_edss_df, aes(x = edss_severity_cat, y = singlesupport_per_mean_pose_zv)) +
+  geom_boxplot(size = .75) +
+  geom_jitter(alpha = .5) + 
+  labs(title = filename)
+ggsave(file.path(output_dir, paste(filename, 'vs_edss.png', sep = "_")))
+
+# model 
+uni1 <- polr(edss_severity_cat ~ singlesupport_per_mean_pose_zv, 
+             data = zeno_pws_edss_df, Hess=TRUE)
+
+summary_calc_p_and_odds(polr_object = uni1, 
+                        file_name = filename)
+
+```
+### Univariate - tot_dsupport_time_sec_std_pose_zv 
+```{r}
+filename = "tot_dsupport_time_sec_std_pose_zv"
+# plot 
+ggplot(zeno_pws_edss_df, aes(x = edss_severity_cat, y = tot_dsupport_time_sec_std_pose_zv)) +
+  geom_boxplot(size = .75) +
+  geom_jitter(alpha = .5) + 
+  labs(title = filename)
+ggsave(file.path(output_dir, paste(filename, 'vs_edss.png', sep = "_")))
+
+# model 
+uni1 <- polr(edss_severity_cat ~ tot_dsupport_time_sec_std_pose_zv, 
+             data = zeno_pws_edss_df, Hess=TRUE)
+
+summary_calc_p_and_odds(polr_object = uni1, 
+                        file_name = filename)
+
+```
+### Univariate - tot_dsupport_time_sec_std_pose_zv 
+```{r}
+filename = "tot_dsupport_per_mean_pose_zv"
+# plot 
+ggplot(zeno_pws_edss_df, aes(x = edss_severity_cat, y = tot_dsupport_per_mean_pose_zv)) +
+  geom_boxplot(size = .75) +
+  geom_jitter(alpha = .5) + 
+  labs(title = filename)
+ggsave(file.path(output_dir, paste(filename, 'vs_edss.png', sep = "_")))
+
+# model 
+uni1 <- polr(edss_severity_cat ~ tot_dsupport_per_mean_pose_zv, 
+             data = zeno_pws_edss_df, Hess=TRUE)
+
+summary_calc_p_and_odds(polr_object = uni1, 
+                        file_name = filename)
+
+```
+
+### Univariate - clean_Age
 ```{r}
 filename = "PWS_univariate_age"
 # plot 
-ggplot(zeno_pws_edss_df, aes(x = edss_severity_cat, y = demoEHR_Age)) +
+ggplot(zeno_pws_edss_df, aes(x = edss_severity_cat, y = clean_Age)) +
   geom_boxplot(size = .75) +
   geom_jitter(alpha = .5) + 
   labs(title = filename)
@@ -792,7 +989,7 @@ ggsave(file.path(output_dir, paste(filename, 'vs_edss.png', sep = "_")))
 
 
 # model 
-uni1 <- polr(edss_severity_cat ~ demoEHR_Age, 
+uni1 <- polr(edss_severity_cat ~ clean_Age, 
              data = zeno_pws_edss_df, Hess=TRUE)
 
 summary_calc_p_and_odds(polr_object = uni1, 
@@ -802,19 +999,19 @@ If significant effect:
 Test proportional odds assumption - don't think meets assumption?
 ```{r}
 # calculate the log odds of being greater than or equal to each value of the target variable
-s <- with(zeno_pws_edss_df, summary(as.numeric(edss_severity_cat) ~ demoEHR_Age, fun=sf))
+s <- with(zeno_pws_edss_df, summary(as.numeric(edss_severity_cat) ~ clean_Age, fun=sf))
 plot_check_assumption(s)
 ```
 ```{r}
 # Create new dataset of all values to use for prediction 
-newdat <- data.frame(demoEHR_Age = rep(seq(from = 25, to = 75, length.out = 100), 4)) 
+newdat <- data.frame(clean_Age = rep(seq(from = 25, to = 75, length.out = 100), 4)) 
 
 # predict for each row of new dat using model 
 newdat <- cbind(newdat, predict(uni1, newdat, type = "probs"))
 head(newdat)
 
 # reshape for plotting 
-lnewdat <- melt(newdat, id.vars = c("demoEHR_Age"),
+lnewdat <- melt(newdat, id.vars = c("clean_Age"),
                 variable.name = "Level", value.name="Probability")
 head(lnewdat)
 
@@ -823,7 +1020,7 @@ head(lnewdat)
 #ggplot(lnewdat, aes(x = gpa, y = Probability, colour = Level)) +
   #geom_line() + facet_grid(pared ~ public, labeller="label_both")
 
-ggplot(lnewdat, aes(x = demoEHR_Age, y = Probability, colour = Level)) +
+ggplot(lnewdat, aes(x = clean_Age, y = Probability, colour = Level)) +
   geom_line()  + 
   labs(title = filename)
 ggsave(file.path(output_dir, paste(filename, 'probabilities.png', sep = "_")))
@@ -939,19 +1136,19 @@ s <- with(zeno_pws_edss_df, summary(as.numeric(edss_severity_cat) ~ race_ethnici
 plot_check_assumption(s)
 ```
 
-### Univariate - clean_sex
+### Univariate - clean_Sex
 ```{r}
-filename = "PWS_univariate_clean_sex_2"
+filename = "PWS_univariate_clean_Sex_2"
 
 # plot 
-ggplot(zeno_pws_edss_df, aes(x = edss_severity_cat, fill = clean_sex_2)) +
+ggplot(zeno_pws_edss_df, aes(x = edss_severity_cat, fill = clean_Sex_2)) +
   geom_bar(position = "dodge") + 
   labs(title = filename)
 ggsave(file.path(output_dir, paste(filename, 'vs_edss.png', sep = "_")))
 
 
 # model 
-uni1 <- polr(edss_severity_cat ~ clean_sex_2, 
+uni1 <- polr(edss_severity_cat ~ clean_Sex_2, 
              data = zeno_pws_edss_df, Hess=TRUE)
 
 
@@ -966,11 +1163,11 @@ summary_calc_p_and_odds(polr_object = uni1,
 filename = "PWS_multivar_dem_ms_info"
 
 # model 
-pws_multivar_dem_ms <- polr(edss_severity_cat ~ demoEHR_Age + 
+pws_multivar_dem_ms <- polr(edss_severity_cat ~ clean_Age + 
                               demoEHR_DiseaseDuration + 
                               ms_dx_condensed_2 + 
                               race_ethnicity_clean_2 + 
-                              clean_sex_2,
+                              clean_Sex_2,
                             data = zeno_pws_edss_df, Hess=TRUE)
 
 
@@ -979,14 +1176,14 @@ summary_calc_p_and_odds(polr_object = pws_multivar_dem_ms,
 ```
 
 If significant effect: 
-Test proportional odds assumption - don't think meets assumption?
+Test proportional odds assumption
 ```{r}
 # calculate the log odds of being greater than or equal to each value of the target variable
-s <- with(zeno_pws_edss_df, summary(as.numeric(edss_severity_cat) ~ demoEHR_Age + 
+s <- with(zeno_pws_edss_df, summary(as.numeric(edss_severity_cat) ~ clean_Age + 
                                       demoEHR_DiseaseDuration + 
                                       ms_dx_condensed_2 + 
                                       race_ethnicity_clean_2 + 
-                                      clean_sex_2, 
+                                      clean_Sex_2, 
                                     fun=sf))
 plot_check_assumption(s)
 ```
@@ -999,7 +1196,9 @@ filename = "PWS_multivar_video_unadj"
 pws_multivar_video_unadj <- polr(edss_severity_cat ~ log_delta_pix_h_rel_median_pose_zv + 
                               stride_time_median_sec_pose_zv + 
                               mean_cadence_step_per_min_pose_zv + 
-                              stride_width_median_cm_pose_zv, 
+                              stride_width_median_cm_pose_zv + 
+                                stance_time_per_mean_pose_zv + 
+                                tot_dsupport_time_sec_std_pose_zv,
                             data = zeno_pws_edss_df, Hess=TRUE)
 
 
@@ -1008,7 +1207,7 @@ summary_calc_p_and_odds(polr_object = pws_multivar_video_unadj,
 ```
 
 If significant effect: 
-Test proportional odds assumption - don't think meets assumption?
+Test proportional odds assumption
 ```{r}
 # calculate the log odds of being greater than or equal to each value of the target variable
 s <- with(zeno_pws_edss_df, summary(as.numeric(edss_severity_cat) ~ log_delta_pix_h_rel_median_pose_zv + 
@@ -1024,22 +1223,23 @@ plot_check_assumption(s)
 filename = "PWS_multivar_video_adj"
 
 # model 
-pws_multivar_video_adj <- polr(edss_severity_cat ~ demoEHR_Age + 
+pws_multivar_video_adj <- polr(edss_severity_cat ~ clean_Age + 
                                    demoEHR_DiseaseDuration + 
                                    ms_dx_condensed_2 + 
                                    race_ethnicity_clean_2 + 
-                                   clean_sex_2 + 
+                                   clean_Sex_2 + 
                                    log_delta_pix_h_rel_median_pose_zv + 
                                    stride_time_median_sec_pose_zv + 
                                    mean_cadence_step_per_min_pose_zv + 
-                                   stride_width_median_cm_pose_zv, 
+                                   stride_width_median_cm_pose_zv + 
+                                 stance_time_per_mean_pose_zv + 
+                                tot_dsupport_time_sec_std_pose_zv, 
                                  data = zeno_pws_edss_df, Hess=TRUE)
 
 
 summary_calc_p_and_odds(polr_object = pws_multivar_video_adj,
                         file_name = filename)
 ```
-
 
 ### Plot multivariate models 
 For now, just using combinations of three predictors, two categorical and one continuous 
@@ -1418,11 +1618,159 @@ p <- ggplot(lnewdat, aes(x = stride_width_median_cm_pose_zv, y = Probability, co
 p
 ggsave(file.path(output_dir, paste(filename, "probabilities.png", sep = "_")))
 ```
-### Univariate - demoEHR_Age
+### Univariate - swing_time_sec_std_pose_zv
+```{r}
+filename = "swing_time_sec_std_pose_zv"
+# plot 
+ggplot(zeno_fw_edss_df, aes(x = edss_severity_cat, y = swing_time_sec_std_pose_zv)) +
+  geom_boxplot(size = .75) +
+  geom_jitter(alpha = .5) + 
+  labs(title = filename)
+ggsave(file.path(output_dir, paste(filename, 'vs_edss.png', sep = "_")))
+
+# model 
+uni1 <- polr(edss_severity_cat ~ swing_time_sec_std_pose_zv, 
+             data = zeno_fw_edss_df, Hess=TRUE)
+
+summary_calc_p_and_odds(polr_object = uni1, 
+                        file_name = filename)
+
+```
+### Univariate - swing_time_per_mean_pose_zv
+```{r}
+filename = "swing_time_per_mean_pose_zv"
+# plot 
+ggplot(zeno_fw_edss_df, aes(x = edss_severity_cat, y = swing_time_per_mean_pose_zv)) +
+  geom_boxplot(size = .75) +
+  geom_jitter(alpha = .5) + 
+  labs(title = filename)
+ggsave(file.path(output_dir, paste(filename, 'vs_edss.png', sep = "_")))
+
+# model 
+uni1 <- polr(edss_severity_cat ~ swing_time_per_mean_pose_zv, 
+             data = zeno_fw_edss_df, Hess=TRUE)
+
+summary_calc_p_and_odds(polr_object = uni1, 
+                        file_name = filename)
+
+```
+
+
+### Univariate - stance_time_sec_std_pose_zv
+```{r}
+filename = "stance_time_sec_std_pose_zv"
+# plot 
+ggplot(zeno_fw_edss_df, aes(x = edss_severity_cat, y = stance_time_sec_std_pose_zv)) +
+  geom_boxplot(size = .75) +
+  geom_jitter(alpha = .5) + 
+  labs(title = filename)
+ggsave(file.path(output_dir, paste(filename, 'vs_edss.png', sep = "_")))
+
+# model 
+uni1 <- polr(edss_severity_cat ~ stance_time_sec_std_pose_zv, 
+             data = zeno_fw_edss_df, Hess=TRUE)
+
+summary_calc_p_and_odds(polr_object = uni1, 
+                        file_name = filename)
+
+```
+### Univariate - stance_time_per_mean_pose_zv
+```{r}
+filename = "stance_time_per_mean_pose_zv"
+# plot 
+ggplot(zeno_fw_edss_df, aes(x = edss_severity_cat, y = stance_time_per_mean_pose_zv)) +
+  geom_boxplot(size = .75) +
+  geom_jitter(alpha = .5) + 
+  labs(title = filename)
+ggsave(file.path(output_dir, paste(filename, 'vs_edss.png', sep = "_")))
+
+# model 
+uni1 <- polr(edss_severity_cat ~ stance_time_per_mean_pose_zv, 
+             data = zeno_fw_edss_df, Hess=TRUE)
+
+summary_calc_p_and_odds(polr_object = uni1, 
+                        file_name = filename)
+
+```
+### Univariate - singlesupport_time_sec_std_pose_zv
+```{r}
+filename = "singlesupport_time_sec_std_pose_zv"
+# plot 
+ggplot(zeno_fw_edss_df, aes(x = edss_severity_cat, y = singlesupport_time_sec_std_pose_zv)) +
+  geom_boxplot(size = .75) +
+  geom_jitter(alpha = .5) + 
+  labs(title = filename)
+ggsave(file.path(output_dir, paste(filename, 'vs_edss.png', sep = "_")))
+
+# model 
+uni1 <- polr(edss_severity_cat ~ singlesupport_time_sec_std_pose_zv, 
+             data = zeno_fw_edss_df, Hess=TRUE)
+
+summary_calc_p_and_odds(polr_object = uni1, 
+                        file_name = filename)
+
+```
+### Univariate - singlesupport_per_mean_pose_zv
+```{r}
+filename = "singlesupport_per_mean_pose_zv"
+# plot 
+ggplot(zeno_fw_edss_df, aes(x = edss_severity_cat, y = singlesupport_per_mean_pose_zv)) +
+  geom_boxplot(size = .75) +
+  geom_jitter(alpha = .5) + 
+  labs(title = filename)
+ggsave(file.path(output_dir, paste(filename, 'vs_edss.png', sep = "_")))
+
+# model 
+uni1 <- polr(edss_severity_cat ~ singlesupport_per_mean_pose_zv, 
+             data = zeno_fw_edss_df, Hess=TRUE)
+
+summary_calc_p_and_odds(polr_object = uni1, 
+                        file_name = filename)
+
+```
+### Univariate - tot_dsupport_time_sec_std_pose_zv 
+```{r}
+filename = "tot_dsupport_time_sec_std_pose_zv"
+# plot 
+ggplot(zeno_fw_edss_df, aes(x = edss_severity_cat, y = tot_dsupport_time_sec_std_pose_zv)) +
+  geom_boxplot(size = .75) +
+  geom_jitter(alpha = .5) + 
+  labs(title = filename)
+ggsave(file.path(output_dir, paste(filename, 'vs_edss.png', sep = "_")))
+
+# model 
+uni1 <- polr(edss_severity_cat ~ tot_dsupport_time_sec_std_pose_zv, 
+             data = zeno_fw_edss_df, Hess=TRUE)
+
+summary_calc_p_and_odds(polr_object = uni1, 
+                        file_name = filename)
+
+```
+### Univariate - tot_dsupport_time_sec_std_pose_zv 
+```{r}
+filename = "tot_dsupport_per_mean_pose_zv"
+# plot 
+ggplot(zeno_fw_edss_df, aes(x = edss_severity_cat, y = tot_dsupport_per_mean_pose_zv)) +
+  geom_boxplot(size = .75) +
+  geom_jitter(alpha = .5) + 
+  labs(title = filename)
+ggsave(file.path(output_dir, paste(filename, 'vs_edss.png', sep = "_")))
+
+# model 
+uni1 <- polr(edss_severity_cat ~ tot_dsupport_per_mean_pose_zv, 
+             data = zeno_fw_edss_df, Hess=TRUE)
+
+summary_calc_p_and_odds(polr_object = uni1, 
+                        file_name = filename)
+
+```
+
+
+### Univariate - clean_Age
 ```{r}
 filename = "FW_univariate_age"
 # plot 
-ggplot(zeno_fw_edss_df, aes(x = edss_severity_cat, y = demoEHR_Age)) +
+ggplot(zeno_fw_edss_df, aes(x = edss_severity_cat, y = clean_Age)) +
   geom_boxplot(size = .75) +
   geom_jitter(alpha = .5) + 
   labs(title = filename)
@@ -1430,7 +1778,7 @@ ggsave(file.path(output_dir, paste(filename, 'vs_edss.png', sep = "_")))
 
 
 # model 
-uni1 <- polr(edss_severity_cat ~ demoEHR_Age, 
+uni1 <- polr(edss_severity_cat ~ clean_Age, 
              data = zeno_fw_edss_df, Hess=TRUE)
 
 summary_calc_p_and_odds(polr_object = uni1, 
@@ -1440,20 +1788,20 @@ If significant effect:
 Test proportional odds assumption
 ```{r}
 # calculate the log odds of being greater than or equal to each value of the target variable
-s <- with(zeno_fw_edss_df, summary(as.numeric(edss_severity_cat) ~ demoEHR_Age, fun=sf))
+s <- with(zeno_fw_edss_df, summary(as.numeric(edss_severity_cat) ~ clean_Age, fun=sf))
 p <- plot_check_assumption(s_var = s)
 ```
 ```{r}
 # Create new dataset of all values to use for prediction 
 newdat <- data.frame(
-  demoEHR_Age = rep(seq(from = 24, to = 80, length.out = 100), 4)) 
+  clean_Age = rep(seq(from = 24, to = 80, length.out = 100), 4)) 
 
 # predict for each row of new dat using model 
 newdat <- cbind(newdat, predict(uni1, newdat, type = "probs"))
 head(newdat)
 
 # reshape for plotting 
-lnewdat <- melt(newdat, id.vars = c("demoEHR_Age"),
+lnewdat <- melt(newdat, id.vars = c("clean_Age"),
                 variable.name = "Level", value.name="Probability")
 head(lnewdat)
 
@@ -1462,7 +1810,7 @@ head(lnewdat)
 #ggplot(lnewdat, aes(x = gpa, y = Probability, colour = Level)) +
   #geom_line() + facet_grid(pared ~ public, labeller="label_both")
 
-p <- ggplot(lnewdat, aes(x = demoEHR_Age, y = Probability, colour = Level)) +
+p <- ggplot(lnewdat, aes(x = clean_Age, y = Probability, colour = Level)) +
   geom_line() + 
   labs(title = filename)
 p
@@ -1580,19 +1928,19 @@ Test proportional odds assumption
 s <- with(zeno_fw_edss_df, summary(as.numeric(edss_severity_cat) ~ race_ethnicity_clean_2, fun=sf))
 p <- plot_check_assumption(s_var = s)
 ```
-### Univariate - clean_sex
+### Univariate - clean_Sex
 ```{r}
-filename = "FW_univariate_clean_sex_2"
+filename = "FW_univariate_clean_Sex_2"
 
 # plot 
-ggplot(zeno_fw_edss_df, aes(x = edss_severity_cat, fill = clean_sex_2)) +
+ggplot(zeno_fw_edss_df, aes(x = edss_severity_cat, fill = clean_Sex_2)) +
   geom_bar(position = "dodge") + 
   labs(title = filename)
 ggsave(file.path(output_dir, paste(filename, 'vs_edss.png', sep = "_")))
 
 
 # model 
-uni1 <- polr(edss_severity_cat ~ clean_sex_2, 
+uni1 <- polr(edss_severity_cat ~ clean_Sex_2, 
              data = zeno_fw_edss_df, Hess=TRUE)
 
 
@@ -1605,7 +1953,7 @@ If significant effect:
 Test proportional odds assumption
 ```{r}
 # calculate the log odds of being greater than or equal to each value of the target variable
-s <- with(zeno_fw_edss_df, summary(as.numeric(edss_severity_cat) ~ clean_sex_2, fun=sf))
+s <- with(zeno_fw_edss_df, summary(as.numeric(edss_severity_cat) ~ clean_Sex_2, fun=sf))
 p <- plot_check_assumption(s_var = s)
 ```
 
@@ -1615,11 +1963,11 @@ p <- plot_check_assumption(s_var = s)
 filename = "FW_multivar_dem_ms_info"
 
 # model 
-fw_multivar_dem_ms <- polr(edss_severity_cat ~ demoEHR_Age + 
+fw_multivar_dem_ms <- polr(edss_severity_cat ~ clean_Age + 
                               demoEHR_DiseaseDuration + 
                               ms_dx_condensed_2 + 
                               race_ethnicity_clean_2 + 
-                              clean_sex_2,
+                              clean_Sex_2,
                             data = zeno_fw_edss_df, Hess=TRUE)
 
 
@@ -1631,11 +1979,11 @@ If significant effect:
 Test proportional odds assumption
 ```{r}
 # calculate the log odds of being greater than or equal to each value of the target variable
-s <- with(zeno_fw_edss_df, summary(as.numeric(edss_severity_cat) ~ demoEHR_Age + 
+s <- with(zeno_fw_edss_df, summary(as.numeric(edss_severity_cat) ~ clean_Age + 
                                      demoEHR_DiseaseDuration + 
                                      ms_dx_condensed_2 + 
                                      race_ethnicity_clean_2 + 
-                                     clean_sex_2,
+                                     clean_Sex_2,
                                    fun=sf))
 p <- plot_check_assumption(s_var = s)
 ```
@@ -1648,7 +1996,9 @@ filename = "FW_multivar_video_unadj"
 fw_multivar_video_unadj <- polr(edss_severity_cat ~ log_delta_pix_h_rel_median_pose_zv + 
                               stride_time_median_sec_pose_zv + 
                               mean_cadence_step_per_min_pose_zv + 
-                              stride_width_median_cm_pose_zv, 
+                              stride_width_median_cm_pose_zv + 
+                              stance_time_per_mean_pose_zv + 
+                              singlesupport_time_sec_std_pose_zv, 
                             data = zeno_fw_edss_df, Hess=TRUE)
 
 
@@ -1673,15 +2023,17 @@ plot_check_assumption(s)
 filename = "FW_multivar_video_adj"
 
 # model 
-fw_multivar_video_adj <- polr(edss_severity_cat ~ demoEHR_Age + 
+fw_multivar_video_adj <- polr(edss_severity_cat ~ clean_Age + 
                                    demoEHR_DiseaseDuration + 
                                    ms_dx_condensed_2 + 
                                    race_ethnicity_clean_2 + 
-                                   clean_sex_2 + 
+                                   clean_Sex_2 + 
                                    log_delta_pix_h_rel_median_pose_zv + 
                                    stride_time_median_sec_pose_zv + 
                                    mean_cadence_step_per_min_pose_zv + 
-                                   stride_width_median_cm_pose_zv, 
+                                   stride_width_median_cm_pose_zv + 
+                                   stance_time_per_mean_pose_zv + 
+                                   singlesupport_time_sec_std_pose_zv,
                                  data = zeno_fw_edss_df, Hess=TRUE)
 
 
