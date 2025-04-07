@@ -76,8 +76,6 @@ def plot_events_per_stride(all_gait_events_df, mp_r_ank_df, mp_l_ank_df, output_
         plt.close()
         plt.close(fig) 
 
-# In[ ]:
-
 
 def id_calc_support_metrics(mp_df, fps, vid_in_path, dir_out_prefix, walk_num): 
     # create and save data frame as .csv 
@@ -141,7 +139,7 @@ def id_calc_support_metrics(mp_df, fps, vid_in_path, dir_out_prefix, walk_num):
 
 
     # ------------------------------------
-    # identify frames when right and left mp ankle values cross ~toe off 
+    # identify frames when right and left mp ankle values cross + .10 seconds ~toe off 
     #at  what frames right and left mp ankle values cross? 
     ankle_y_df = pd.DataFrame(data = {'r_ankle_neg_smooth_y' : mp_r_ank_df['Y_pose_negative_smooth'], 
                                       'l_ankle_neg_smooth_y' : mp_l_ank_df['Y_pose_negative_smooth']})

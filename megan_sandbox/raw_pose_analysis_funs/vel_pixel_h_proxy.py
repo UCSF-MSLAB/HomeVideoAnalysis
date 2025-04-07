@@ -35,7 +35,7 @@ def calc_pix_size_change(start_frame, end_frame, df, fps):
 
 
 # -------------------------------------------------------------------------
-def calc_stride_time_proxy(yolo_df, video_id_date_name, output_folder, fps): 
+def calc_velocity_proxy(yolo_df, video_id_date_name, output_folder, fps): 
     # left hip 
     l_hip_yolo_df = yolo_df.loc[yolo_df['label'] == 'left_hip']    
     l_hip_yolo_df.set_index('frame', inplace=True)
