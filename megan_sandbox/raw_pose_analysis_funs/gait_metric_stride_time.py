@@ -82,7 +82,11 @@ def calculate_stride_time(mp_ankle_Y_interp, fps, vid_in_path, output_parent_fol
                                      'ank_y_diff_smooth' :  diff_df.iloc[ank_y_diff_valleys_i]['ank_y_diff_smooth']})
 
     
-    
+    print('peaks') 
+    print(peaks_df)
+
+    print('valleys')
+    print(valleys_df)
 
     stride_times_peaks = peaks_df['seconds'].diff()
     stride_times_valleys = valleys_df['seconds'].diff()
@@ -135,19 +139,21 @@ def calculate_stride_time(mp_ankle_Y_interp, fps, vid_in_path, output_parent_fol
 
     # --------------------------------------------
     # plot and save plots 
-    fig1, ax1 = plt.subplots(figsize=(10, 6))
-    fig1.suptitle(os.path.splitext(os.path.basename(vid_in_path_no_ext))[0] + ': Stride Time')
+    fig1, ax1 = plt.subplots(figsize=(5.75, 3))
+#    fig1.suptitle(os.path.splitext(os.path.basename(vid_in_path_no_ext))[0] + ': Stride Time')
     # plot y difference in ankles and add labels on local min and max 
-    ax1.plot(diff_df['frame'], diff_df['ank_y_diff_smooth'], color = 'black', label='Y Difference between Ankles')
-    ax1.plot(peaks_df['frame'], peaks_df['ank_y_diff_smooth'], ".", color = 'orange', label='Peak')
-    ax1.plot(valleys_df['frame'], valleys_df['ank_y_diff_smooth'], ".", label='Local Minima')
-    ax1.set_xlabel('Frame')
-    ax1.set_ylabel("L Ankle Y - R Ankle Y (Pose)")
-    ax1.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    ax1.plot(diff_df['frame'], diff_df['ank_y_diff_smooth'], color = 'black', alpha = 0.75, label='Y Difference between Ankles')
+    ax1.plot(peaks_df['frame'], peaks_df['ank_y_diff_smooth'], "+", color = 'red', label = 'Local Maxima')
+    ax1.plot(valleys_df['frame'], valleys_df['ank_y_diff_smooth'], "+", color = 'red', label = 'Local Minima')
+    ax1.set_xlabel('Time (Frames)', fontsize = 11)
+    ax1.set_ylabel("Distance Between Ankles (Pose)", fontsize = 11)
+    ax1.tick_params(labelsize = 10)
+#    ax1.legend(loc='center left', bbox_to_anchor=(1, 0.5), fontsize = 10)
     fig1.tight_layout()  # avoid plot overlap
 
     output_plot_path = os.path.normpath(os.path.join(output_folder, (vid_in_path_no_ext + '_' + walk_num + '_stride_time.png')))
-    fig1.savefig(output_plot_path, bbox_inches = 'tight')
+    fig1.savefig(output_plot_path, bbox_inches = 'tight', dpi = 300)
+    plt.show()
     plt.close(fig1)
     plt.close()
 
