@@ -180,7 +180,7 @@ def id_calc_support_metrics(mp_df, fps, vid_in_path, dir_out_prefix, walk_num):
     ank_y_cross['sec_diff'] = ank_y_cross['sec_diff'].shift(-1) 
     # y cross + tenth of a second 
         # why - heel starts to lift and cross slightly before true toe off (I think) 
-    ank_y_cross['frame_tenth'] = ank_y_cross['frame'] + round(fps * .10)
+    ank_y_cross['frame_tenth'] = ank_y_cross['frame'] + round(fps * .20)
 
     # separate into right and left dataframes 
     r_ank_y_cross = ank_y_cross.loc[ank_y_cross['r_greater'] == True]

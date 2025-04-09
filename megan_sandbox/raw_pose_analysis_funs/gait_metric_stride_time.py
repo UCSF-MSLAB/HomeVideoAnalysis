@@ -82,11 +82,11 @@ def calculate_stride_time(mp_ankle_Y_interp, fps, vid_in_path, output_parent_fol
                                      'ank_y_diff_smooth' :  diff_df.iloc[ank_y_diff_valleys_i]['ank_y_diff_smooth']})
 
     
-    print('peaks') 
-    print(peaks_df)
+#    print('peaks') 
+#    print(peaks_df)
 
-    print('valleys')
-    print(valleys_df)
+#    print('valleys')
+#    print(valleys_df)
 
     stride_times_peaks = peaks_df['seconds'].diff()
     stride_times_valleys = valleys_df['seconds'].diff()
@@ -153,7 +153,7 @@ def calculate_stride_time(mp_ankle_Y_interp, fps, vid_in_path, output_parent_fol
 
     output_plot_path = os.path.normpath(os.path.join(output_folder, (vid_in_path_no_ext + '_' + walk_num + '_stride_time.png')))
     fig1.savefig(output_plot_path, bbox_inches = 'tight', dpi = 300)
-    plt.show()
+#    plt.show()
     plt.close(fig1)
     plt.close()
 

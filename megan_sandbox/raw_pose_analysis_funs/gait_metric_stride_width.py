@@ -91,8 +91,8 @@ def calculate_stride_width(mp_stride_width_interp_dfs, vid_in_path, output_paren
     #x_diff_smooth = abs(heel_x_diff_at_cross['heel_x_diff_0']).rolling(window=15, min_periods=1).mean()
 
     # print frames x_diff is calculated at 
-    print('heel_x_diff_at_cross_df')
-    print(heel_x_diff_at_cross)
+#    print('heel_x_diff_at_cross_df')
+#    print(heel_x_diff_at_cross)
     
     x_diff_mean = x_diff.mean(skipna = True)
     x_diff_median = x_diff.median(skipna = True)
@@ -132,7 +132,7 @@ def calculate_stride_width(mp_stride_width_interp_dfs, vid_in_path, output_paren
 
     output_plot_path_1 = os.path.normpath(os.path.join(output_folder, (vid_in_path_no_ext + '_' + walk_num + '_y_zero_cross.png')))
     fig1.savefig(output_plot_path_1, bbox_inches = 'tight')
-    plt.show()
+#    plt.show()
     plt.close(fig1)
     plt.close()
 
