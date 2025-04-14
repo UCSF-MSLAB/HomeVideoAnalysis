@@ -79,7 +79,7 @@ def plot_events_per_stride(all_gait_events_df, mp_r_ank_df, mp_l_ank_df, output_
         events_legend.texts[7].set_text("Foot 1: HS")
         
         plt.tight_layout()
-        plt.show()
+ #       plt.show()
         
         # save plot 
         outpath_plot = os.path.normpath(os.path.join(output_folder, (vid_in_path_no_ext + '_' + walk_num + # walk number 
@@ -180,7 +180,7 @@ def id_calc_support_metrics(mp_df, fps, vid_in_path, dir_out_prefix, walk_num):
     ank_y_cross['sec_diff'] = ank_y_cross['sec_diff'].shift(-1) 
     # y cross + tenth of a second 
         # why - heel starts to lift and cross slightly before true toe off (I think) 
-    ank_y_cross['frame_tenth'] = ank_y_cross['frame'] + round(fps * .20)
+    ank_y_cross['frame_tenth'] = ank_y_cross['frame'] + round(fps * .15)
 
     # separate into right and left dataframes 
     r_ank_y_cross = ank_y_cross.loc[ank_y_cross['r_greater'] == True]
