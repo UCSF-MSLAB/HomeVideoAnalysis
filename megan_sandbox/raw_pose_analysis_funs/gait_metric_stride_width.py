@@ -120,15 +120,20 @@ def calculate_stride_width(mp_stride_width_interp_dfs, vid_in_path, output_paren
     # plots --------------------------------------------------
     # plot y distance between heels, confirm zero crossing values are correct 
     fig1, ax1 = plt.subplots(figsize=(5.75, 3))
-#    fig1.suptitle(os.path.splitext(os.path.basename(vid_in_path_no_ext))[0] + ': Stride Width')
+   # fig1.suptitle(os.path.splitext(os.path.basename(vid_in_path_no_ext))[0] + ': Stride Width')
+    ax1.set_title('Vertical Distance Between Heels')
     ax1.plot(heel_y_diff_df['frame'], heel_y_diff_df['heel_y_diff_smooth'], color = 'black')
     ax1.axhline(y=0, color='grey', linestyle='--')
     ax1.plot(heel_y_diff_df.loc[common_valid_cross_indices, 'frame'], 
              heel_y_diff_df.loc[common_valid_cross_indices, 'heel_y_diff_smooth'], 
-             "x", color = 'red', label = 'Zero Crossing Frames')
+             "o", markersize = 7, color = 'black', label = 'Zero Crossing Frames')
     ax1.set_xlabel("Time (Frames)", fontsize = 11)
-    ax1.set_ylabel("L Heel Y - R Heel Y (Meters)", fontsize = 11)
-#    ax1.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    ax1.set_ylabel("Meters", fontsize = 11)
+    ax1.legend(loc='best', fontsize = 11)
+
+    # for paper figure 
+#    ax1.set_xlim([90, 145]) 
+    
 
     output_plot_path_1 = os.path.normpath(os.path.join(output_folder, (vid_in_path_no_ext + '_' + walk_num + '_y_zero_cross.png')))
     fig1.savefig(output_plot_path_1, bbox_inches = 'tight')

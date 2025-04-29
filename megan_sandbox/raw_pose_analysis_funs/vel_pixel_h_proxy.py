@@ -73,11 +73,16 @@ def calc_velocity_proxy(yolo_df, video_id_date_name, output_folder, fps):
     for time_group in l_ank_to_hip_df['time_group'].unique():
         plt.axvline(x = time_group * (fps), color = 'grey', alpha = 0.5)
 
-    ax1.set_ylabel('Vertical Distance (Pixels)', fontsize = 11)
+    ax1.set_ylabel('Pixels', fontsize = 11)
     ax1.set_xlabel('Time (Frames)', fontsize = 11)
+
+    ax1.set_title('Vertical Distance Between Hip to Ankle')
 
     # axis tick labels 
     ax1.tick_params(labelsize=10) 
+
+    # for paper figure - set x limits 
+#    ax1.set_xlim([200, 400])
     
     # name and save plot 
 #    plt.title(video_id_date_name)

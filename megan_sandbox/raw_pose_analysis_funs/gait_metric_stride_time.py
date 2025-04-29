@@ -141,19 +141,22 @@ def calculate_stride_time(mp_ankle_Y_interp, fps, vid_in_path, output_parent_fol
     # plot and save plots 
     fig1, ax1 = plt.subplots(figsize=(5.75, 3))
 #    fig1.suptitle(os.path.splitext(os.path.basename(vid_in_path_no_ext))[0] + ': Stride Time')
+    ax1.set_title('Vertical Distance Between Ankles')
     # plot y difference in ankles and add labels on local min and max 
-    ax1.plot(diff_df['frame'], diff_df['ank_y_diff_smooth'], color = 'black', alpha = 0.75, label='Y Difference between Ankles')
-    ax1.plot(peaks_df['frame'], peaks_df['ank_y_diff_smooth'], "+", color = 'red', label = 'Local Maxima')
-    ax1.plot(valleys_df['frame'], valleys_df['ank_y_diff_smooth'], "+", color = 'red', label = 'Local Minima')
+    ax1.plot(diff_df['frame'], diff_df['ank_y_diff_smooth'], color = 'black', alpha = 0.75)
+    ax1.plot(peaks_df['frame'], peaks_df['ank_y_diff_smooth'], "o", markersize = 5, color = 'grey', label = 'Local Maxima')
+    ax1.plot(valleys_df['frame'], valleys_df['ank_y_diff_smooth'], "o", markersize = 5, color = 'black', label = 'Local Minima')
     ax1.set_xlabel('Time (Frames)', fontsize = 11)
-    ax1.set_ylabel("Distance Between Ankles (Pose)", fontsize = 11)
+    ax1.set_ylabel("Pose Units", fontsize = 11)
     ax1.tick_params(labelsize = 10)
-#    ax1.legend(loc='center left', bbox_to_anchor=(1, 0.5), fontsize = 10)
+    ax1.legend(loc= 'best', fontsize = 10)
+    
     fig1.tight_layout()  # avoid plot overlap
+
 
     output_plot_path = os.path.normpath(os.path.join(output_folder, (vid_in_path_no_ext + '_' + walk_num + '_stride_time.png')))
     fig1.savefig(output_plot_path, bbox_inches = 'tight', dpi = 300)
-#    plt.show()
+ #   plt.show()
     plt.close(fig1)
     plt.close()
 

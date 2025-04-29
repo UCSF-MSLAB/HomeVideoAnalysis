@@ -1,16 +1,806 @@
 ---
-title: "R Notebook"
-output: html_notebook
+title: "Home Video Feasibility"
+author: "Megan"
+date: "2025-04-27"
+output: html_document
 ---
 
-USE OUTPUTS OF PYTHON DEMOGRAPHICS 004 SCRIPT TO EVALUATE FEASIBILITY
-
-```{r}
-plot(cars)
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
 ```
 
-Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+```{r}
+library(readxl)
+library(dplyr)
+library(tidyverse)
+library(ggplot2)
+```
+# Resource for selecting test 
+https://stats.oarc.ucla.edu/other/mult-pkg/whatstat/ 
 
-When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+# set output directory 
+```{r}
+# analysis folder 
+analysis_version <- '007'
+```
 
-The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+```{r}
+output_dir <- file.path("C:/Users/mmccu/Box/MM_Personal/5_Projects/BoveLab/3_Data_and_Code/gait_bw_zeno_home_analysis",
+                    analysis_version, 
+                    "004c_home_video_feasibility")
+
+ifelse(!dir.exists(output_dir), 
+       dir.create(output_dir), 
+       "directory already exists") 
+```
+
+# Load data 
+files are first visit files from 004 demographics jupyternotebook files 
+```{r}
+# Participants from all BW data - clean (has all data in range)
+clean_bw_ms_path <- file.path("C:/Users/mmccu/Box/MM_Personal/5_Projects/BoveLab/3_Data_and_Code/gait_bw_zeno_home_analysis",
+                              analysis_version, 
+                              "004_demographics_feasibility", 
+                              "clean_bw_ms_all_first_visit.csv")
+print(clean_bw_ms_path)
+clean_bw_ms_df <- read.csv(clean_bw_ms_path)
+```
+
+```{r}
+head(clean_bw_ms_df)
+```
+
+```{r}
+# Participants consented to home videos - clean (has all data in range)
+clean_hv_consent_path <- file.path("C:/Users/mmccu/Box/MM_Personal/5_Projects/BoveLab/3_Data_and_Code/gait_bw_zeno_home_analysis",
+                                   analysis_version, 
+                                   "004_demographics_feasibility", 
+                                   "home_video_consent_clean_first_visit.csv")
+print(clean_hv_consent_path)
+clean_hv_consent_df <- read.csv(clean_hv_consent_path)
+```
+```{r}
+head(clean_hv_consent_df)
+```
+
+
+```{r}
+# Participants who sent home videos - clean (has all data in range)
+clean_hv_video_path <- file.path("C:/Users/mmccu/Box/MM_Personal/5_Projects/BoveLab/3_Data_and_Code/gait_bw_zeno_home_analysis",
+                                   analysis_version, 
+                                   "004_demographics_feasibility", 
+                                    "clean_home_first_visit.csv")
+
+print(clean_hv_video_path)
+clean_hv_video_df <- read.csv(clean_hv_video_path)
+```
+```{r}
+head(clean_hv_video_df)
+```
+
+
+
+# Format data 
+
+ 
+```{r}
+factor_vars <- function(df){
+  df <- df %>% 
+    mutate_at(c("clean_Sex", "bingoEHR_DX_MS.DX", 
+              "demographic_diagnosis", "race_ethnicity_clean", 
+              "ms_dx_condensed"), 
+            as.factor)
+  
+  # set levels 
+  df$race_ethnicity_clean <- factor(df$race_ethnicity_clean, 
+                                    levels = c('White Non Hispanic', 
+                                               'Asian', 
+                                               'Black Or African American',
+                                               'Hispanic or Latino',
+                                               'Other/Unknown/Declined'), 
+                                           ordered = FALSE)
+  
+  # merge ms_dx into RRMS or other 
+  df <- df %>%
+    mutate(ms_dx_condensed_2 = case_when(
+      ms_dx_condensed == "RRMS" ~ "RRMS",
+      ms_dx_condensed == "Progressive MS" ~ "Progressive or Not Specified",
+      ms_dx_condensed == "MS, Subtype Not Specified" ~ "Progressive or Not Specified"
+      ))
+  
+  df$ms_dx_condensed_2 <- factor(df$ms_dx_condensed_2, 
+                               levels = c('RRMS',
+                                          'Progressive or Not Specified'),
+                               ordered = FALSE)
+  
+  
+  # merge sex and factor 
+  df <- df %>%
+    mutate(clean_Sex_2 = case_when(
+      clean_Sex == "Male" ~ "Male or Non-Binary",
+      clean_Sex == "Non-Binary" ~ "Male or Non-Binary",
+      clean_Sex == "Female" ~ "Female"
+      ))
+  
+  df$clean_Sex_2 <- factor(df$clean_Sex_2, 
+                          levels = c('Female',
+                                     'Male or Non-Binary'),
+                               ordered = FALSE)
+
+  return(df)
+}
+
+clean_bw_ms_df <- factor_vars(clean_bw_ms_df)
+clean_hv_consent_df <- factor_vars(clean_hv_consent_df)
+clean_hv_video_df <- factor_vars(clean_hv_video_df)
+
+
+```
+
+
+
+# Create new data frame - not consent 
+Need mutually exclusive groups for test 
+find people who did not consent, who consented and did not sent videos 
+```{r}
+# bw participants who did not consent to home videos 
+no_hv_consent_df <- clean_bw_ms_df %>% 
+  filter(!(bw_id %in% clean_hv_consent_df$bw_id))
+
+
+# check 
+table(clean_bw_ms_df$clean_Sex_2)
+table(no_hv_consent_df$clean_Sex_2)
+table(clean_hv_consent_df$clean_Sex_2)
+
+```
+this might be mismatched until running final report - some sent videos recently 
+```{r}
+# participants who consented, but did not sent a video 
+no_video_df <- clean_hv_consent_df %>% 
+  filter(!(bw_id %in% clean_hv_video_df$bw_id))
+
+# mutually exclusive
+duplicates <- clean_hv_video_df$bw_id[clean_hv_video_df$bw_id %in% no_video_df$bw_id]
+duplicates
+```
+
+# Categorical variables 
+Higher X-squared = greater difference between groups 
+p > .05 - not statistically significant 
+
+## Functions 
+
+```{r}
+print_save_xsq_results <- function(xsq_results, column){ 
+  
+  print(xsq_results)
+  
+  print('------ expected ---------') 
+  print(xsq_results$expected)
+  
+  print('------ residuals ---------') 
+  print(xsq_results$residuals)
+  
+  # save row for data frame 
+  results_row <- data.frame(column = column, 
+                            statistic = xsq_results$statistic,
+                            p_value = xsq_results$p.value, 
+                            degrees_freedom = xsq_results$parameter, 
+                            method = xsq_results$method)
+  return(results_row)
+  
+  
+  }
+```
+
+
+```{r}
+print_save_fisher_results <- function(fisher_results, column){
+
+  results_row <- data.frame(column = column, 
+                            statistic = NaN,
+                            p_value = fisher_results$p.value, 
+                            degrees_freedom = NaN,
+                            method = fisher_results$method)
+  
+  return(results_row)
+  
+  }
+```
+
+
+## Sex
+```{r}
+# consented to home videos vs did not consent to home videos 
+
+# any missing? 
+print('----- missing ------')
+sum(is.na(no_hv_consent_df$clean_Sex_2))
+sum(is.na(clean_hv_consent_df$clean_Sex_2))
+
+# format table 
+consent_sex_tab <- rbind(table(no_hv_consent_df$clean_Sex_2), table(clean_hv_consent_df$clean_Sex_2))
+dimnames(consent_sex_tab)[1] <- list("Participants:" = c("Did not consent", "Consented"))
+consent_sex_tab
+
+# chi square test 
+consent_sex_xsq <- chisq.test(consent_sex_tab, correct = FALSE)
+consent_sex_xsq_row <- print_save_xsq_results(consent_sex_xsq, column = 'Sex')
+```
+```{r}
+# any missing? 
+print('----- missing ------')
+sum(is.na(no_video_df$clean_Sex_2))
+sum(is.na(clean_hv_video_df$clean_Sex_2))
+
+# sent home video vs did not send home video
+video_sex_tab <- rbind(table(no_video_df$clean_Sex_2), table(clean_hv_video_df$clean_Sex_2))
+
+
+dimnames(video_sex_tab)[1] <- list("Participants:" = c("Did not sent video", "Sent video"))
+video_sex_tab
+
+# chi square test 
+video_sex_xsq <- chisq.test(video_sex_tab, correct = FALSE)
+video_sex_xsq_row <- print_save_xsq_results(video_sex_xsq, column = 'Sex')
+```
+## MS Subtype 
+```{r}
+# consented to home videos vs did not consent to home videos 
+
+print('----- missing ------')
+sum(is.na(no_hv_consent_df$ms_dx_condensed_2))
+sum(is.na(clean_hv_consent_df$ms_dx_condensed_2))
+
+# format table 
+consent_dx_tab <- rbind(table(no_hv_consent_df$ms_dx_condensed_2), table(clean_hv_consent_df$ms_dx_condensed_2))
+dimnames(consent_dx_tab)[1] <- list("Participants:" = c("Did not consent", "Consented"))
+
+consent_dx_tab
+
+# chi square test 
+consent_dx_xsq <- chisq.test(consent_dx_tab, correct = FALSE)
+consent_dx_xsq_row <- print_save_xsq_results(consent_dx_xsq, column = 'MS DX')
+
+```
+```{r}
+# sent home video vs did not send home video
+
+print('----- missing ------')
+sum(is.na(no_video_df$ms_dx_condensed_2))
+sum(is.na(clean_hv_video_df$ms_dx_condensed_2))
+
+video_dx_tab <- rbind(table(no_video_df$ms_dx_condensed_2), table(clean_hv_video_df$ms_dx_condensed_2))
+
+
+dimnames(video_dx_tab)[1] <- list("Participants:" = c("Did not sent video", "Sent video"))
+video_dx_tab
+
+# chi square test 
+video_dx_fisher <- fisher.test(video_dx_tab)
+video_dx_fisher
+video_dx_fisher_row <- print_save_fisher_results(video_dx_fisher, 'MS DX')
+```
+## Race and Ethnicity 
+Question - should I group into white non hispanic / other for 2x2?
+```{r}
+# consented to home videos vs did not consent to home videos 
+
+print('----- missing ------')
+sum(is.na(no_hv_consent_df$race_ethnicity_clean))
+sum(is.na(clean_hv_consent_df$race_ethnicity_clean))
+
+# format table 
+consent_race_tab <- rbind(table(no_hv_consent_df$race_ethnicity_clean), table(clean_hv_consent_df$race_ethnicity_clean))
+dimnames(consent_race_tab)[1] <- list("Participants:" = c("Did not consent", "Consented"))
+
+consent_race_tab
+
+# Fishers test 
+consent_race_fisher <- fisher.test(consent_race_tab)
+consent_race_fisher
+consent_race_fisher_row <- print_save_fisher_results(consent_race_fisher, 'Race and Ethnicity')
+```
+
+
+```{r}
+# sent home video vs did not send home video
+print('----- missing ------')
+sum(is.na(no_video_df$race_ethnicity_clean))
+sum(is.na(clean_hv_video_df$race_ethnicity_clean))
+
+
+video_race_tab <- rbind(table(no_video_df$race_ethnicity_clean), table(clean_hv_video_df$race_ethnicity_clean))
+
+
+dimnames(video_race_tab)[1] <- list("Participants:" = c("Did not sent video", "Sent video"))
+video_race_tab
+video_race_fisher <- fisher.test(video_race_tab)
+video_race_fisher
+video_race_fisher_row <- print_save_fisher_results(video_race_fisher, 'Race and Ethnicity')
+
+```
+
+## Bind all rows together and save 
+consent_sex_xsq_row with all other rows
+
+```{r}
+# consent vs no consent to home videos 
+consent_cat_results <- rbind(consent_sex_xsq_row, consent_dx_xsq_row, consent_race_fisher_row)
+consent_cat_results$p_value <- round(consent_cat_results$p_value, 3)
+consent_cat_results
+write.csv(consent_cat_results, file.path(output_dir, 'results_consent_vs_not_categorical.csv'))
+```
+
+```{r}
+# sent home videos vs did not sent home videos 
+video_cat_results <- rbind(video_sex_xsq_row, video_dx_fisher_row, video_race_fisher_row)
+video_cat_results$p_value <- round(video_cat_results$p_value, 3)
+video_cat_results
+write.csv(video_cat_results, file.path(output_dir, 'results_video_vs_no_video_categorical.csv'))
+```
+
+
+## Categorical summary 
+4/28/2025 - There was no significant difference in sex, MS diagnosis, or race between indiividuals that di and did not consent to home videos. 
+
+Within individuals who consented to home videos, there was no signficiant difference in sex, MS diagnosis, or race between individuals that sent or did not send videos back to the study team. 
+
+# Continuous Variables
+Unpaired t-test: comparing two groups
+
+## T-test assumptions 
+1. Simple random sample 
+
+2. Data approximately normally distributed in both groups: test = histogram and shapiro wilk test. Normal if p > 0.05. If not normal, Mann-Whitney/ Wilcoxon Rank Sum test for unpaired data  (or ordinal I think)
+
+3. Variance of two groups is similar: test = variance ratio test.Consider equal if p > 0.05 If unequal variance, Weltche's t-test (t.test with var.equal argument = FALSE). 
+
+## Functions 
+```{r}
+# summarize continuous ordinal data 
+summarise_continous <- function(data, column) {
+  
+  # save row for data frame 
+  summary_row <- data.frame(column = column, 
+                            mean = round(mean(data, na.rm = TRUE), 2),
+                            median = round(median(data, na.rm = TRUE), 2), 
+                            q1 = round(quantile(data, probs = 0.25, na.rm = TRUE), 2),
+                            q3 = round(quantile(data, probs = 0.75, na.rm = TRUE), 2),
+                            sd = round(sd(data, na.rm = TRUE), 2), 
+                            not_missing = sum(!is.na(data)),
+                            missing = sum(is.na(data)))
+  
+  
+  return(summary_row)
+  
+}
+```
+
+```{r}
+save_test_results <- function(ttest_wilcox_results, column){ 
+  
+  results_row <- data.frame(column_name = column, 
+                            statistic = ttest_wilcox_results$statistic,
+                            p_value = ttest_wilcox_results$p.value, 
+                            conf_int_1 = ttest_wilcox_results$conf.int[1],
+                            conf_int_2 = ttest_wilcox_results$conf.int[2],
+                            alternative = ttest_wilcox_results$alternative, 
+                            method = ttest_wilcox_results$method, 
+                            data_name = ttest_wilcox_results$data.name)
+  
+  return(results_row)
+  
+  }
+```
+
+## Age 
+```{r}
+# consent vs did not consent 
+# summary 
+sum_age_no_consent <- summarise_continous(no_hv_consent_df$clean_Age, 'Age')
+sum_age_no_consent
+
+sum_age_consent <- summarise_continous(clean_hv_consent_df$clean_Age, 'Age')
+sum_age_consent
+
+# compare two variances - welch's test if p < 0.05 
+var.test(no_hv_consent_df$clean_Age, clean_hv_consent_df$clean_Age)
+
+# histograms  
+par(mfrow=c(1,2))
+hist(no_hv_consent_df$clean_Age, probability =  FALSE)
+hist(clean_hv_consent_df$clean_Age, probability =  FALSE)
+
+# Shapiro-wilk tet of normality 
+shapiro.test(no_hv_consent_df$clean_Age)
+shapiro.test(clean_hv_consent_df$clean_Age)
+
+# 4/28 - no consent group not normal, using Mann-Whitney/ Wilcoxon Rank Sum test 
+consent_age_wilcox <- wilcox.test(x = no_hv_consent_df$clean_Age, 
+                                  y = clean_hv_consent_df$clean_Age, 
+                                  alternative = c('two.sided'), 
+                                  paired = FALSE, 
+                                  conf.int = TRUE) 
+
+consent_age_results_row <- save_test_results(consent_age_wilcox, 'Age')
+consent_age_results_row
+```
+```{r}
+# sent or did not send video 
+
+# summary 
+sum_age_no_video <- summarise_continous(no_video_df$clean_Age, 'Age')
+sum_age_no_video
+
+sum_age_video <- summarise_continous(clean_hv_video_df$clean_Age, 'Age')
+sum_age_video
+
+# compare two variances - welch's test if p < 0.05 
+var.test(no_video_df$clean_Age, clean_hv_video_df$clean_Age)
+
+# histograms  
+par(mfrow=c(1,2))
+hist(no_video_df$clean_Age, probability =  FALSE)
+hist(clean_hv_video_df$clean_Age, probability =  FALSE)
+
+# Shapiro-wilk tet of normality 
+shapiro.test(no_video_df$clean_Age)
+shapiro.test(clean_hv_video_df$clean_Age)
+
+# test - 4/28 - both shapiro tests > 0.05, t-test 
+video_age_ttest <- t.test(x = no_video_df$clean_Age, 
+                          y = clean_hv_video_df$clean_Age, 
+                          var.equal = TRUE, 
+                          alternative = c("two.sided"))
+
+video_age_ttest 
+video_age_results_row <- save_test_results(video_age_ttest, 'Age')
+
+```
+
+## Disease Duration 
+```{r}
+# consent vs did not consent 
+# summary 
+sum_dur_no_consent <- summarise_continous(no_hv_consent_df$demoEHR_DiseaseDuration,
+                                          'Disease Duration')
+sum_dur_no_consent
+
+sum_dur_consent <- summarise_continous(clean_hv_consent_df$demoEHR_DiseaseDuration,
+                                       'Disease Duration')
+sum_dur_consent
+
+# compare two variances - welch's test if p < 0.05 
+var.test(no_hv_consent_df$demoEHR_DiseaseDuration, clean_hv_consent_df$demoEHR_DiseaseDuration)
+
+# histograms  
+par(mfrow=c(1,2))
+hist(no_hv_consent_df$demoEHR_DiseaseDuration, probability =  FALSE)
+hist(clean_hv_consent_df$demoEHR_DiseaseDuration, probability =  FALSE)
+
+# Shapiro-wilk tet of normality 
+shapiro.test(no_hv_consent_df$demoEHR_DiseaseDuration)
+shapiro.test(clean_hv_consent_df$demoEHR_DiseaseDuration)
+
+# test 
+# 4/28 - neither normal, mann whitney 
+consent_dur_wilcox <- wilcox.test(x = no_hv_consent_df$demoEHR_DiseaseDuration, 
+                                  y = clean_hv_consent_df$demoEHR_DiseaseDuration, 
+                                  alternative = c('two.sided'), 
+                                  paired = FALSE, 
+                                  conf.int = TRUE) 
+consent_dur_wilcox
+consent_dur_results_row <- save_test_results(consent_dur_wilcox, 'Disease Duration')
+```
+
+```{r}
+# sent video vs did not send video 
+# summary 
+sum_dur_no_video <- summarise_continous(no_video_df$demoEHR_DiseaseDuration,
+                                          'Disease Duration')
+sum_dur_no_video
+
+sum_dur_video <- summarise_continous(clean_hv_video_df$demoEHR_DiseaseDuration,
+                                       'Disease Duration')
+sum_dur_video
+
+# compare two variances - welch's test if p < 0.05 
+var.test(no_video_df$demoEHR_DiseaseDuration, 
+         clean_hv_video_df$demoEHR_DiseaseDuration)
+
+# histograms  
+par(mfrow=c(1,2))
+hist(no_video_df$demoEHR_DiseaseDuration, probability =  FALSE)
+hist(clean_hv_video_df$demoEHR_DiseaseDuration, probability =  FALSE)
+
+# Shapiro-wilk tet of normality 
+shapiro.test(no_video_df$demoEHR_DiseaseDuration)
+shapiro.test(clean_hv_video_df$demoEHR_DiseaseDuration)
+
+# test 
+# 4/28 - not normal, using wilcox test 
+video_dur_wilcox <- wilcox.test(x = no_video_df$demoEHR_DiseaseDuration,
+                                y = clean_hv_video_df$demoEHR_DiseaseDuration, 
+                                alternative = c('two.sided'), 
+                                paired = FALSE,
+                                conf.int = TRUE) 
+video_dur_wilcox
+video_dur_results_row <- save_test_results(video_dur_wilcox, 'Disease Duration')
+```
+## T25FW
+```{r}
+# consent vs no consent 
+# summary 
+sum_t25fw_no_consent <- summarise_continous(no_hv_consent_df$clean_T25FW_Avg,
+                                          'T25FW')
+sum_t25fw_no_consent
+
+sum_t25fw_consent <- summarise_continous(clean_hv_consent_df$clean_T25FW_Avg,
+                                         'T25FW')
+sum_t25fw_consent
+
+# compare two variances - welch's test if p < 0.05 
+var.test(no_hv_consent_df$clean_T25FW_Avg, 
+         clean_hv_consent_df$clean_T25FW_Avg)
+
+# histograms  
+par(mfrow=c(1,2))
+hist(no_hv_consent_df$clean_T25FW_Avg, probability =  FALSE)
+hist(clean_hv_consent_df$clean_T25FW_Avg, probability =  FALSE)
+
+# Shapiro-wilk tet of normality 
+shapiro.test(no_hv_consent_df$clean_T25FW_Avg)
+shapiro.test(clean_hv_consent_df$clean_T25FW_Avg)
+
+# test 
+# 4/28 - wilcox, not normal 
+consent_t25fw_wilcox <- wilcox.test(x = no_hv_consent_df$clean_T25FW_Avg,
+                                    y = clean_hv_consent_df$clean_T25FW_Avg,
+                                    alternative = c('two.sided'), 
+                                    paired = FALSE,
+                                    conf.int = TRUE)
+
+consent_t25fw_wilcox
+consent_t25fw_results_row <- save_test_results(consent_t25fw_wilcox, 'T25FW')
+
+```
+
+```{r}
+# home video vs no video 
+# summary 
+sum_t25fw_no_video <- summarise_continous(no_video_df$clean_T25FW_Avg,
+                                          'T25FW')
+sum_t25fw_no_video
+
+sum_t25fw_video <- summarise_continous(clean_hv_video_df$clean_T25FW_Avg,
+                                       'T25FW')
+sum_t25fw_video
+
+# compare two variances - welch's test if p < 0.05 
+var.test(no_video_df$clean_T25FW_Avg, 
+         clean_hv_video_df$clean_T25FW_Avg)
+
+# histograms  
+par(mfrow=c(1,2))
+hist(no_video_df$clean_T25FW_Avg, probability =  FALSE)
+hist(clean_hv_video_df$clean_T25FW_Avg, probability =  FALSE)
+
+# Shapiro-wilk tet of normality 
+shapiro.test(no_video_df$clean_T25FW_Avg)
+shapiro.test(clean_hv_video_df$clean_T25FW_Avg)
+
+# test 
+# 4/28 - wilcox, not normal 
+video_t25fw_wilcox <- wilcox.test(x = no_video_df$clean_T25FW_Avg,
+                                  y = clean_hv_video_df$clean_T25FW_Avg,
+                                  alternative = c('two.sided'), 
+                                  paired = FALSE,
+                                  conf.int = TRUE)
+video_t25fw_wilcox
+video_t25fw_results_row <- save_test_results(video_t25fw_wilcox, 'T25FW')
+```
+
+
+## Education 
+```{r}
+# consent vs no consent 
+# summary 
+sum_edu_no_consent <- summarise_continous(no_hv_consent_df$tc_Examinee_Education,
+                                          'Education')
+sum_edu_no_consent
+
+sum_edu_consent <- summarise_continous(clean_hv_consent_df$tc_Examinee_Education,
+                                         'Education')
+sum_edu_consent
+
+# compare two variances - welch's test if p < 0.05 
+var.test(no_hv_consent_df$tc_Examinee_Education, clean_hv_consent_df$tc_Examinee_Education)
+
+# histograms  
+par(mfrow=c(1,2))
+hist(no_hv_consent_df$tc_Examinee_Education, probability =  FALSE)
+hist(clean_hv_consent_df$tc_Examinee_Education, probability =  FALSE)
+
+# Shapiro-wilk tet of normality 
+shapiro.test(no_hv_consent_df$tc_Examinee_Education)
+shapiro.test(clean_hv_consent_df$tc_Examinee_Education)
+
+# test 
+# 4/28- wilcoxin not normal 
+consent_edu_wilcox <- wilcox.test(x = no_hv_consent_df$tc_Examinee_Education,
+                                  y = clean_hv_consent_df$tc_Examinee_Education,
+                                  alternative = c('two.sided'), 
+                                  paired = FALSE,
+                                  conf.int = TRUE)
+consent_edu_wilcox
+consent_edu_results_row <- save_test_results(consent_edu_wilcox, 'Education')
+```
+```{r}
+# home video vs not home video 
+# summary 
+sum_edu_no_video <- summarise_continous(no_video_df$tc_Examinee_Education,
+                                        'Education')
+sum_edu_no_video
+
+sum_edu_video <- summarise_continous(clean_hv_video_df$tc_Examinee_Education,
+                                     'Education')
+sum_edu_video
+
+# compare two variances - welch's test if p < 0.05 
+var.test(no_video_df$tc_Examinee_Education, 
+         clean_hv_video_df$tc_Examinee_Education)
+
+# histograms  
+par(mfrow=c(1,2))
+hist(no_video_df$tc_Examinee_Education, probability =  FALSE)
+hist(clean_hv_video_df$tc_Examinee_Education, probability =  FALSE)
+
+#Shapiro-wilk tet of normality 
+shapiro.test(no_video_df$tc_Examinee_Education)
+shapiro.test(clean_hv_video_df$tc_Examinee_Education)
+
+# test 
+# 4/28 - wilcoxon not normal 
+video_edu_wilcox <- wilcox.test(x = no_video_df$tc_Examinee_Education,
+                                  y = clean_hv_video_df$tc_Examinee_Education,
+                                  alternative = c('two.sided'), 
+                                  paired = FALSE,
+                                  conf.int = TRUE)
+video_edu_wilcox
+video_edu_results_row <- save_test_results(video_edu_wilcox, 'Education')
+```
+
+## EDSS 
+Ordinal - use wilcoxin mann whitney 
+```{r}
+# consent vs no consent 
+# summary 
+sum_edss_no_consent <- summarise_continous(no_hv_consent_df$clean_EDSS,
+                                          'EDSS')
+sum_edss_no_consent
+
+sum_edss_consent <- summarise_continous(clean_hv_consent_df$clean_EDSS,
+                                         'EDSS')
+sum_edss_consent
+
+# histograms  
+par(mfrow=c(1,2))
+hist(no_hv_consent_df$clean_EDSS, probability =  FALSE)
+hist(clean_hv_consent_df$clean_EDSS, probability =  FALSE)
+
+# ordinal - 
+consent_edss_wilcox <- wilcox.test(x = no_hv_consent_df$clean_EDSS,
+                                  y = clean_hv_consent_df$clean_EDSS,
+                                  alternative = c('two.sided'), 
+                                  paired = FALSE,
+                                  conf.int = TRUE)
+consent_edss_wilcox
+consent_edss_results_row <- save_test_results(consent_edss_wilcox, 'EDSS')
+```
+```{r}
+# home video vs not home video 
+# summary 
+sum_edss_no_video <- summarise_continous(no_video_df$clean_EDSS,
+                                        'EDSS')
+sum_edss_no_video
+
+sum_edss_video <- summarise_continous(clean_hv_video_df$clean_EDSS,
+                                     'EDSS')
+sum_edss_video
+
+# histograms  
+par(mfrow=c(1,2))
+hist(no_video_df$clean_EDSS, probability =  FALSE)
+hist(clean_hv_video_df$clean_EDSS, probability =  FALSE)
+
+
+# test 
+video_edss_wilcox <- wilcox.test(x = no_video_df$clean_EDSS,
+                                  y = clean_hv_video_df$clean_EDSS,
+                                  alternative = c('two.sided'), 
+                                  paired = FALSE,
+                                  conf.int = TRUE)
+video_edss_wilcox
+video_edss_results_row <- save_test_results(video_edss_wilcox, 'EDSS')
+
+```
+
+
+## Bind all results 
+```{r}
+#  consent 
+# consent - no 
+consent_no_df <- rbind(sum_age_no_consent, 
+                      sum_dur_no_consent, 
+                      sum_t25fw_no_consent,
+                      sum_edu_no_consent,
+                      sum_edss_no_consent) %>% 
+  mutate('group_name' = 'Did not consent')
+                       
+# consent - yes 
+consent_summary_yes <- rbind(sum_age_consent,
+                             sum_dur_consent,
+                             sum_t25fw_consent,
+                             sum_edu_consent,
+                             sum_edss_consent) %>% 
+  mutate('group_name' = 'Consented')
+
+# consent all 
+consent_summary_all <- rbind(consent_no_df, consent_summary_yes) 
+consent_summary_all <- consent_summary_all[order(consent_summary_all$column), ]
+consent_summary_all
+write.csv(consent_summary_all, file.path(output_dir, 'summary_consent_cont.csv'))
+```
+
+
+```{r}
+# video or no video 
+# video - no 
+video_no_df <- rbind(sum_age_no_video,
+                     sum_dur_no_video,
+                     sum_t25fw_no_video,
+                     sum_edu_no_video,
+                     sum_edss_no_video) %>% 
+  mutate('group_name' = 'Did not sent video')
+
+# video - yes 
+video_yes_df <- rbind(sum_age_video,
+                      sum_dur_video,
+                      sum_t25fw_video,
+                      sum_edu_video,
+                      sum_edss_video) %>% 
+  mutate('group_name' = 'Sent video')
+
+# video all 
+video_summary_all <- rbind(video_no_df, video_yes_df)
+video_summary_all <- video_summary_all[order(video_summary_all$column), ]
+video_summary_all 
+write.csv(video_summary_all, file.path(output_dir, 'summary_video_summary_cont.csv'))
+```
+
+
+```{r}
+# test results 
+# consent 
+results_consent_cont <- rbind(consent_age_results_row,
+                              consent_dur_results_row,
+                              consent_t25fw_results_row,
+                              consent_edu_results_row,
+                              consent_edss_results_row) 
+results_consent_cont
+write.csv(results_consent_cont, file.path(output_dir, 'results_consent_vs_not_cont.csv'))
+
+# video 
+
+results_video_cont <- rbind(video_age_results_row, 
+                            video_dur_results_row,
+                            video_t25fw_results_row,
+                            video_edu_results_row,
+                            video_edss_results_row)
+results_video_cont
+write.csv(results_video_cont, file.path(output_dir, 'results_video_vs_no_video_cont.csv'))
+
+```
+

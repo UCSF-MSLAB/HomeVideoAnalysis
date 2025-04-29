@@ -23,35 +23,35 @@ def plot_events_per_stride(all_gait_events_df, mp_r_ank_df, mp_l_ank_df, output_
         # right ankle y position 
         sns.lineplot(x = 'frame', y = 'Y_pose_negative_smooth', 
                      data = mp_r_ank_df, 
-                     color = 'darkorange', label = 'right ankle Y', alpha = 0.5, ax = axs) 
+                     color = 'darkorange', label = 'right ankle Y', ax = axs) 
         # left ankle y position 
         sns.lineplot(x = 'frame', y = 'Y_pose_negative_smooth', 
                      data = mp_l_ank_df, 
-                     color = 'darkblue', label = 'left ankle Y', alpha = 0.5, ax = axs) 
+                     color = 'darkblue', label = 'left ankle Y', ax = axs) 
     
         # foot 1 toe off a
         axs.axvline(row['foot_1_toe_off_a'], color = 'grey', 
-                       linestyle = '--', alpha = 0.5, label = 'foot_1_toe_off_a')
+                       linestyle = '--', label = 'foot_1_toe_off_a')
     
         # foot 1 heel strike a 
         axs.axvline(row['foot_1_heel_strike_a'], color = 'grey', 
-                       linestyle = '-', alpha = 0.5, label = 'foot_1_heel_strike_a')
+                       linestyle = '-', label = 'foot_1_heel_strike_a')
     
         # foot 2 toe off 
         axs.axvline(row['foot_2_toe_off'], color = 'black', 
-                       linestyle = '--', alpha = 0.5, label = 'foot_2_toe_off')
+                       linestyle = '--', label = 'foot_2_toe_off')
 
         # foot 2 heel strike 
         axs.axvline(row['foot_2_heel_strike'], color = 'black', 
-                    linestyle = '-', alpha = 0.5, label = 'foot_2_heel_strike')
+                    linestyle = '-', label = 'foot_2_heel_strike')
 
         # foot 1 toe off b 
         axs.axvline(row['foot_1_toe_off_b'], color = 'grey', 
-                    linestyle = '--', alpha = 0.5, label = 'foot_1_toe_off_b')
+                    linestyle = '--', label = 'foot_1_toe_off_b')
 
         # foot 1 heel strike 2 
         axs.axvline(row['foot_1_heel_strike_b'], color = 'grey', 
-                    linestyle = '-', alpha = 0.5, label = 'foot_1_heel_strike_b')
+                    linestyle = '-', label = 'foot_1_heel_strike_b')
 
         # title = foot 1 
  #       if row['first_toe_off_foot'] == 'left':
@@ -60,11 +60,17 @@ def plot_events_per_stride(all_gait_events_df, mp_r_ank_df, mp_l_ank_df, output_
  #            fig.suptitle("Foot 1 = Right Foot")
 
         # axis labels 
+#        axs.set_ylim([-1, 0])
+        
+        # for paper 
         axs.set_ylim([-1, 0])
+        
         axs.set_xlabel('Time (Frames)', fontsize = 11)
-        axs.set_ylabel('Landmark Y Position (Pose)', fontsize = 11)
+        axs.set_ylabel('Pose Units', fontsize = 11)
        # axs.set_xlim([row['foot_1_toe_off_a'] - 25, row['foot_1_heel_strike_b'] + 25]) 
-        axs.tick_params(labelsize=10) 
+        axs.tick_params(labelsize=10)
+
+        axs.set_title('Right and Left Ankle Vertical Position') 
         
         # legend 
         axs.legend(loc='upper left', bbox_to_anchor=(1, 1), fontsize = 10)
@@ -77,6 +83,7 @@ def plot_events_per_stride(all_gait_events_df, mp_r_ank_df, mp_l_ank_df, output_
         events_legend.texts[5].set_text("Foot 2: HS")
         events_legend.texts[6].set_text("Foot 1: TO")
         events_legend.texts[7].set_text("Foot 1: HS")
+
         
         plt.tight_layout()
  #       plt.show()
