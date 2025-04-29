@@ -1,5 +1,5 @@
 import os
-import re
+# import re
 import sys
 import glob
 from src.etl_funs import (extract_pose_data,
@@ -41,24 +41,21 @@ def splitall(path):
     return allparts
 
 
-def process_dir(dir_in_path, dir_out_path):
+def process_dir(dir_in_path, dir_out_path, run_depth):
 
     abs_path = os.path.abspath(dir_in_path)
-    for file_name in glob.glob(abs_path + '/**/*.*',
-                               recursive=True):
-        name, ext = os.path.splitext(file_name[file_name.find(dir_in_path):])
+    for file_name in glob.glob(abs_path + '/**/*.*', recursive=True):
+        name, ext = os.path.splitext(os.path.basename(file_name))
         ext = ext.lower()[1:]
         if (ext in ALLOWED_VID_FORMATS):
-            new_name = '_'.join(splitall(name)[1:])
-            data_out_prefix = os.path.join(dir_out_path, new_name)
+            data_out_prefix = os.path.join(dir_out_path, name)
             print(f"Processing: {file_name}")
-            model_results = extract_pose_data(file_name)
+            model_results = extract_pose_data(file_name, run_depth)
             for i, raw_data in enumerate(model_results):
                 try:
                     pose_data = transform_pose_data(raw_data)
                     load_pose_data(pose_data,
                                    data_out_prefix + f"_{MODELS[i]}")
-                    print(data_out_prefix)
                 except Exception as e:
                     logger.info(e.args)
 
@@ -71,15 +68,20 @@ def main():
     args = sys.argv[1:]
     if len(args) < 2 or args[0] == "--help":
         # python3 -W ignore hva.py ./tmp/fixtures ./tmp/csv_output
-        print("usage: python3 run.py <DIR_IN_PATH> <DIR_OUT_PATH>")
+        print("usage: python3 run.py <DEPTH: T/F> <DIR_IN_PATH> <DIR_OUT_PATH>")
         exit()
 
-    dir_in_path = args[0]
-    dir_out_path = args[1]
+    if not args[0] in ["T", "F"]:
+        print("Please specific if Depth Estimates should be made: T or F")
+        sys.exit()
+
+    run_depth = (args[0] == "T")
+    dir_in_path = args[1]
+    dir_out_path = args[2]
 
     print(f"Processing files in {dir_in_path}...")
     # process_folder(in_folder, out_folder)
-    process_dir(dir_in_path, dir_out_path)
+    process_dir(dir_in_path, dir_out_path, run_depth)
     logger.info("Finished")
 
 

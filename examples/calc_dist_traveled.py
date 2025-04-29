@@ -18,11 +18,10 @@ mari_filt = mari[mari['label'].notnull()]
 
 mari_pairs = get_all_unique_pairs(mari_filt)
 
-mari_mpipe = mari_pairs.merge(mpipe_pairs, on=['row_id'])
+mari_mpipe = mari_pairs.merge(mpipe_pairs, on=['frame', 'row_id'])
 
-def check_row(labxx,labyx,labxy,labyy):
+def check_row(labxx, labyx, labxy, labyy):
     return (labxx == labxy) and (labyx == labyy)
-
 
 
 mari_mpipe["label_agreement"] = mari_mpipe.apply(lambda row: check_row(row["label_x_x"],
@@ -33,3 +32,8 @@ mari_mpipe["label_agreement"] = mari_mpipe.apply(lambda row: check_row(row["labe
 
 
 mari_mpipe["depth_to_m"] = np.abs(mari_mpipe["Z_x"] - mari_mpipe["Z_y"]) / np.abs(mari_mpipe["depth_est_x"] - mari_mpipe["depth_est_y"])
+
+mari_mpipe.groupby(["frame"])["depth_to_m"].median()
+
+ax = sb.lineplot(data=mari_mpipe.groupby(["frame"])["depth_to_m"].median())
+plt.show() # cool!?

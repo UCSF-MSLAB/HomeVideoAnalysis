@@ -2,14 +2,18 @@ import pandas as pd
 import numpy as np
 from scipy.ndimage import gaussian_filter1d
 
+
 def get_all_unique_pairs(df):
     df_pairs = df.merge(df, on='frame', how='left')
     df_pairs = df_pairs[df_pairs['label_x'] != df_pairs['label_y']]
+
     def make_id(x, y, i):
-        return str(i) + "-" +  str(max(x,y)) + "-" + str(min(x,y))
+        return str(i) + "-" + str(max(x, y)) + "-" + str(min(x, y))
+
     df_pairs["row_id"] = df_pairs.apply(lambda row: make_id(row["subframe_id_x"],
-                                                                row["subframe_id_y"],
-                                                                row["frame"]), axis=1)
+                                                            row["subframe_id_y"],
+                                                            row["frame"]),
+                                        axis=1)
     return df_pairs.drop_duplicates(subset="row_id", keep="first")
 
 
