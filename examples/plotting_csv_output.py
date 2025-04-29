@@ -37,7 +37,7 @@ mpipe_right_hip = mpipe_frontal[mpipe_frontal.label=='right_hip']
 ax = sb.lineplot(data=mpipe_right_hip, x="frame", y="Z")
 plt.show()
 
-mpipe_world_right_hip = mpipe_world_frontal[mpipe_world_frontal.label=='right_hip']
+mpipe_world_right_hip = mpipe_world_frontal[mpipe_world_frontal.label == 'right_hip']
 ax = sb.lineplot(data=mpipe_world_right_hip, x="frame", y="vis")
 plt.show()
 
