@@ -33,7 +33,7 @@ marigold_pipe.vae = diffusers.AutoencoderTiny.from_pretrained("madebyollin/taesd
 marigold_pipe.set_progress_bar_config(disable=True)
 
 
-def extract_pose_data(vid_in_path):
+def extract_pose_data(vid_in_path, run_depth):
 
     cap = cv2.VideoCapture(vid_in_path)
     yolo_pose_data = []
@@ -45,13 +45,13 @@ def extract_pose_data(vid_in_path):
     reader = imageio.get_reader(vid_in_path)
     size = reader.get_meta_data()['size']
 
-    latent_common = torch.randn(
-        (1, 4,
-         768 * size[1] // (8 * max(size)),
-         768 * size[0] // (8 * max(size)))
-    )
-    last_frame_latent = None
-    latents = latent_common
+    # latent_common = torch.randn(
+    #     (1, 4,
+    #      768 * size[1] // (8 * max(size)),
+    #      768 * size[0] // (8 * max(size)))
+    # )
+    # last_frame_latent = None
+    # latents = latent_common
 
     print(f"Processing {vid_in_path}...")
     frame_i = 0
@@ -61,10 +61,11 @@ def extract_pose_data(vid_in_path):
         if not success:
             break
 
-        if last_frame_latent is not None:
-            latents = .9 * latents + .1*last_frame_latent
+        # if last_frame_latent is not None:
+        #     latents = .9 * latents + .1*last_frame_latent
 
-        handlers = run_pipes_on_frame(image, frame_i, latents)
+        handlers = run_pipes_on_frame(image, frame_i, run_depth, # latents
+                                      )
         if handlers is not None:
 
             yolo_hndl, mp_p_hndl, mp_wrld_hndl, mari_hndl = handlers
@@ -73,7 +74,7 @@ def extract_pose_data(vid_in_path):
             mpipe_pose_data.append(mp_p_hndl.df)
             mpipe_world_data.append(mp_wrld_hndl.df)
             mari_depth_data.append(mari_hndl.extract(mp_p_hndl.df))
-            last_frame_latent = mari_hndl.get_latents()
+            # last_frame_latent = mari_hndl.get_latents()
 
         frame_i += 1
 
@@ -83,7 +84,7 @@ def extract_pose_data(vid_in_path):
     return [yolo_pose_data, mpipe_pose_data, mpipe_world_data, mari_depth_data]
 
 
-def run_pipes_on_frame(image, frame_i, latents):
+def run_pipes_on_frame(image, frame_i, run_depth, latents = None):
 
     image.flags.writeable = False
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
@@ -102,11 +103,11 @@ def run_pipes_on_frame(image, frame_i, latents):
                                         False)
             # perform depth estimation
             # since this takes so long, let's only do it 1x per second
-            if frame_i % FPS == 0:
+            if frame_i % FPS == 0 and run_depth:
 
                 mari_output = marigold_pipe(Image.fromarray(image),
                                             match_input_resolution=True,
-                                            latents=latents,
+                                            # latents=latents,
                                             output_latent=True)
             else:
                 mari_output = None
