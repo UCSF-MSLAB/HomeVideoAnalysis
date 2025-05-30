@@ -1,0 +1,249 @@
+---
+title: "Home video reliability"
+author: "Megan"
+date: "2025-05-05"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(dplyr)
+library(tidyverse)
+library(ggplot2)
+library(psych)
+```
+
+# set output directory 
+```{r}
+# analysis folder 
+analysis_version <- '007'
+```
+
+```{r}
+output_dir <- file.path("C:/Users/mmccu/Box/MM_Personal/5_Projects/BoveLab/3_Data_and_Code/gait_bw_zeno_home_analysis",
+                    analysis_version, 
+                    "005_home video reliability",
+                    "ICC")
+
+ifelse(!dir.exists(output_dir), 
+       dir.create(output_dir), 
+       "directory already exists") 
+```
+
+```{r}
+home_wide_path <- file.path("C:/Users/mmccu/Box/MM_Personal/5_Projects/BoveLab/3_Data_and_Code/gait_bw_zeno_home_analysis",
+                       analysis_version, 
+                       "005_home video reliability", 
+                       "hv_metrics_only_wide.csv")
+
+home_wide_df <- read.csv(home_wide_path)
+```
+
+# ICC Analysis 
+Question - for each metrics, are they consistent between right and left turn videos? 
+
+Why not just correlation? - scores can be very different, but still be correlated - 1: 10, 2:11, 3:12, etc 
+
+
+##Example 
+install.packages("psych")
+library(psych)
+
+icc_result <- ICC(df[, c("metric1_video1", "metric1_video2")])
+print(icc_result)
+
+# Function  
+
+```{r}
+icc_and_summary <- function(df, column_1_name, column_2_name, metric) {
+  
+  print(head(df[, c(column_1_name, column_2_name)]))
+
+  icc_result <- ICC(x = df[, c(column_1_name, column_2_name)], missing = TRUE)
+  print(icc_result)
+  
+  icc_result_df <- as.data.frame(icc_result$results, rownames = "icc_type")
+  
+  icc_result_df <- icc_result_df %>% 
+    mutate('metric' = metric) %>% 
+    mutate('column_1' = column_1_name) %>% 
+    mutate('column_2' = column_2_name)
+  
+  return(icc_result_df)
+}
+```
+
+# Metrics
+## Change in pixel height
+```{r}
+col_1 <- "delta_pix_h_rel_median_pose_hv_gait_vertical_left"
+col_2 <- "delta_pix_h_rel_median_pose_hv_gait_vertical_right"
+metric_name <- 'Change in Pixel Height/Second'
+
+pixel_change_icc_df <- icc_and_summary(home_wide_df, col_1, col_2, metric_name)
+```
+
+## Stride Time - Mean
+```{r}
+col_1 <- "stride_time_mean_sec_pose_hv_gait_vertical_left"
+col_2 <- "stride_time_mean_sec_pose_hv_gait_vertical_right"
+metric_name <- 'Stride Time - Mean'
+
+
+stride_time_mean_icc_df <- icc_and_summary(home_wide_df, col_1, col_2, metric_name)
+
+```
+## Stride Time - Median
+```{r}
+col_1 <- "stride_time_median_sec_pose_hv_gait_vertical_left"
+col_2 <- "stride_time_median_sec_pose_hv_gait_vertical_right"
+metric_name <- 'Stride Time - Median'
+
+stride_time_median_icc_df <- icc_and_summary(home_wide_df, col_1, col_2, metric_name)
+
+```
+## Mean Cadence
+```{r}
+col_1 <- "mean_cadence_step_per_min_pose_hv_gait_vertical_left"
+col_2 <- "mean_cadence_step_per_min_pose_hv_gait_vertical_right"
+metric_name <- 'Cadence'
+
+cadence_icc_df <- icc_and_summary(home_wide_df, col_1, col_2, metric_name)
+```
+## Stride Width - Mean  
+```{r}
+col_1 <- "stride_width_mean_cm_pose_hv_gait_vertical_left"
+col_2 <- "stride_width_mean_cm_pose_hv_gait_vertical_right"
+metric_name <- 'Stride Width - Mean'
+
+stride_width_mean_icc_df <- icc_and_summary(home_wide_df, col_1, col_2, metric_name)
+```
+
+## Stride Width - Median 
+```{r}
+col_1 <- "stride_width_median_cm_pose_hv_gait_vertical_left"
+col_2 <- "stride_width_median_cm_pose_hv_gait_vertical_right"
+metric_name <- 'Stride Width - Median'
+
+stride_width_median_icc_df <- icc_and_summary(home_wide_df, col_1, col_2, metric_name)
+```
+## Stance Percent - Mean 
+```{r}
+col_1 <- "stance_time_per_mean_pose_hv_gait_vertical_left"
+col_2 <- "stance_time_per_mean_pose_hv_gait_vertical_right"
+metric_name <- 'Stance Percent - Mean'
+
+stance_per_mean_icc_df <- icc_and_summary(home_wide_df, col_1, col_2, metric_name)
+```
+## Stance Percent - Median
+```{r}
+col_1 <- "stance_time_per_median_pose_hv_gait_vertical_left"
+col_2 <- "stance_time_per_median_pose_hv_gait_vertical_right"
+metric_name <- 'Stance Percent - Median'
+
+stance_per_median_icc_df <- icc_and_summary(home_wide_df, col_1, col_2, metric_name)
+```
+
+
+## Swing Percent - Mean 
+```{r}
+col_1 <- "swing_time_per_mean_pose_hv_gait_vertical_left"
+col_2 <- "swing_time_per_mean_pose_hv_gait_vertical_right"
+metric_name <- 'Swing Percent - Mean'
+
+swing_per_mean_icc_df <- icc_and_summary(home_wide_df, col_1, col_2, metric_name)
+
+```
+
+## Swing Time Percent - Median
+```{r}
+col_1 <- "swing_time_per_median_pose_hv_gait_vertical_left"
+col_2 <- "swing_time_per_median_pose_hv_gait_vertical_right"
+metric_name <- 'Swing Percent - Median'
+
+swing_per_median_icc_df <- icc_and_summary(home_wide_df, col_1, col_2, metric_name)
+
+```
+## Single Support Per - mean 
+
+```{r}
+col_1 <- "singlesupport_per_mean_pose_hv_gait_vertical_left"
+col_2 <- "singlesupport_per_mean_pose_hv_gait_vertical_right"
+metric_name <- 'Single Support Percent - Mean'
+
+singlesupport_per_mean_icc_df <- icc_and_summary(home_wide_df, col_1, col_2, metric_name)
+```
+## Single Supprt Per - Median 
+```{r}
+col_1 <- "singlesupport_per_median_pose_hv_gait_vertical_left"
+col_2 <- "singlesupport_per_median_pose_hv_gait_vertical_right"
+metric_name <- 'Single Support Percent - Median'
+
+singlesupport_per_median_icc_df <- icc_and_summary(home_wide_df, col_1, col_2, metric_name)
+```
+
+## Double Support Percent - Mean 
+```{r}
+col_1 <- "tot_dsupport_per_mean_pose_hv_gait_vertical_left"
+col_2 <- "tot_dsupport_per_mean_pose_hv_gait_vertical_right"
+metric_name <- 'Double Support Percent - Mean'
+
+doublesupport_per_mean_icc_df <- icc_and_summary(home_wide_df, col_1, col_2, metric_name)
+
+```
+## Double Support Percent - Median 
+```{r}
+col_1 <- "tot_dsupport_per_median_pose_hv_gait_vertical_left"
+col_2 <- "tot_dsupport_per_median_pose_hv_gait_vertical_right"
+metric_name <- 'Double Support Percent - Median'
+
+doublesupport_per_median_icc_df <- icc_and_summary(home_wide_df, col_1, col_2, metric_name)
+
+```
+
+
+
+# Bind All Data Frames
+```{r}
+format_pvals <- function(df){
+  
+  df$p_value_formatted <- ifelse(
+    df$p < 0.001, 
+    "<0.001",
+    sprintf("%.3f", round(df$p, 3)))
+  
+  return(df)
+}
+```
+
+
+```{r}
+# bind all ICC dfs together 
+icc_all_df <- rbind(pixel_change_icc_df, 
+                    stride_time_mean_icc_df,
+                    stride_time_median_icc_df,
+                    cadence_icc_df,
+                    stride_width_mean_icc_df,
+                    stride_width_median_icc_df,
+                    stance_per_mean_icc_df,
+                    stance_per_median_icc_df,
+                    swing_per_mean_icc_df,
+                    swing_per_median_icc_df, 
+                    singlesupport_per_mean_icc_df,
+                    singlesupport_per_median_icc_df,
+                    doublesupport_per_mean_icc_df,
+                    doublesupport_per_median_icc_df) 
+
+# format and round columns 
+icc_all_df <- format_pvals(icc_all_df)
+icc_all_df <- icc_all_df %>% mutate(across(c('ICC', 'F', 'lower bound', 'upper bound'), \(x) round(x, 2)))
+icc_all_df$conf_int <- paste0("[", icc_all_df$`lower bound`, ", ", icc_all_df$`upper bound`, "]")
+
+```
+
+```{r}
+# save 
+write.csv(icc_all_df, file.path(output_dir, 'icc_results.csv'))
+```
+
+
+

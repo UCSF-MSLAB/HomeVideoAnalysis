@@ -41,7 +41,7 @@ files are first visit files from 004 demographics jupyternotebook files
 clean_bw_ms_path <- file.path("C:/Users/mmccu/Box/MM_Personal/5_Projects/BoveLab/3_Data_and_Code/gait_bw_zeno_home_analysis",
                               analysis_version, 
                               "004_demographics_feasibility", 
-                              "clean_bw_ms_all_first_visit.csv")
+                              "bw_ms_first_visit_clean.csv")
 print(clean_bw_ms_path)
 clean_bw_ms_df <- read.csv(clean_bw_ms_path)
 ```
@@ -55,7 +55,7 @@ head(clean_bw_ms_df)
 clean_hv_consent_path <- file.path("C:/Users/mmccu/Box/MM_Personal/5_Projects/BoveLab/3_Data_and_Code/gait_bw_zeno_home_analysis",
                                    analysis_version, 
                                    "004_demographics_feasibility", 
-                                   "home_video_consent_clean_first_visit.csv")
+                                   "home_video_consent_first_visit_clean.csv")
 print(clean_hv_consent_path)
 clean_hv_consent_df <- read.csv(clean_hv_consent_path)
 ```
@@ -63,13 +63,25 @@ clean_hv_consent_df <- read.csv(clean_hv_consent_path)
 head(clean_hv_consent_df)
 ```
 
+```{r}
+# participants who were approached for BW, but did not consent to home videos 
+no_hv_consent_path <- file.path("C:/Users/mmccu/Box/MM_Personal/5_Projects/BoveLab/3_Data_and_Code/gait_bw_zeno_home_analysis",
+                                   analysis_version, 
+                                   "004_demographics_feasibility", 
+                                   "home_video_no_consent_ms_first_visit_clean.csv")
+
+no_hv_consent_df <- read.csv(no_hv_consent_path)
+head(no_hv_consent_df)
+```
+
+
 
 ```{r}
 # Participants who sent home videos - clean (has all data in range)
 clean_hv_video_path <- file.path("C:/Users/mmccu/Box/MM_Personal/5_Projects/BoveLab/3_Data_and_Code/gait_bw_zeno_home_analysis",
                                    analysis_version, 
                                    "004_demographics_feasibility", 
-                                    "clean_home_first_visit.csv")
+                                   "home_video_sent_first_visit_clean.csv")
 
 print(clean_hv_video_path)
 clean_hv_video_df <- read.csv(clean_hv_video_path)
@@ -92,6 +104,7 @@ factor_vars <- function(df){
             as.factor)
   
   # set levels 
+  # race/ethicity 
   df$race_ethnicity_clean <- factor(df$race_ethnicity_clean, 
                                     levels = c('White Non Hispanic', 
                                                'Asian', 
@@ -99,6 +112,17 @@ factor_vars <- function(df){
                                                'Hispanic or Latino',
                                                'Other/Unknown/Declined'), 
                                            ordered = FALSE)
+  
+  #race/ethnicity 2 - 1) white and asian, 2) blck and hispanic, 3) others 
+  df <- df %>%
+    mutate(race_ethnicity_minority = case_when(
+      race_ethnicity_clean == "White Non Hispanic" ~ "White Non Hispanic or Asian",
+      race_ethnicity_clean == "Asian" ~ "White Non Hispanic or Asian", 
+      race_ethnicity_clean == 'Black Or African American' ~ 'Black or African American or Hispanic or Latino',
+      race_ethnicity_clean == 'Hispanic or Latino' ~ 'Black or African American or Hispanic or Latino', 
+      race_ethnicity_clean == 'Other/Unknown/Declined' ~ 'Other/Unknown/Declined'
+      ))
+  
   
   # merge ms_dx into RRMS or other 
   df <- df %>%
@@ -132,33 +156,33 @@ factor_vars <- function(df){
 
 clean_bw_ms_df <- factor_vars(clean_bw_ms_df)
 clean_hv_consent_df <- factor_vars(clean_hv_consent_df)
+no_hv_consent_df <- factor_vars(no_hv_consent_df)
 clean_hv_video_df <- factor_vars(clean_hv_video_df)
-
-
 ```
 
 
-
-# Create new data frame - not consent 
-Need mutually exclusive groups for test 
-find people who did not consent, who consented and did not sent videos 
+# QC - mututally exclusive groups 
 ```{r}
-# bw participants who did not consent to home videos 
-no_hv_consent_df <- clean_bw_ms_df %>% 
-  filter(!(bw_id %in% clean_hv_consent_df$bw_id))
-
-
-# check 
-table(clean_bw_ms_df$clean_Sex_2)
-table(no_hv_consent_df$clean_Sex_2)
-table(clean_hv_consent_df$clean_Sex_2)
+# bw id in no consent df that are also in consent data frame - should equal zero 
+no_hv_consent_df %>% 
+  filter((bw_id %in% clean_hv_consent_df$bw_id))
 
 ```
-this might be mismatched until running final report - some sent videos recently 
+
+# create new data frame - video vs no video 
 ```{r}
 # participants who consented, but did not sent a video 
 no_video_df <- clean_hv_consent_df %>% 
   filter(!(bw_id %in% clean_hv_video_df$bw_id))
+
+# check 
+table(clean_hv_consent_df$clean_Sex_2)
+table(no_video_df$clean_Sex_2)
+table(clean_hv_video_df$clean_Sex_2)
+
+table(clean_hv_consent_df$ms_dx_condensed_2)
+table(no_video_df$ms_dx_condensed_2)
+table(clean_hv_video_df$ms_dx_condensed_2)
 
 # mutually exclusive
 duplicates <- clean_hv_video_df$bw_id[clean_hv_video_df$bw_id %in% no_video_df$bw_id]
@@ -187,7 +211,7 @@ print_save_xsq_results <- function(xsq_results, column){
                             statistic = xsq_results$statistic,
                             p_value = xsq_results$p.value, 
                             degrees_freedom = xsq_results$parameter, 
-                            method = xsq_results$method)
+                            method = xsq_results$method) 
   return(results_row)
   
   
@@ -228,7 +252,10 @@ consent_sex_tab
 consent_sex_xsq <- chisq.test(consent_sex_tab, correct = FALSE)
 consent_sex_xsq_row <- print_save_xsq_results(consent_sex_xsq, column = 'Sex')
 ```
+
 ```{r}
+# sent video vs did not send video 
+
 # any missing? 
 print('----- missing ------')
 sum(is.na(no_video_df$clean_Sex_2))
@@ -282,8 +309,8 @@ video_dx_fisher <- fisher.test(video_dx_tab)
 video_dx_fisher
 video_dx_fisher_row <- print_save_fisher_results(video_dx_fisher, 'MS DX')
 ```
-## Race and Ethnicity 
-Question - should I group into white non hispanic / other for 2x2?
+## Race and Ethnicity - original values 
+
 ```{r}
 # consented to home videos vs did not consent to home videos 
 
@@ -321,24 +348,62 @@ video_race_fisher
 video_race_fisher_row <- print_save_fisher_results(video_race_fisher, 'Race and Ethnicity')
 
 ```
+## Race Ethnicity: minority vs not minority 
+```{r}
+# consented to home videos vs did not consent to home videos 
+
+print('----- missing ------')
+sum(is.na(no_hv_consent_df$race_ethnicity_minority))
+sum(is.na(clean_hv_consent_df$race_ethnicity_minority))
+
+# format table 
+consent_race_minority_tab <- rbind(table(no_hv_consent_df$race_ethnicity_minority), table(clean_hv_consent_df$race_ethnicity_minority))
+dimnames(consent_race_minority_tab)[1] <- list("Participants:" = c("Did not consent", "Consented"))
+
+consent_race_minority_tab
+
+
+consent_race_minority_xsq <- chisq.test(consent_race_minority_tab)
+consent_race_minority_xsq
+consent_race_xsq_row <- print_save_xsq_results(consent_race_minority_xsq, 'Race and Ethnicity - Minority')
+```
+
+```{r}
+# sent home video vs did not send home video
+print('----- missing ------')
+sum(is.na(no_video_df$race_ethnicity_minority))
+sum(is.na(clean_hv_video_df$race_ethnicity_minority))
+
+
+video_race_minority_tab <- rbind(table(no_video_df$race_ethnicity_minority), table(clean_hv_video_df$race_ethnicity_minority))
+
+
+dimnames(video_race_minority_tab)[1] <- list("Participants:" = c("Did not sent video", "Sent video"))
+video_race_minority_tab
+video_race_minority_fisher <- fisher.test(video_race_minority_tab)
+video_race_minority_fisher
+video_race_minority_fisher_row <- print_save_fisher_results(video_race_minority_fisher, 'Race and Ethnicity - Minority')
+
+```
+
 
 ## Bind all rows together and save 
 consent_sex_xsq_row with all other rows
 
 ```{r}
 # consent vs no consent to home videos 
-consent_cat_results <- rbind(consent_sex_xsq_row, consent_dx_xsq_row, consent_race_fisher_row)
-consent_cat_results$p_value <- round(consent_cat_results$p_value, 3)
+consent_cat_results <- rbind(consent_sex_xsq_row, consent_dx_xsq_row, consent_race_fisher_row,
+                             consent_race_xsq_row) %>% 
+  mutate(formatted_p_val = ifelse(p_value < 0.001, '<0.001', round(p_value, 3)))
 consent_cat_results
-write.csv(consent_cat_results, file.path(output_dir, 'results_consent_vs_not_categorical.csv'))
 ```
 
 ```{r}
 # sent home videos vs did not sent home videos 
-video_cat_results <- rbind(video_sex_xsq_row, video_dx_fisher_row, video_race_fisher_row)
-video_cat_results$p_value <- round(video_cat_results$p_value, 3)
+video_cat_results <- rbind(video_sex_xsq_row, video_dx_fisher_row, video_race_fisher_row, 
+                           video_race_minority_fisher_row) %>% 
+  mutate(formatted_p_val = ifelse(p_value < 0.001, '<0.001', round(p_value, 3)))
 video_cat_results
-write.csv(video_cat_results, file.path(output_dir, 'results_video_vs_no_video_categorical.csv'))
 ```
 
 
@@ -423,7 +488,7 @@ consent_age_wilcox <- wilcox.test(x = no_hv_consent_df$clean_Age,
                                   alternative = c('two.sided'), 
                                   paired = FALSE, 
                                   conf.int = TRUE) 
-
+consent_age_wilcox
 consent_age_results_row <- save_test_results(consent_age_wilcox, 'Age')
 consent_age_results_row
 ```
@@ -449,14 +514,15 @@ hist(clean_hv_video_df$clean_Age, probability =  FALSE)
 shapiro.test(no_video_df$clean_Age)
 shapiro.test(clean_hv_video_df$clean_Age)
 
-# test - 4/28 - both shapiro tests > 0.05, t-test 
-video_age_ttest <- t.test(x = no_video_df$clean_Age, 
+# test - shapiro says normal, but doesn't look normal.. using wilcox
+video_age_wilcox <- wilcox.test(x = no_video_df$clean_Age, 
                           y = clean_hv_video_df$clean_Age, 
                           var.equal = TRUE, 
-                          alternative = c("two.sided"))
+                          alternative = c("two.sided"),
+                          conf.int = TRUE)
 
-video_age_ttest 
-video_age_results_row <- save_test_results(video_age_ttest, 'Age')
+video_age_wilcox 
+video_age_results_row <- save_test_results(video_age_wilcox, 'Age')
 
 ```
 
@@ -750,6 +816,10 @@ consent_summary_yes <- rbind(sum_age_consent,
 # consent all 
 consent_summary_all <- rbind(consent_no_df, consent_summary_yes) 
 consent_summary_all <- consent_summary_all[order(consent_summary_all$column), ]
+
+consent_summary_all <- consent_summary_all %>% 
+  mutate(IQR = consent_summary_all$q3 - consent_summary_all$q1)
+
 consent_summary_all
 write.csv(consent_summary_all, file.path(output_dir, 'summary_consent_cont.csv'))
 ```
@@ -776,8 +846,12 @@ video_yes_df <- rbind(sum_age_video,
 # video all 
 video_summary_all <- rbind(video_no_df, video_yes_df)
 video_summary_all <- video_summary_all[order(video_summary_all$column), ]
+
+video_summary_all <- video_summary_all %>% 
+  mutate(IQR = video_summary_all$q3 - video_summary_all$q1)
+
 video_summary_all 
-write.csv(video_summary_all, file.path(output_dir, 'summary_video_summary_cont.csv'))
+write.csv(video_summary_all, file.path(output_dir, 'summary_video_cont.csv'))
 ```
 
 
@@ -790,7 +864,6 @@ results_consent_cont <- rbind(consent_age_results_row,
                               consent_edu_results_row,
                               consent_edss_results_row) 
 results_consent_cont
-write.csv(results_consent_cont, file.path(output_dir, 'results_consent_vs_not_cont.csv'))
 
 # video 
 
@@ -800,7 +873,46 @@ results_video_cont <- rbind(video_age_results_row,
                             video_edu_results_row,
                             video_edss_results_row)
 results_video_cont
-write.csv(results_video_cont, file.path(output_dir, 'results_video_vs_no_video_cont.csv'))
+
+```
+# Format summary tables
+
+## p-values 
+```{r}
+format_pvals <- function(df){
+  
+  df$p_value_formatted <- ifelse(
+    df$p_value < 0.001, 
+    "<0.001",
+    sprintf("%.3f", round(df$p_value, 3)))
+  
+  return(df)
+}
+```
+
+```{r}
+consent_cat_results <- format_pvals(consent_cat_results)
+video_cat_results <- format_pvals(video_cat_results)
+results_consent_cont <- format_pvals(results_consent_cont)
+results_video_cont <- format_pvals(results_video_cont)
+```
+
+```{r}
+results_consent_cont
+```
+## Save 
+```{r}
+write.csv(consent_cat_results, file.path(output_dir,
+                                         'results_consent_vs_not_categorical.csv'))
+
+write.csv(video_cat_results, file.path(output_dir,
+                                       'results_video_vs_no_video_categorical.csv'))
+
+write.csv(results_consent_cont, file.path(output_dir, 
+                                          'results_consent_vs_not_cont.csv'))
+
+write.csv(results_video_cont, file.path(output_dir, 
+                                        'results_video_vs_no_video_cont.csv'))
 
 ```
 

@@ -41,7 +41,7 @@ library(DescTools)
 ## output directory 
 ```{r}
 # analysis folder 
-analysis_version <- '006'
+analysis_version <- '007'
 
 ```
 
@@ -73,7 +73,7 @@ table(zeno_pws_df$task_pose)
 
 ### Factor categorical vars 
 ```{r}
-str(zeno_pws_df)
+#str(zeno_pws_df)
 zeno_pws_df <- zeno_pws_df %>% 
   mutate_at(c("video_id_date_name_pose_zv", "id_date_pose_zv", "task_pose_zv", 
               "id_video", "bw_id", "clean_Sex", "bingoEHR_DX_MS.DX", 
@@ -116,6 +116,7 @@ zeno_pws_df$edss_severity_cat <- factor(zeno_pws_df$edss_severity_cat,
                                         levels = c('mild', 
                                                    'moderate',
                                                    'severe'), 
+                                        labels = c('Mild', 'Moderate', 'Severe'),                                 
                                         ordered = TRUE)
 print(levels(zeno_pws_df$edss_severity_cat))
 print(table(zeno_pws_df$edss_severity_cat))
@@ -199,7 +200,7 @@ table(zeno_fw_df$task_pose)
 
 ### Factor categorical vars 
 ```{r}
-str(zeno_fw_df)
+
 zeno_fw_df <- zeno_fw_df %>% 
   mutate_at(c("video_id_date_name_pose_zv", "id_date_pose_zv", "task_pose_zv", 
               "id_video", "bw_id", "clean_Sex", "bingoEHR_DX_MS.DX", 
@@ -207,7 +208,6 @@ zeno_fw_df <- zeno_fw_df %>%
               "race_ethnicity_clean", "ms_dx_condensed",
               "redcap_event_name", "clean_EDSS"), 
             as.factor)
-str(zeno_fw_df)
 
 
 # assign levels to categorical variables 
@@ -242,7 +242,8 @@ table(zeno_fw_df$edss_severity_cat)
 zeno_fw_df$edss_severity_cat <- factor(zeno_fw_df$edss_severity_cat, 
                                 levels = c('mild', 
                                            'moderate',
-                                           'severe'), 
+                                           'severe'),
+                                labels = c('Mild', 'Moderate', 'Severe'), 
                                 ordered = TRUE)
 print(levels(zeno_fw_df$edss_severity_cat))
 ```
@@ -511,26 +512,28 @@ p1 <- ggplot(data = zeno_pws_df, aes(demoEHR_EDSS_dateDiff)) +
 p1
 
 # filter within 90 days 
-zeno_pws_edss_df <- zeno_pws_df %>% 
-  filter(demoEHR_EDSS_dateDiff > -90 & demoEHR_EDSS_dateDiff < 90)
+#zeno_pws_edss_df <- zeno_pws_df %>% 
+  #filter(demoEHR_EDSS_dateDiff > -90 & demoEHR_EDSS_dateDiff < 90)
 
-p2 <- ggplot(data = zeno_pws_edss_df, aes(demoEHR_EDSS_dateDiff)) + 
-  geom_histogram() + 
-  labs(title = "PWS: EDSS within 90 days")
-p2
+#p2 <- ggplot(data = zeno_pws_edss_df, aes(demoEHR_EDSS_dateDiff)) + 
+#  geom_histogram() + 
+#  labs(title = "PWS: EDSS within 90 days")
+#p2
 
 # Number of videos 
-print("# OF videos after dropping EDSS")
-print(nrow(zeno_pws_edss_df))
+#print("# OF videos after dropping EDSS")
+#print(nrow(zeno_pws_edss_df))
 
 # select unique ID 
 zeno_pws_edss_df <- zeno_pws_edss_df %>%
   arrange(visit_date_video) %>%   # Sort by date
   distinct(bw_id, .keep_all = TRUE) %>%  # Keep the first occurrence of each ID
   drop_na(c("stride_time_median_sec_pose_zv", # drop missing video metrics 
-            "log_delta_pix_h_rel_median_pose_zv",
+            "delta_pix_h_rel_median_pose_zv",
             "mean_cadence_step_per_min_pose_zv",
-            "stride_width_median_cm_pose_zv"))
+            "stride_width_median_cm_pose_zv",
+            "gait_cycle_time_sec_std_pose_zv"
+            ))
 # Number of videos 
 print("# OF videos after dropping EDSS + only unique ID")
 print(nrow(zeno_pws_edss_df))
@@ -538,7 +541,7 @@ print(nrow(zeno_pws_edss_df))
 # Histogram of EDSS: only unique ID 
 p3 <- ggplot(data = zeno_pws_edss_df, aes(clean_EDSS)) + 
   geom_bar() + 
-  labs(title = "PWS: unique ID and EDSS w/in 90 days ")
+  labs(title = "PWS: unique ID")
 p3
 
 ```
@@ -554,26 +557,28 @@ p1 <- ggplot(data = zeno_fw_df, aes(demoEHR_EDSS_dateDiff)) +
 p1
 
 # filter within 90 days 
-zeno_fw_edss_df <- zeno_fw_df %>% 
-  filter(demoEHR_EDSS_dateDiff > -90 & demoEHR_EDSS_dateDiff < 90)
+#zeno_fw_edss_df <- zeno_fw_df %>% 
+#  filter(demoEHR_EDSS_dateDiff > -90 & demoEHR_EDSS_dateDiff < 90)
 
-p2 <- ggplot(data = zeno_fw_edss_df, aes(demoEHR_EDSS_dateDiff)) + 
-  geom_histogram() + 
-  labs(title = "FW: EDSS within 90 days")
-p2
+#p2 <- ggplot(data = zeno_fw_edss_df, aes(demoEHR_EDSS_dateDiff)) + 
+#  geom_histogram() + 
+#  labs(title = "FW: EDSS within 90 days")
+#p2
 
 # Number of videos 
 print("# OF videos after dropping EDSS")
-print(nrow(zeno_fw_edss_df))
+print(nrow(zeno_fw_df))
 
 # select unique ID 
-zeno_fw_edss_df <- zeno_fw_edss_df %>%
+zeno_fw_edss_df <- zeno_fw_df %>%
   arrange(visit_date_video) %>%   # Sort by date
   distinct(bw_id, .keep_all = TRUE)  %>%  # Keep the first occurrence of each ID
   drop_na(c("stride_time_median_sec_pose_zv", # drop missing video metrics 
-            "log_delta_pix_h_rel_median_pose_zv",
+            "delta_pix_h_rel_median_pose_zv",
             "mean_cadence_step_per_min_pose_zv",
-            "stride_width_median_cm_pose_zv"))
+            "stride_width_median_cm_pose_zv",
+            "gait_cycle_time_sec_std_pose_zv" 
+            ))
 
 # Number of videos 
 print("# OF videos after dropping EDSS + only unique ID")
@@ -585,6 +590,8 @@ p3 <- ggplot(data = zeno_fw_edss_df, aes(clean_EDSS)) +
   labs(title = "FW: unique ID and EDSS w/in 90 days ")
 p3
 
+
+table(zeno_fw_edss_df$edss_severity_cat)
 ```
 
 ### Home  
@@ -598,17 +605,17 @@ p1 <- ggplot(data = home_df, aes(demoEHR_EDSS_dateDiff)) +
 p1
 
 # filter within 90 days 
-home_edss_df <- home_df %>% 
-  filter(demoEHR_EDSS_dateDiff > -90 & demoEHR_EDSS_dateDiff < 90)
+#home_edss_df <- home_df %>% 
+#  filter(demoEHR_EDSS_dateDiff > -90 & demoEHR_EDSS_dateDiff < 90)
 
-p2 <- ggplot(data = home_edss_df, aes(demoEHR_EDSS_dateDiff)) + 
-  geom_histogram() + 
-  labs(title = "Home: EDSS within 90 days")
-p2
+#p2 <- ggplot(data = home_edss_df, aes(demoEHR_EDSS_dateDiff)) + 
+#  geom_histogram() + 
+#  labs(title = "Home: EDSS within 90 days")
+#p2
 
 # Number of videos 
-print("# OF videos after dropping EDSS")
-print(nrow(home_edss_df))
+#print("# OF videos after dropping EDSS")
+#print(nrow(home_edss_df))
 
 # select unique ID 
 home_edss_df <- home_edss_df %>%
@@ -617,7 +624,8 @@ home_edss_df <- home_edss_df %>%
   drop_na(c("stride_time_median_sec_pose_hv", # drop missing video metrics 
             "log_delta_pix_h_rel_median_pose_hv",
             "mean_cadence_step_per_min_pose_hv",
-            "stride_width_median_cm_pose_hv"))
+            "stride_width_median_cm_pose_hv"
+            ))
 
 # Number of videos 
 print("# OF home_edss_df after dropping EDSS + only unique ID")
@@ -652,7 +660,7 @@ print(levels(home_edss_df$edss_severity_cat))
 # file name 
 filename = "PWS_univariate_log_delta_pix"
 # plot 
-ggplot(zeno_pws_edss_df, aes(x = edss_severity_cat, y = log_delta_pix_h_rel_median_pose_zv)) +
+ggplot(zeno_pws_edss_df, aes(x = edss_severity_cat, y = delta_pix_h_rel_median_pose_zv)) +
   geom_boxplot(size = .75) +
   geom_jitter(alpha = .5) + 
   labs(title = filename)
@@ -660,7 +668,7 @@ ggplot(zeno_pws_edss_df, aes(x = edss_severity_cat, y = log_delta_pix_h_rel_medi
 ggsave(file.path(output_dir, paste(filename, 'vs_edss.png', sep = "_")))
 
 # model 
-uni1 <- polr(edss_severity_cat ~ log_delta_pix_h_rel_median_pose_zv, 
+uni1 <- polr(edss_severity_cat ~ delta_pix_h_rel_median_pose_zv, 
              data = zeno_pws_edss_df, Hess=TRUE)
 
 summary_calc_p_and_odds(polr_object = uni1, 
@@ -681,7 +689,7 @@ If significant effect:
 Test proportional odds assumption
 ```{r}
 # calculate the log odds of being greater than or equal to each value of the target variable
-s <- with(zeno_pws_edss_df, summary(as.numeric(edss_severity_cat) ~ log_delta_pix_h_rel_median_pose_zv, fun=sf))
+s <- with(zeno_pws_edss_df, summary(as.numeric(edss_severity_cat) ~ delta_pix_h_rel_median_pose_zv, fun=sf))
 p <- plot_check_assumption(s_var = s)
 
 ```
@@ -702,14 +710,14 @@ Continuous vars (gpa_ - from = upper left square of s; to = lower right square o
 ```{r}
 # Create new dataset of all values to use for prediction 
 newdat <- data.frame(
-  log_delta_pix_h_rel_median_pose_zv = rep(seq(from = -2.813, to = -0.462, length.out = 100), 4)) 
+  delta_pix_h_rel_median_pose_zv = rep(seq(from = -2.813, to = -0.462, length.out = 100), 4)) 
 
 # predict for each row of new dat using model 
 newdat <- cbind(newdat, predict(uni1, newdat, type = "probs"))
 head(newdat)
 
 # reshape for plotting 
-lnewdat <- melt(newdat, id.vars = c("log_delta_pix_h_rel_median_pose_zv"),
+lnewdat <- melt(newdat, id.vars = c("delta_pix_h_rel_median_pose_zv"),
                 variable.name = "Level", value.name="Probability")
 head(lnewdat)
 
@@ -718,12 +726,32 @@ head(lnewdat)
 #ggplot(lnewdat, aes(x = gpa, y = Probability, colour = Level)) +
   #geom_line() + facet_grid(pared ~ public, labeller="label_both")
 
-p <- ggplot(lnewdat, aes(x = log_delta_pix_h_rel_median_pose_zv, y = Probability, colour = Level)) +
+p <- ggplot(lnewdat, aes(x = delta_pix_h_rel_median_pose_zv, y = Probability, colour = Level)) +
   geom_line() + 
   labs(title = filename)
 p
 ggsave(file.path(output_dir, paste(filename, "probabilities.png", sep = "_")))
 ```
+### Univariate - stride_time_median_sec_pose
+```{r}
+# file name 
+filename = "PWS_univariate_delta_pix"
+# plot 
+ggplot(zeno_pws_edss_df, aes(x = edss_severity_cat, y = delta_pix_h_rel_median_pose_zv)) +
+  geom_boxplot(size = .75) +
+  geom_jitter(alpha = .5) + 
+  labs(title = filename)
+ggsave(file.path(output_dir, paste(filename, 'vs_edss.png', sep = "_")))
+
+# model 
+uni1 <- polr(edss_severity_cat ~ delta_pix_h_rel_median_pose_zv, 
+             data = zeno_fw_edss_df, Hess=TRUE)
+
+summary_calc_p_and_odds(polr_object = uni1, 
+                        file_name = filename)
+
+```
+
 
 ### Univariate - stride_time_median_sec_pose
 ```{r}
@@ -741,6 +769,7 @@ uni1 <- polr(edss_severity_cat ~ stride_time_median_sec_pose_zv,
 
 summary_calc_p_and_odds(polr_object = uni1, 
                         file_name = filename)
+
 
 ```
 
@@ -958,7 +987,7 @@ summary_calc_p_and_odds(polr_object = uni1,
                         file_name = filename)
 
 ```
-### Univariate - tot_dsupport_time_sec_std_pose_zv 
+### Univariate - tot_dsupport_per_mean_pose_zv 
 ```{r}
 filename = "tot_dsupport_per_mean_pose_zv"
 # plot 
@@ -1165,9 +1194,7 @@ filename = "PWS_multivar_dem_ms_info"
 # model 
 pws_multivar_dem_ms <- polr(edss_severity_cat ~ clean_Age + 
                               demoEHR_DiseaseDuration + 
-                              ms_dx_condensed_2 + 
-                              race_ethnicity_clean_2 + 
-                              clean_Sex_2,
+                              ms_dx_condensed_2,
                             data = zeno_pws_edss_df, Hess=TRUE)
 
 
@@ -1193,7 +1220,7 @@ plot_check_assumption(s)
 filename = "PWS_multivar_video_unadj"
 
 # model 
-pws_multivar_video_unadj <- polr(edss_severity_cat ~ log_delta_pix_h_rel_median_pose_zv + 
+pws_multivar_video_unadj <- polr(edss_severity_cat ~ delta_pix_h_rel_median_pose_zv + 
                               stride_time_median_sec_pose_zv + 
                               mean_cadence_step_per_min_pose_zv + 
                               stride_width_median_cm_pose_zv + 
@@ -1210,7 +1237,7 @@ If significant effect:
 Test proportional odds assumption
 ```{r}
 # calculate the log odds of being greater than or equal to each value of the target variable
-s <- with(zeno_pws_edss_df, summary(as.numeric(edss_severity_cat) ~ log_delta_pix_h_rel_median_pose_zv + 
+s <- with(zeno_pws_edss_df, summary(as.numeric(edss_severity_cat) ~ delta_pix_h_rel_median_pose_zv + 
                                       stride_time_median_sec_pose_zv + 
                                       mean_cadence_step_per_min_pose_zv + 
                                       stride_width_median_cm_pose_zv, 
@@ -1226,9 +1253,7 @@ filename = "PWS_multivar_video_adj"
 pws_multivar_video_adj <- polr(edss_severity_cat ~ clean_Age + 
                                    demoEHR_DiseaseDuration + 
                                    ms_dx_condensed_2 + 
-                                   race_ethnicity_clean_2 + 
-                                   clean_Sex_2 + 
-                                   log_delta_pix_h_rel_median_pose_zv + 
+                                   delta_pix_h_rel_median_pose_zv + 
                                    stride_time_median_sec_pose_zv + 
                                    mean_cadence_step_per_min_pose_zv + 
                                    stride_width_median_cm_pose_zv + 
@@ -1332,7 +1357,7 @@ Race, MS DX, and Log Pixel Proxy
 filename = "PWS_multivar_logPix_dx_race"
 
 # model 
-pws_multivar_logPixdx_race <- polr(edss_severity_cat ~ log_delta_pix_h_rel_median_pose_zv + 
+pws_multivar_logPixdx_race <- polr(edss_severity_cat ~ delta_pix_h_rel_median_pose_zv + 
                               ms_dx_condensed_2 + 
                               race_ethnicity_clean_2,
                             data = zeno_pws_edss_df, Hess=TRUE)
@@ -1343,7 +1368,7 @@ summary_calc_p_and_odds(polr_object = pws_multivar_logPixdx_race,
 
 
 # calculate the log odds of being greater than or equal to each value of the target variable
-s <- with(zeno_pws_edss_df, summary(as.numeric(edss_severity_cat) ~ log_delta_pix_h_rel_median_pose_zv + 
+s <- with(zeno_pws_edss_df, summary(as.numeric(edss_severity_cat) ~ delta_pix_h_rel_median_pose_zv + 
                                       ms_dx_condensed_2 + 
                                       race_ethnicity_clean_2, 
                                     fun=sf))
@@ -1370,7 +1395,7 @@ head(cat_combinations)
 
 # Expand dataset to include all continuous variable values for each categorical combination
 newdat <- expand.grid(
-  log_delta_pix_h_rel_median_pose_zv = log_pix_values,
+  delta_pix_h_rel_median_pose_zv = log_pix_values,
   stringsAsFactors = FALSE  # Keep continuous variables numeric
 )
 
@@ -1384,7 +1409,7 @@ head(newdat)
 head(newdat)
 
 # reshape for plotting 
-lnewdat <- melt(newdat, id.vars = c("log_delta_pix_h_rel_median_pose_zv",
+lnewdat <- melt(newdat, id.vars = c("delta_pix_h_rel_median_pose_zv",
                                     "ms_dx_condensed_2",
                                     "race_ethnicity_clean_2"),
                 variable.name = "Level", value.name="Probability")
@@ -1396,7 +1421,7 @@ head(lnewdat)
 #ggplot(lnewdat, aes(x = gpa, y = Probability, colour = Level)) +
   #geom_line() + facet_grid(pared ~ public, labeller="label_both")
 
-p <- ggplot(lnewdat, aes(x = log_delta_pix_h_rel_median_pose_zv, y = Probability, colour = Level)) +
+p <- ggplot(lnewdat, aes(x = delta_pix_h_rel_median_pose_zv, y = Probability, colour = Level)) +
   geom_line() + 
   facet_grid(ms_dx_condensed_2 ~ race_ethnicity_clean_2) + 
   labs(title = filename)
@@ -1409,16 +1434,16 @@ ggsave(file.path(output_dir, paste(filename, "probabilities.png", sep = "_")))
 ### Univariate - log pixel proxy 
 ```{r}
 # file name 
-filename = "FW_univariate_log_delta_pix"
+filename = "FW_univariate_delta_pix"
 # plot 
-ggplot(zeno_fw_edss_df, aes(x = edss_severity_cat, y = log_delta_pix_h_rel_median_pose_zv)) +
+ggplot(zeno_fw_edss_df, aes(x = edss_severity_cat, y = delta_pix_h_rel_median_pose_zv)) +
   geom_boxplot(size = .75) +
   geom_jitter(alpha = .5) + 
   labs(title = filename)
 ggsave(file.path(output_dir, paste(filename, 'vs_edss.png', sep = "_")))
 
 # model 
-uni1 <- polr(edss_severity_cat ~ log_delta_pix_h_rel_median_pose_zv, 
+uni1 <- polr(edss_severity_cat ~ delta_pix_h_rel_median_pose_zv, 
              data = zeno_fw_edss_df, Hess=TRUE)
 
 summary_calc_p_and_odds(polr_object = uni1, 
@@ -1429,7 +1454,7 @@ If significant effect:
 Test proportional odds assumption
 ```{r}
 # calculate the log odds of being greater than or equal to each value of the target variable
-s <- with(zeno_fw_edss_df, summary(as.numeric(edss_severity_cat) ~ log_delta_pix_h_rel_median_pose_zv, fun=sf))
+s <- with(zeno_fw_edss_df, summary(as.numeric(edss_severity_cat) ~ delta_pix_h_rel_median_pose_zv, fun=sf))
 p <- plot_check_assumption(s_var = s)
 
 ```
@@ -1437,14 +1462,14 @@ p <- plot_check_assumption(s_var = s)
 ```{r}
 # Create new dataset of all values to use for prediction 
 newdat <- data.frame(
-  log_delta_pix_h_rel_median_pose_zv = rep(seq(from = -3.219, to = -0.139, length.out = 100), 4)) 
+  delta_pix_h_rel_median_pose_zv = rep(seq(from = -3.219, to = -0.139, length.out = 100), 4)) 
 
 # predict for each row of new dat using model 
 newdat <- cbind(newdat, predict(uni1, newdat, type = "probs"))
 head(newdat)
 
 # reshape for plotting 
-lnewdat <- melt(newdat, id.vars = c("log_delta_pix_h_rel_median_pose_zv"),
+lnewdat <- melt(newdat, id.vars = c("delta_pix_h_rel_median_pose_zv"),
                 variable.name = "Level", value.name="Probability")
 head(lnewdat)
 
@@ -1453,7 +1478,7 @@ head(lnewdat)
 #ggplot(lnewdat, aes(x = gpa, y = Probability, colour = Level)) +
   #geom_line() + facet_grid(pared ~ public, labeller="label_both")
 
-p <- ggplot(lnewdat, aes(x = log_delta_pix_h_rel_median_pose_zv, y = Probability, colour = Level)) +
+p <- ggplot(lnewdat, aes(x = delta_pix_h_rel_median_pose_zv, y = Probability, colour = Level)) +
   geom_line() + 
   labs(title = filename) + 
   labs(title = filename)
@@ -1965,9 +1990,7 @@ filename = "FW_multivar_dem_ms_info"
 # model 
 fw_multivar_dem_ms <- polr(edss_severity_cat ~ clean_Age + 
                               demoEHR_DiseaseDuration + 
-                              ms_dx_condensed_2 + 
-                              race_ethnicity_clean_2 + 
-                              clean_Sex_2,
+                              ms_dx_condensed_2,
                             data = zeno_fw_edss_df, Hess=TRUE)
 
 
@@ -1993,7 +2016,7 @@ p <- plot_check_assumption(s_var = s)
 filename = "FW_multivar_video_unadj"
 
 # model 
-fw_multivar_video_unadj <- polr(edss_severity_cat ~ log_delta_pix_h_rel_median_pose_zv + 
+fw_multivar_video_unadj <- polr(edss_severity_cat ~ delta_pix_h_rel_median_pose_zv + 
                               stride_time_median_sec_pose_zv + 
                               mean_cadence_step_per_min_pose_zv + 
                               stride_width_median_cm_pose_zv + 
@@ -2010,7 +2033,7 @@ If significant effect:
 Test proportional odds assumption - don't think meets assumption?
 ```{r}
 # calculate the log odds of being greater than or equal to each value of the target variable
-s <- with(zeno_fw_edss_df, summary(as.numeric(edss_severity_cat) ~ log_delta_pix_h_rel_median_pose_zv + 
+s <- with(zeno_fw_edss_df, summary(as.numeric(edss_severity_cat) ~ delta_pix_h_rel_median_pose_zv + 
                                       stride_time_median_sec_pose_zv + 
                                       mean_cadence_step_per_min_pose_zv + 
                                       stride_width_median_cm_pose_zv, 
@@ -2025,10 +2048,8 @@ filename = "FW_multivar_video_adj"
 # model 
 fw_multivar_video_adj <- polr(edss_severity_cat ~ clean_Age + 
                                    demoEHR_DiseaseDuration + 
-                                   ms_dx_condensed_2 + 
-                                   race_ethnicity_clean_2 + 
-                                   clean_Sex_2 + 
-                                   log_delta_pix_h_rel_median_pose_zv + 
+                                   ms_dx_condensed_2 +
+                                   delta_pix_h_rel_median_pose_zv + 
                                    stride_time_median_sec_pose_zv + 
                                    mean_cadence_step_per_min_pose_zv + 
                                    stride_width_median_cm_pose_zv + 
@@ -2049,7 +2070,7 @@ Race, MS DX, and Log Pixel Proxy
 filename = "FW_multivar_logPix_dx_race"
 
 # model 
-FW_multivar_logPixdx_race <- polr(edss_severity_cat ~ log_delta_pix_h_rel_median_pose_zv + 
+FW_multivar_logPixdx_race <- polr(edss_severity_cat ~ delta_pix_h_rel_median_pose_zv + 
                               ms_dx_condensed_2 + 
                               race_ethnicity_clean_2,
                             data = zeno_fw_edss_df, Hess=TRUE)
@@ -2060,7 +2081,7 @@ summary_calc_p_and_odds(polr_object = FW_multivar_logPixdx_race,
 
 
 # calculate the log odds of being greater than or equal to each value of the target variable
-s <- with(zeno_fw_edss_df, summary(as.numeric(edss_severity_cat) ~ log_delta_pix_h_rel_median_pose_zv + 
+s <- with(zeno_fw_edss_df, summary(as.numeric(edss_severity_cat) ~ delta_pix_h_rel_median_pose_zv + 
                                       ms_dx_condensed_2 + 
                                       race_ethnicity_clean_2, 
                                     fun=sf))
@@ -2087,7 +2108,7 @@ head(cat_combinations)
 
 # Expand dataset to include all continuous variable values for each categorical combination
 newdat <- expand.grid(
-  log_delta_pix_h_rel_median_pose_zv = log_pix_values,
+  delta_pix_h_rel_median_pose_zv = log_pix_values,
   stringsAsFactors = FALSE  # Keep continuous variables numeric
 )
 
@@ -2101,7 +2122,7 @@ head(newdat)
 head(newdat)
 
 # reshape for plotting 
-lnewdat <- melt(newdat, id.vars = c("log_delta_pix_h_rel_median_pose_zv",
+lnewdat <- melt(newdat, id.vars = c("delta_pix_h_rel_median_pose_zv",
                                     "ms_dx_condensed_2",
                                     "race_ethnicity_clean_2"),
                 variable.name = "Level", value.name="Probability")
@@ -2113,7 +2134,7 @@ head(lnewdat)
 #ggplot(lnewdat, aes(x = gpa, y = Probability, colour = Level)) +
   #geom_line() + facet_grid(pared ~ public, labeller="label_both")
 
-p <- ggplot(lnewdat, aes(x = log_delta_pix_h_rel_median_pose_zv, y = Probability, colour = Level)) +
+p <- ggplot(lnewdat, aes(x = delta_pix_h_rel_median_pose_zv, y = Probability, colour = Level)) +
   geom_line() + 
   facet_grid(ms_dx_condensed_2 ~ race_ethnicity_clean_2) + 
   labs(title = filename)

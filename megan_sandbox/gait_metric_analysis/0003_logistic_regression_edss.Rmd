@@ -1,0 +1,871 @@
+---
+title: "003_edss_logistic_regression"
+author: "Megan"
+date: "2025-05-10"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+OARC Instructions Link 
+https://stats.oarc.ucla.edu/r/dae/mixed-effects-logistic-regression/ 
+```{r}
+library(readxl)
+library(dplyr)
+library(tidyverse)
+library(ggplot2)
+library(lme4)
+#install_version("MuMIn", "1.48.4")
+devtools::install_version("MuMIn", "1.46.0")
+library(MuMIn)
+library(DescTools)
+library(blorr) # Hosmer Lemshow Test 
+library(broom)
+```
+
+# Interpretation Notes 
+delta r2 = for binomial results 
+
+
+# Set directories and load data 
+## output directory 
+```{r}
+# analysis folder 
+analysis_version <- '007'
+
+```
+
+```{r}
+output_dir <- file.path("C:/Users/mmccu/Box/MM_Personal/5_Projects/BoveLab/3_Data_and_Code/gait_bw_zeno_home_analysis",
+                        analysis_version, 
+                        "003_logistic_regression")
+
+# create output folder if it doesn't already exist 
+if (file.exists(output_dir) == FALSE){
+  dir.create(output_dir)
+}
+```
+
+# Load Zeno Fast Walk Data 
+```{r}
+zeno_fw_path <- file.path("C:/Users/mmccu/Box/MM_Personal/5_Projects/BoveLab/3_Data_and_Code/gait_bw_zeno_home_analysis", 
+                          analysis_version, 
+                          "000_merged_cleaned_data", 
+                          "zv_bw_merged_gait_vertical_FW_1_clean.csv")
+zeno_fw_df <- read.csv(zeno_fw_path)
+table(zeno_fw_df$task_pose)
+```
+
+## Format fast walk data 
+
+```{r}
+
+zeno_fw_df <- zeno_fw_df %>% 
+  mutate_at(c("video_id_date_name_pose_zv", "id_date_pose_zv", "task_pose_zv", 
+              "id_video", "bw_id", "clean_Sex", "bingoEHR_DX_MS.DX", 
+              "demographic_diagnosis", "race_ethnicity_clean", 
+              "race_ethnicity_clean", "ms_dx_condensed",
+              "redcap_event_name"), 
+            as.factor)
+
+
+# assign levels to categorical variables 
+table(zeno_fw_df$race_ethnicity_clean)
+
+zeno_fw_df$race_ethnicity_clean <- factor(zeno_fw_df$race_ethnicity_clean, 
+                                          levels = c('White Not Hispanic', 
+                                                     'Asian', 
+                                                     'Black Or African American',
+                                                     'Hispanic or Latino',
+                                                     'Other/Unknown/Declined'), 
+                                          ordered = FALSE)
+print(levels(zeno_fw_df$race_ethnicity_clean))
+
+table(zeno_fw_df$ms_dx_condensed)
+zeno_fw_df$ms_dx_condensed <- factor(zeno_fw_df$ms_dx_condensed, 
+                                     levels = c('RRMS', 
+                                                'Progressive MS',
+                                                'MS, Subtype Not Specified'), 
+                                     ordered = FALSE)
+print(levels(zeno_fw_df$ms_dx_condensed))
+
+table(zeno_fw_df$clean_Sex)
+zeno_fw_df$clean_Sex <- factor(zeno_fw_df$clean_Sex, 
+                               levels = c('Female', 
+                                          'Male',
+                                          'Non-Binary'), 
+                               ordered = FALSE)
+print(levels(zeno_fw_df$clean_Sex))
+
+table(zeno_fw_df$edss_severity_cat)
+zeno_fw_df$edss_severity_cat <- factor(zeno_fw_df$edss_severity_cat, 
+                                levels = c('mild', 
+                                           'moderate',
+                                           'severe'), 
+                                ordered = TRUE)
+print(levels(zeno_fw_df$edss_severity_cat))
+
+```
+# Functions
+
+## Set binary outcome columns 
+https://www.neurostatus.net/media/specimen/Definitions_0410-2_s.pdf 
+
+Grouping 1: 
+EDSS 0 - 4.0 (Ambulation score, score of 0 or 1, at least 500m of ambulation without assistance) VS EDSS >=4.5 (walking <500 m without help or assistance)
+
+Grouping 2: EDSS 0-3.5 (no, mild, or moderate disability) vs EDSS >= 4.0 (relatively severe disability and above )
+
+Grouping 3: 0-2.5 (no or minimal disability) vs >= 3.0 (moderate or severe disability)
+
+Grouping 4: 0-1.5 (no disability) vs >= 2.0 (minimal, mild, moderate, or severe disability )
+```{r}
+binary_edss_outcomes <- function(df){
+  
+  df <- df %>% 
+    mutate(binary_1 = ifelse(clean_EDSS < 4.5, 0, 1),
+           binary_2 = ifelse(clean_EDSS < 4.0, 0, 1), 
+           binary_3 = ifelse(clean_EDSS < 3.0, 0, 1), 
+           binary_4 = ifelse(clean_EDSS < 2.0, 0, 1)
+           )
+  
+  # factor and add levels 
+  df$clean_EDSS <- as.factor(df$clean_EDSS)
+  
+  df$binary_1 = factor(df$binary_1, 
+                       levels = c(0, 1), 
+                       labels = c("EDSS <= 4.0", "EDSS >= 4.5"))
+  
+  df$binary_2 = factor(df$binary_2, 
+                       levels = c(0, 1), 
+                       labels = c("EDSS <= 3.5", "EDSS >= 4.0"))
+  
+  df$binary_3 <- factor(df$binary_3, 
+                       levels = c(0, 1), 
+                       labels = c("EDSS <= 2.5", "EDSS >= 3.0"))
+  
+  df$binary_4 <- factor(df$binary_4, 
+                       levels = c(0, 1), 
+                       labels = c("EDSS <= 1.5", "EDSS >= 2.0"))
+  
+  print(table(df$clean_EDSS))
+  print(table(df$binary_1))
+  print(table(df$binary_2))
+  print(table(df$binary_3))
+  print(table(df$binary_4))
+  
+  print('QA groups')
+  print('------ binary 1 --------')
+  df1_0 <- df %>% 
+    filter(binary_1 == "EDSS <= 4.0")
+  print(table(df1_0$clean_EDSS))
+  
+  df1_1 <- df %>% 
+    filter(binary_1 == "EDSS >= 4.5")
+  print(table(df1_1$clean_EDSS))
+  
+  print('------ binary 2 --------')
+  df2_0 <- df %>% 
+    filter(binary_2 == "EDSS >= 4.0")
+  print(table(df2_0$clean_EDSS))
+  
+  df2_1 <- df %>% 
+    filter(binary_2 == 1)
+  print(table(df2_1$clean_EDSS))
+           
+  return(df)
+}
+```
+
+
+## Plot each metric vs EDSS 
+```{r}
+plot_outcomes_vs_predictors <- function(df, outcome_cols, dataset_name, out_path){
+  
+  boxplots_dir = file.path(out_path, 'boxplots', dataset_name)
+  print(boxplots_dir)
+  
+  if (file.exists(boxplots_dir) == FALSE){
+    dir.create(boxplots_dir)
+  }
+  
+  # remove hv or zv pattern in column name for consistency 
+  colnames(df) <- gsub("pose_zv", "pose", colnames(df))
+  colnames(df) <- gsub("pose_hv", "pose", colnames(df))
+  
+  
+  # metrics
+  metric_cols <- c("delta_pix_h_rel_median_pose", 
+                   #  "log_delta_pix_h_rel_median_pose",
+                     "stride_time_median_sec_pose",
+                     "mean_cadence_step_per_min_pose", 
+                     "stride_width_median_cm_pose",
+                     "stance_time_per_mean_pose",
+                     "tot_dsupport_per_mean_pose", 
+                     "singlesupport_per_mean_pose",
+                     "tot_dsupport_time_sec_std_pose",
+                     "singlesupport_time_sec_std_pose"
+                     )  
+
+
+  for (i_metric in seq_along(metric_cols)){
+    print('--------------------------------------')
+    metric_col <- metric_cols[i_metric]
+    print(metric_col)
+    
+    for (i_outcome in seq_along(outcome_cols)) {
+      outcome_col <- outcome_cols[i_outcome]
+      print(outcome_col)
+      
+      # Create temporary data frame for plotting
+      temp_df <- data.frame(x = df[[outcome_col]],y = df[[metric_col]])
+      
+      p <- ggplot(data = temp_df,
+                  aes(x = x,
+                      y = y)) + 
+        geom_boxplot() + 
+        geom_jitter(alpha = 0.5) + 
+        labs(
+          title = paste("Boxplot Plot of", outcome_col, "vs", metric_col),
+          y = metric_col,
+          x = outcome_col) +
+        theme_minimal()
+      print(p)
+      p 
+      ggsave(file.path(boxplots_dir, 
+                       paste(metric_col, "_vs_", outcome_col, ".png")), 
+             bg = "white", width= 10, height=10)
+      
+    }
+  }
+}
+```
+
+## Convert glmer to OR and CI
+```{r}
+glmer_to_OR <- function(glmer_object) {
+  
+  print(summary(glmer_object))
+  
+  #SE (standard error)
+  se_1 <- sqrt(diag(vcov(glmer_object)))
+  
+  # calculate confidence intervals using SEs 
+  tab <- cbind(Estimate = fixef(glmer_object), 
+                 LL = fixef(glmer_object) - 1.96 * se_1, 
+                 UL = fixef(glmer_object) + 1.96 * se_1)
+  tab_df <- as.data.frame(tab) %>% 
+    mutate(across(where(is.numeric), \(x) signif(x, 2)))
+  print(tab_df)
+
+  # Exponentiate extimates and CI to get Odss Ratio 
+  OR_tab <- exp(tab)
+  colnames(OR_tab) = c("OR", "LL", "UL")
+  OR_df <- as.data.frame(OR_tab) %>% 
+    mutate(across(where(is.numeric), \(x) signif(x, 2)))
+
+  print(OR_df)
+
+  #Pseudo R-Squared 
+  print('-------------Pseudo R-Squared------------')
+  round(r.squaredGLMM(glmer_object), 2)
+}
+
+```
+
+## Round p-values for plotting 
+```{r}
+# Conditional rounding function
+format_p_value <- function(p) {
+  if (p < 0.001) {
+    return("<0.001")  # Scientific notation, 1 decimal place
+  } else {
+    return(formatC(p, format = "f", digits = 3))  # Standard notation, 2 decimal places
+  }
+}
+```
+
+## Plot Adjusted vs Unadjusted Coefficient estimates 
+```{r}
+adj_vs_unadj_plot <- function(results_df, plot_title, x_adj){
+  
+  set.seed(42)  # Set seed for reproducibility
+  
+  # Filter rows 
+  results_df <- results_df %>% 
+    filter(term != '(Intercept)') %>%
+    mutate(term = gsub("pose_zv", "pose", term)) %>% 
+    mutate(term = gsub("pose_hv", "pose", term)) %>%
+    factor_term() # function above - format variable order for plots 
+  
+  results_df <- results_df %>%
+    mutate(
+      pval_text = paste0("p=", sapply(p.value, format_p_value)),  # Format p-values
+      sig = ifelse(is.na(p.value) | p.value >= 0.05, "Non-Significant", "Significant"),  # Identify significance
+      alpha_level = ifelse(is.na(p.value) | p.value >= 0.05, 0.3, 1),  # More transparency for non-sig points
+      jitter_y = as.numeric(factor(term_factor)) + runif(n(), -0.2, 0.2)  # Jitter y-axis values slightly
+    )
+  
+  # Define colors for models
+  model_colors <- c("Demographics" = "#E69F00",
+                    "Video Metrics" = "#0072B2", 
+                    "All"= "black") 
+  
+  # Define shading by creating an index for each predictor group
+  results_df <- results_df %>%
+    arrange(term_factor) %>%
+    mutate(group = as.integer(factor(term_factor)) %% 2)  # Alternating shading
+  
+  
+  # Determine x position for p-values (offset to the right of max estimate)
+  x_max <- max(results_df$conf.high, na.rm = TRUE)  # Get max confidence interval upper bound
+  results_df <- results_df %>%
+    mutate(pval_x_pos = x_max + x_adj)  # Place p-values slightly to the right of max x range
+  
+  # Dot-and-whisker plot with enhancements
+  p <- ggplot(results_df, aes(x = estimate, y = term_factor, color = Model, alpha = alpha_level)) +
+    # Add confidence intervals as horizontal whiskers
+    geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = 0.2, 
+                   position = position_dodge(width = 0.5)) + 
+    # Add dots for coefficient estimates
+    geom_point(position = position_dodge(width = 0.5), size = 2) + 
+    # Add background shading for alternate rows
+    geom_rect(data = results_df, aes(ymin = as.numeric(factor(term_factor)) - 0.5, 
+                                     ymax = as.numeric(factor(term_factor)) + 0.5,
+                                     xmin = -Inf, xmax = Inf, 
+                                     fill = factor(group)),
+              inherit.aes = FALSE, alpha = 0.1) +
+    # Add vertical line at zero (null effect)
+    geom_vline(xintercept = 1, linetype = "dashed", color = "gray50") + 
+    # Add jittered p-values at right side
+    geom_text(aes(x = pval_x_pos, y = jitter_y, label = pval_text, 
+                  fontface = ifelse(sig == "Significant", "bold", "plain")),
+              hjust = 1, size = 2.5) + 
+    scale_color_manual(values = model_colors) +  # Set custom colors for models
+    scale_fill_manual(values = c("white", "gray90")) +  # Alternating shading
+    scale_alpha_identity() +  # Use manually set alpha levels
+    theme_minimal() +
+    labs(title = plot_title,
+         x = "Estimate (OR)",
+         y = "Predictor",
+         color = "Model") +  
+    theme(legend.position = "right",  # Move legend to the right
+          panel.grid.major = element_blank(),  # Remove major grid lines for clarity
+          panel.grid.minor = element_blank(),
+          plot.title = element_text(size = 11, face = 'bold', hjust = 0.5),
+          axis.title = element_text(size = 11),
+          #axis.text = element_text(size = 9),
+          axis.text.y = element_text(size = 9),
+          axis.text.x = element_text(size = 9),
+          legend.text = element_text(size = 9),
+          legend.title = element_text(size = 9)
+          )
+  
+  return(p)
+  
+} 
+```
+
+## Format dataframes for tables 
+
+```{r}
+format_p_value_tables <- function(df){
+  
+  df <- df %>% 
+    mutate(formatted_pval = ifelse(p.value < 0.001, '<0.001', round(p.value, 3))) %>% 
+    mutate(formatted_pval = as.character(formatted_pval))
+  
+  return(df)
+  
+}
+```
+
+```{r}
+format_tables <- function(df){
+  
+  df <- format_p_value_tables(df)
+  
+  df <- df %>% 
+    mutate(across(c('std.error', 'statistic','PseudoR2'), \(x) round(x, digits = 2))) 
+  
+  
+  #%>%
+  #  mutate(across(c('estimate', 'conf.low', 'conf.high'), \(x) signif(x, digits = 2))) 
+  
+  df$conf_int <- paste0("[", df$conf.low, ", ", df$conf.high, "]")
+  
+  return(df)
+}
+```
+
+## Set variable order plots 
+```{r}
+factor_term <- function(df){
+  
+  # remove hv or zv pattern in names for consistency
+  df$term <- gsub("pose_zv", "pose", df$term)
+  df$term <- gsub("pose_hv", "pose", df$term)
+  
+  
+  df$term_factor <- factor(df$term, 
+                                levels = c("clean_Age", 
+                                           "demoEHR_DiseaseDuration", 
+                                           "ms_dx_condensedProgressive MS",
+                                           "ms_dx_condensedMS, Subtype Not Specified", 
+                                           "delta_pix_h_rel_median_pose",
+                                           "log_delta_pix_h_rel_median_pose", 
+                                           "stride_time_median_sec_pose",
+                                           "mean_cadence_step_per_min_pose",
+                                           "stride_width_median_cm_pose", 
+                                           "stance_time_sec_std_pose", 
+                                           "swing_time_sec_std_pose", 
+                                            "stance_time_per_mean_pose", 
+                                           "swing_time_per_mean_pose", 
+                                           "singlesupport_time_sec_std_pose", 
+                                           "tot_dsupport_time_sec_std_pose", 
+                                           "singlesupport_per_mean_pose", 
+                                           "tot_dsupport_per_mean_pose"), 
+                                labels = c("Age", 
+                                           'Disease Duration', 
+                                           "MS DX: Progressive MS",
+                                           "MS DX: Not Specififed", 
+                                           "Pixel Proxy Median",
+                                           "Log Pixel Proxy Median",
+                                           "Stride Time Median", 
+                                           "Cadence Mean", 
+                                           "Stride Width Median", 
+                                           "Stance Time S.D.", 
+                                           "Swing Time S.D.", 
+                                           "Stance % Mean", 
+                                           "Swing % Mean", 
+                                           "Single Support Time S.D.", 
+                                           "Double Support Time S.D.", 
+                                           "Single Support % Mean", 
+                                           "Double Support % Mean"
+                                           ))
+  
+  df$term_factor <- factor(df$term_factor, levels = rev(levels(df$term_factor)))
+  
+  
+  return(df)
+
+}
+```
+
+## Glm results tidy and save 
+```{r}
+tidy_save_glm <- function(glm_object, outcome_col_str, model_str){
+  
+  print(summary(glm_object))
+  print(exp(cbind(OR = coef(glm_object), confint(glm_object))))
+  print(PseudoR2(glm_object))
+  
+  # exponentiate = OR 
+  results_df <- tidy(glm_object, exponentiate = TRUE, conf.int = TRUE) %>% 
+    mutate(PseudoR2 = PseudoR2(glm_object), 
+           Outcome = outcome_col_str, 
+           Model = model_str) %>% 
+    format_tables() %>% 
+    factor_term()
+  
+  # rename - estimate to OR ?
+           
+  
+  return(results_df)
+}
+
+
+```
+
+# Create binary outcome columns 
+```{r}
+zeno_fw_df <- binary_edss_outcomes(zeno_fw_df)
+```
+# FW vs  Outcome - mixed effect 
+
+## Drop rows with any missing video metrics 
+Not all metrics could be calculated from each video metric 
+
+Dropped videos missing any video metric so models could be compared 
+```{r}
+zeno_fw_clean_df <- zeno_fw_df %>% 
+  drop_na(c("stride_time_median_sec_pose_zv", 
+            "delta_pix_h_rel_median_pose_zv",
+            "mean_cadence_step_per_min_pose_zv",
+            "stride_width_median_cm_pose_zv", 
+            "gait_cycle_time_sec_std_pose_zv"))
+```
+
+
+```{r}
+nrow(zeno_fw_clean_df)
+table(zeno_fw_clean_df$binary_1)
+table(zeno_fw_clean_df$binary_2)
+table(zeno_fw_clean_df$binary_3)
+table(zeno_fw_clean_df$binary_4)
+```
+## Plot binary outcomes 
+```{r}
+edss_outcome_cols = c('clean_EDSS', 'binary_1', 'binary_2', 'binary_3', 'binary_4')
+
+plot_outcomes_vs_predictors(zeno_fw_clean_df, edss_outcome_cols, 'FW_clean', output_dir)
+```
+
+
+##  Multivaraite models 
+### Demographics 
+
+```{r}
+dem_mixed <- glmer(binary_1 ~ clean_Age +
+                     demoEHR_DiseaseDuration + 
+                     ms_dx_condensed + 
+                     (1 | bw_id), 
+              data = zeno_fw_clean_df, 
+              family = binomial,
+              control = glmerControl(optimizer = 'bobyqa'), 
+              nAGQ = 5)
+
+glmer_to_OR(dem_mixed)
+```
+
+### Video 
+```{r}
+video_mixed <- glmer(binary_1 ~  delta_pix_h_rel_median_pose_zv +
+                     stride_time_median_sec_pose_zv + 
+                     mean_cadence_step_per_min_pose_zv +
+                     stride_width_median_cm_pose_zv + 
+                     stance_time_per_mean_pose_zv + 
+                     tot_dsupport_time_sec_std_pose_zv + 
+                     (1 | bw_id), 
+              data = zeno_fw_clean_df, 
+              family = binomial,
+              control = glmerControl(optimizer = 'bobyqa'), 
+              nAGQ = 5)
+
+glmer_to_OR(video_mixed)
+```
+
+
+### Video and Demographics 
+```{r}
+video_mixed_adj <- glmer(binary_1 ~ clean_Age +
+                     demoEHR_DiseaseDuration + 
+                     ms_dx_condensed + 
+                     delta_pix_h_rel_median_pose_zv +
+                     stride_time_median_sec_pose_zv + 
+                     mean_cadence_step_per_min_pose_zv +
+                     stride_width_median_cm_pose_zv + 
+                     stance_time_per_mean_pose_zv + 
+                     tot_dsupport_time_sec_std_pose_zv + 
+                     (1 | bw_id), 
+              data = zeno_fw_clean_df, 
+              family = binomial,
+              control = glmerControl(optimizer = 'bobyqa'), 
+              nAGQ = 5)
+
+glmer_to_OR(video_mixed_adj)
+```
+
+## compare three models 
+
+```{r}
+anova(dem_mixed, video_mixed_adj, test = "Chisq")
+
+anova(video_mixed, video_mixed_adj, test = "Chisq")
+```
+
+# FW vs  Outcome - logistic regression 
+
+## drop duplicates of same person 
+```{r}
+
+zeno_fw_clean_unique_df <- zeno_fw_df %>% 
+  drop_na(c("stride_time_median_sec_pose_zv", 
+            "delta_pix_h_rel_median_pose_zv",
+            "mean_cadence_step_per_min_pose_zv",
+            "stride_width_median_cm_pose_zv",
+            "gait_cycle_time_sec_std_pose_zv")) %>% # remove if missing metrics 
+  arrange(visit_date_video) %>%   # Sort by date
+  distinct(bw_id, .keep_all = TRUE)  # Keep the first occurrence of each ID with all video metrics
+
+```
+
+```{r}
+nrow(zeno_fw_clean_unique_df)
+table(zeno_fw_clean_unique_df$binary_1)
+table(zeno_fw_clean_unique_df$binary_2)
+table(zeno_fw_clean_unique_df$binary_3)
+table(zeno_fw_clean_unique_df$binary_4)
+table(zeno_fw_clean_unique_df$edss_severity_cat)
+```
+
+```{r}
+
+table(zeno_fw_clean_unique_df$ms_dx_condensed)
+
+```
+
+
+
+## Plot binary outcomes 
+```{r}
+
+edss_outcome_cols = c('clean_EDSS', 'binary_1', 'binary_2', 'binary_3', 'binary_4')
+
+plot_outcomes_vs_predictors(zeno_fw_clean_unique_df, edss_outcome_cols, 'FW_clean', output_dir)
+
+```
+
+## Test univariate 
+```{r}
+model_pixel <-glm(binary_2 ~ delta_pix_h_rel_median_pose_zv,
+                        data=zeno_fw_clean_unique_df, 
+                        family="binomial")
+
+summary(model_pixel)
+signif(exp(cbind(OR = coef(model_pixel), confint(model_pixel))), 2)
+print(PseudoR2(model_pixel))
+```
+
+```{r}
+model_cadence <-glm(binary_2 ~ mean_cadence_step_per_min_pose_zv,
+                        data=zeno_fw_clean_unique_df, 
+                        family="binomial")
+
+summary(model_cadence)
+signif(exp(cbind(OR = coef(model_cadence), confint(model_cadence))), 2)
+print(PseudoR2(model_cadence))
+```
+
+```{r}
+model_stride_time <-glm(binary_2 ~ stride_time_median_sec_pose_zv,
+                        data=zeno_fw_clean_unique_df, 
+                        family="binomial")
+
+summary(model_stride_time)
+signif(exp(cbind(OR = coef(model_stride_time), confint(model_stride_time))), 2)
+print(PseudoR2(model_stride_time))
+```
+
+```{r}
+model_stride_width <-glm(binary_2 ~ stride_width_median_cm_pose_zv,
+                        data=zeno_fw_clean_unique_df, 
+                        family="binomial")
+
+summary(model_stride_width)
+signif(exp(cbind(OR = coef(model_stride_width), confint(model_stride_width))), 2)
+print(PseudoR2(model_stride_width))
+```
+
+```{r}
+model_stance <-glm(binary_2 ~ stance_time_per_mean_pose_zv,
+                        data=zeno_fw_clean_unique_df, 
+                        family="binomial")
+
+summary(model_stance)
+signif(exp(cbind(OR = coef(model_stance), confint(model_stance))), 2)
+print(PseudoR2(model_stance))
+```
+```{r}
+model_dsupport <-glm(binary_2 ~ tot_dsupport_per_mean_pose_zv,
+                        data=zeno_fw_clean_unique_df, 
+                        family="binomial")
+
+summary(model_dsupport)
+signif(exp(cbind(OR = coef(model_dsupport), confint(model_dsupport))), 2)
+print(PseudoR2(model_dsupport))
+```
+```{r}
+model_dsupport_std <-glm(binary_2 ~ tot_dsupport_time_sec_std_pose_zv,
+                        data=zeno_fw_clean_unique_df, 
+                        family="binomial")
+
+summary(model_dsupport_std)
+signif(exp(cbind(OR = coef(model_dsupport_std), confint(model_dsupport_std))), 2)
+print(PseudoR2(model_dsupport_std))
+```
+
+
+```{r}
+model_age <-glm(binary_2 ~ clean_Age,
+                        data=zeno_fw_clean_unique_df, 
+                        family="binomial")
+
+summary(model_age)
+signif(exp(cbind(OR = coef(model_age), confint(model_age))), 2)
+print(PseudoR2(model_age))
+```
+
+```{r}
+model_duration <-glm(binary_2 ~ demoEHR_DiseaseDuration,
+                        data=zeno_fw_clean_unique_df, 
+                        family="binomial")
+
+summary(model_duration)
+signif(exp(cbind(OR = coef(model_duration), confint(model_duration))), 2)
+print(PseudoR2(model_duration))
+```
+```{r}
+model_dx <-glm(binary_2 ~ ms_dx_condensed,
+                        data=zeno_fw_clean_unique_df, 
+                        family="binomial")
+
+summary(model_dx)
+signif(exp(cbind(OR = coef(model_dx), confint(model_dx))), 2)
+print(PseudoR2(model_dx))
+```
+### Plot and save univariate Models 
+```{r}
+
+```
+
+## Multivariate Models 
+
+```{r}
+# maybe only need one or the other - people with older age also longer disease duration 
+plot(zeno_fw_clean_unique_df$clean_Age, zeno_fw_clean_unique_df$demoEHR_DiseaseDuration)
+```
+
+
+### Demographics 
+```{r}
+dem_log <- glm(binary_2 ~ clean_Age +
+                 demoEHR_DiseaseDuration,
+               data=zeno_fw_clean_unique_df, 
+               family="binomial")
+
+dem_log_df <- tidy_save_glm(dem_log, 'binary_2', 'Demographics')
+dem_log_df
+```
+
+
+###  Video only 
+```{r}
+video_log <- glm(binary_2 ~  delta_pix_h_rel_median_pose_zv +
+                     mean_cadence_step_per_min_pose_zv +
+                     stride_width_median_cm_pose_zv, 
+              data = zeno_fw_clean_unique_df, 
+              family = "binomial")
+
+video_log_df <- tidy_save_glm(video_log, 'binary_2', 'Video Metrics')
+```
+
+
+
+###  Video and Demographics 
+```{r}
+video_log_adj <- glm(binary_2 ~ clean_Age +
+                     demoEHR_DiseaseDuration + 
+                     delta_pix_h_rel_median_pose_zv +
+                     mean_cadence_step_per_min_pose_zv +
+                     stride_width_median_cm_pose_zv, 
+              data = zeno_fw_clean_unique_df, 
+              family = "binomial")
+
+video_log_adj_df <- tidy_save_glm(video_log_adj, 'binary_2', 'All')
+video_log_adj_df
+```
+
+### Save multivar models 
+```{r}
+multivar_all <- bind_rows(dem_log_df, video_log_df, video_log_adj_df)
+multivar_all
+write.csv(multivar_all, file.path(output_dir,
+                                  'binary_2_adj_vs_unadj_FW_results.csv'))
+```
+
+### Plot multivariate results 
+```{r}
+p <- adj_vs_unadj_plot(multivar_all, 'FW Videos Metrics', 0.75)
+p
+ggsave(file.path(output_dir,'binary_2_adj_vs_unadj_FW_results.png'), 
+       bg = "white", width= 6.5, height= 4.5)
+
+```
+
+### compare models 
+```{r}
+# likelihood ratio test
+#h0 - reduced model is sufficient 
+#ha: reject reduced model in favor of the larger model 
+
+# video - video + demographics is better fit than demographics alone 
+lr_1 <- blr_test_lr(video_log_adj, dem_log)
+print(lr_1)
+
+```
+
+```{r}
+# adding demographics to video metrics doesn't significantly improve model 
+# getting more informatoin about EDSS from video than demographics alone 
+lr_2 <- blr_test_lr(video_log_adj, video_log)
+print(lr_2)
+
+```
+ 
+ Hosmer and Lemeshow developed a goodness-of-fit test for
+ logistic regression models with binary responses. The test
+ involves dividing the data into approximately ten groups of
+ roughly equal size based on the percentiles of the estimated
+ probabilities. The observations are sorted in increasing 
+ order of their estimated probability of having an even outcome.
+ The discrepancies between the observed and expected number 
+ of observations in these groups are summarized by the 
+ Pearson chi-square statistic, which is then compared 
+ to chi-square distribution with t degrees of freedom, 
+ where t is the number of groups minus 2. Lower values of 
+ Goodness-of-fit are preferred.
+```{r}
+# Hosmer Lemshow test 
+# if significant, observed and predicted are significantlly difference 
+blr_test_hosmer_lemeshow(video_log_adj)
+blr_test_hosmer_lemeshow(video_log)
+```
+
+
+#  plot predicted probabilites 
+```{r}
+pred_data <- data.frame(
+  mean_cadence_step_per_min_pose_zv =
+    seq(min(zeno_fw_clean_unique_df$mean_cadence_step_per_min_pose_zv),
+        max(zeno_fw_clean_unique_df$mean_cadence_step_per_min_pose_zv),
+        length.out = 100),
+  clean_Age = mean(zeno_fw_clean_unique_df$clean_Age),
+  demoEHR_DiseaseDuration = mean(zeno_fw_clean_unique_df$demoEHR_DiseaseDuration), 
+  delta_pix_h_rel_median_pose_zv = mean(zeno_fw_clean_unique_df$delta_pix_h_rel_median_pose_zv), 
+  stride_width_median_cm_pose_zv = mean(zeno_fw_clean_unique_df$stride_width_median_cm_pose_zv)
+  )
+
+head(pred_data)
+pred_data$predicted_prob <- predict(video_log_adj, newdata = pred_data, type = "response")
+
+ggplot(pred_data, aes(x = mean_cadence_step_per_min_pose_zv, y = predicted_prob)) +
+  geom_line(color = "Black", size = 1) +
+  labs(x = "Cadence", y = "Predicted Probability (Manual)", 
+       title = "Predicted Probabilities from Logistic Regression") +
+  theme_minimal()
+```
+```{r}
+pred_data <- data.frame(
+  delta_pix_h_rel_median_pose_zv =
+    seq(min(zeno_fw_clean_unique_df$delta_pix_h_rel_median_pose_zv),
+        max(zeno_fw_clean_unique_df$delta_pix_h_rel_median_pose_zv),
+        length.out = 100),
+  clean_Age = mean(zeno_fw_clean_unique_df$clean_Age),
+  demoEHR_DiseaseDuration = mean(zeno_fw_clean_unique_df$demoEHR_DiseaseDuration), 
+  mean_cadence_step_per_min_pose_zv = mean(zeno_fw_clean_unique_df$mean_cadence_step_per_min_pose_zv), 
+  stride_width_median_cm_pose_zv = mean(zeno_fw_clean_unique_df$stride_width_median_cm_pose_zv)
+  )
+
+head(pred_data)
+pred_data$predicted_prob <- predict(video_log_adj, newdata = pred_data, type = "response")
+
+ggplot(pred_data, aes(x = delta_pix_h_rel_median_pose_zv, y = predicted_prob)) +
+  geom_line(color = "Black", size = 1) +
+  labs(x = "Pixel Proxy", y = "Predicted Probability (Manual)", 
+       title = "Predicted Probabilities from Logistic Regression") +
+  theme_minimal()
+```
+

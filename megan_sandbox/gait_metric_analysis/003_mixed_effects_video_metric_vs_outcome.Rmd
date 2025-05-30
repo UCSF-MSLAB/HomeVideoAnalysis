@@ -1627,7 +1627,9 @@ save all anova results
 anova_all_df <- bind_rows(anova_1_3_df %>% mutate(p_formatted = as.character(p_formatted)), 
                           anova_2_3_df  %>% mutate(p_formatted = as.character(p_formatted)), 
                           anova_4_3_df %>% mutate(p_formatted = as.character(p_formatted))
-                          )
+                          ) %>% 
+  mutate(logLik = round(logLik, 2)) %>% 
+  mutate(Chisq = round(Chisq, 2))
 
 anova_all_df
 

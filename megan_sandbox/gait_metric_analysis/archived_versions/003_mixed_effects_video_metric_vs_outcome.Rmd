@@ -1,0 +1,2434 @@
+---
+title: "Mixed Effect Models"
+author: "Megan"
+date: "2025-03-13"
+output: html_document
+---
+
+Mixed effects models - random effects by participant ID 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(readxl)
+library(dplyr)
+library(tidyverse)
+library(ggplot2)
+library(broom.mixed)
+library(lme4)
+library(lmerTest)
+library(performance)
+
+```
+# To - do and Questions 
+- Home videos:
+  - anything else to account for R and left turn vidoes? Try running on just right and just left turn data?
+  - Other test more appropriate for home video? outcomes not normally distributed and QQ plots look bad..... 
+
+- Improve metric - re-run delta pixel eye to foot?
+
+- Dropped rows with any missing video metrics for adj vs unadj metrics 
+  - Should this be done before univariate steps? 
+
+- Interaction? - test diff with aov()
+
+# Notes and rationale 
+Ran each metric through univariate models, using correlation differences for similar measures. For stance/swing/support metrics - selected for inclusion in multivar models based on highest R-squared for fixed effects in univariate models  
+
+# Set directories and load data 
+## output directory 
+```{r}
+# analysis folder 
+analysis_version <- '007'
+
+```
+
+```{r}
+output_dir <- file.path("C:/Users/mmccu/Box/MM_Personal/5_Projects/BoveLab/3_Data_and_Code/gait_bw_zeno_home_analysis",
+                        analysis_version, 
+                        "003_mixed_effects_models")
+
+# create output folder if it doesn't already exist 
+if (file.exists(output_dir) == FALSE){
+  dir.create(output_dir)
+}
+```
+
+## Load and format PWS data   
+All videos included in analysis. 
+
+Each row = 1 video 
+
+```{r}
+# Preferred Walking Speed 
+zeno_pws_path <- file.path("C:/Users/mmccu/Box/MM_Personal/5_Projects/BoveLab/3_Data_and_Code/gait_bw_zeno_home_analysis", 
+                           analysis_version, 
+                           "000_merged_cleaned_data",
+                           "zv_bw_merged_gait_vertical_PWS_1_clean.csv")
+zeno_pws_df <- read.csv(zeno_pws_path)
+table(zeno_pws_df$task_pose)
+```
+### Factor categorical vars 
+```{r}
+zeno_pws_df <- zeno_pws_df %>% 
+  mutate_at(c("video_id_date_name_pose_zv", "id_date_pose_zv", "task_pose_zv", 
+              "id_video", "bw_id", "clean_Sex", "bingoEHR_DX_MS.DX", 
+              "demographic_diagnosis", "race_ethnicity_clean", 
+              "race_ethnicity_clean", "ms_dx_condensed",
+              "redcap_event_name", "clean_EDSS"), 
+            as.factor)
+
+# assign levels to categorical variables 
+table(zeno_pws_df$race_ethnicity_clean)
+zeno_pws_df$race_ethnicity_clean <- factor(zeno_pws_df$race_ethnicity_clean, 
+                                           levels = c('White Non Hispanic', 
+                                                      'Asian', 
+                                                      'Black Or African American',
+                                                      'Hispanic or Latino',
+                                                      'Other/Unknown/Declined'), 
+                                           ordered = FALSE)
+print(levels(zeno_pws_df$race_ethnicity_clean))
+
+table(zeno_pws_df$ms_dx_condensed)
+zeno_pws_df$ms_dx_condensed <- factor(zeno_pws_df$ms_dx_condensed, 
+                                      levels = c('RRMS', 
+                                                 'Progressive MS',
+                                                 'MS, Subtype Not Specified'), 
+                                      ordered = FALSE)
+print(levels(zeno_pws_df$ms_dx_condensed))
+
+table(zeno_pws_df$clean_Sex)
+zeno_pws_df$clean_Sex <- factor(zeno_pws_df$clean_Sex, 
+                                levels = c('Female', 
+                                           'Male',
+                                           'Non-Binary'), 
+                                ordered = FALSE)
+print(levels(zeno_pws_df$clean_Sex))
+
+table(zeno_pws_df$edss_severity_cat)
+zeno_pws_df$edss_severity_cat <- factor(zeno_pws_df$edss_severity_cat, 
+                                        levels = c('mild', 
+                                                   'moderate',
+                                                   'severe'), 
+                                        ordered = TRUE)
+print(levels(zeno_pws_df$edss_severity_cat))
+print(table(zeno_pws_df$edss_severity_cat))
+```
+
+### Visit types 
+```{r}
+table(zeno_pws_df$redcap_event_name)
+```
+
+
+## Load and format FW data   
+All videos included in analysis. 
+
+Each row = 1 video 
+```{r}
+zeno_fw_path <- file.path("C:/Users/mmccu/Box/MM_Personal/5_Projects/BoveLab/3_Data_and_Code/gait_bw_zeno_home_analysis", 
+                          analysis_version, 
+                          "000_merged_cleaned_data", 
+                          "zv_bw_merged_gait_vertical_FW_1_clean.csv")
+zeno_fw_df <- read.csv(zeno_fw_path)
+table(zeno_fw_df$task_pose)
+```
+
+### Factor categorical vars 
+```{r}
+zeno_fw_df <- zeno_fw_df %>% 
+  mutate_at(c("video_id_date_name_pose_zv", "id_date_pose_zv", "task_pose_zv", 
+              "id_video", "bw_id", "clean_Sex", "bingoEHR_DX_MS.DX", 
+              "demographic_diagnosis", "race_ethnicity_clean", 
+              "race_ethnicity_clean", "ms_dx_condensed",
+              "redcap_event_name", "clean_EDSS"), 
+            as.factor)
+
+# assign levels to categorical variables 
+table(zeno_fw_df$race_ethnicity_clean)
+
+zeno_fw_df$race_ethnicity_clean <- factor(zeno_fw_df$race_ethnicity_clean, 
+                                          levels = c('White Non Hispanic', 
+                                                     'Asian', 
+                                                     'Black Or African American',
+                                                     'Hispanic or Latino',
+                                                     'Other/Unknown/Declined'), 
+                                          ordered = FALSE)
+print(levels(zeno_fw_df$race_ethnicity_clean))
+
+table(zeno_fw_df$ms_dx_condensed)
+zeno_fw_df$ms_dx_condensed <- factor(zeno_fw_df$ms_dx_condensed, 
+                                     levels = c('RRMS', 
+                                                'Progressive MS',
+                                                'MS, Subtype Not Specified'), 
+                                     ordered = FALSE)
+print(levels(zeno_fw_df$ms_dx_condensed))
+
+table(zeno_fw_df$clean_Sex)
+zeno_fw_df$clean_Sex <- factor(zeno_fw_df$clean_Sex, 
+                               levels = c('Female', 
+                                          'Male',
+                                          'Non-Binary'), 
+                               ordered = FALSE)
+print(levels(zeno_fw_df$clean_Sex))
+
+table(zeno_fw_df$edss_severity_cat)
+zeno_fw_df$edss_severity_cat <- factor(zeno_fw_df$edss_severity_cat, 
+                                levels = c('mild', 
+                                           'moderate',
+                                           'severe'), 
+                                ordered = TRUE)
+print(levels(zeno_fw_df$edss_severity_cat))
+```
+
+### Visit types 
+```{r}
+table(zeno_fw_df$redcap_event_name)
+```
+
+## Load and format Home video data 
+```{r}
+home_path <- file.path("C:/Users/mmccu/Box/MM_Personal/5_Projects/BoveLab/3_Data_and_Code/gait_bw_zeno_home_analysis",
+                       analysis_version, 
+                       "000_merged_cleaned_data", 
+                       "hv_bw_merged_clean.csv")
+home_df <- read.csv(home_path)
+nrow(home_df)
+table(home_df$demographic_diagnosis)
+table(home_df$task_pose_hv)
+```
+### Factor categorical vars 
+```{r}
+home_df <- home_df %>% 
+  mutate_at(c("video_id_date_name_pose_hv", "id_date_pose_hv", "task_pose_hv", 
+              "id_video", "bw_id", "clean_Sex", "bingoEHR_DX_MS.DX", 
+              "demographic_diagnosis", "race_ethnicity_clean", 
+              "race_ethnicity_clean", "ms_dx_condensed",
+              "redcap_event_name", "clean_EDSS"), 
+            as.factor)
+
+# assign levels to categorical variables 
+table(home_df$race_ethnicity_clean)
+
+home_df$race_ethnicity_clean <- factor(home_df$race_ethnicity_clean, 
+                                       levels = c('White Non Hispanic', 
+                                                  'Asian', 
+                                                  'Black Or African American',
+                                                  'Hispanic or Latino',
+                                                  'Other/Unknown/Declined'), 
+                                       ordered = FALSE)
+print(levels(home_df$race_ethnicity_clean))
+
+table(home_df$ms_dx_condensed)
+home_df$ms_dx_condensed <- factor(home_df$ms_dx_condensed, 
+                                  levels = c('RRMS', 
+                                             'Progressive MS',
+                                             'MS, Subtype Not Specified'), 
+                                  ordered = FALSE)
+print(levels(zeno_fw_df$ms_dx_condensed))
+
+table(zeno_fw_df$clean_Sex)
+zeno_fw_df$clean_Sex <- factor(zeno_fw_df$clean_Sex, 
+                               levels = c('Female', 
+                                          'Male',
+                                          'Non-Binary'), 
+                               ordered = FALSE)
+print(levels(home_df$clean_Sex))
+
+table(home_df$edss_severity_cat)
+home_df$edss_severity_cat <- factor(home_df$edss_severity_cat, 
+                                levels = c('mild', 
+                                           'moderate',
+                                           'severe'), 
+                                ordered = TRUE)
+print(levels(home_df$edss_severity_cat))
+```
+
+### Visit types 
+```{r}
+# of right turning videos and left turning videos 
+table(home_df$task_pose_hv)
+
+# videos per timepoint - most people sent two videos per timepoint 
+# some sent first videos at year 2 or year 3 visit, not necessarily a true follow up 
+table(home_df$redcap_event_name)
+```
+### Date diff histograms 
+```{r}
+ggplot(data = home_df, aes(bw_hv_date_diff_days)) + 
+  geom_histogram()
+```
+
+
+# Functions 
+## Plot outcome vs predictor 
+Check data transforms and confirm which is the best to use 
+
+```{r}
+plot_outcome_transforms_vs_predictors <- function(df, outcome_cols, dataset_name, out_path){
+  
+  scatter_dir = file.path(output_dir, 'scatter', dataset_name)
+  
+  if (file.exists(scatter_dir) == FALSE){
+    dir.create(scatter_dir)
+  }
+  
+  # remove hv or zv pattern in column name for consistency 
+  colnames(df) <- gsub("pose_zv", "pose", colnames(df))
+  colnames(df) <- gsub("pose_hv", "pose", colnames(df))
+  
+  
+  # metrics
+  x_metric_cols <- c("delta_pix_h_rel_median_pose", 
+                     "log_delta_pix_h_rel_median_pose",
+                     "stride_time_median_sec_pose",
+                     "mean_cadence_step_per_min_pose", 
+                     "stride_width_median_cm_pose",
+                     "stance_time_per_mean_pose",
+                     "tot_dsupport_time_sec_std_pose")  
+
+
+  for (i_x in seq_along(x_metric_cols)){
+    print('--------------------------------------')
+    x_metric_col <- x_metric_cols[i_x]
+    print(x_metric_col)
+    
+    for (i_y in seq_along(outcome_cols)) {
+      y_outcome_col <- outcome_cols[i_y]
+      print(y_outcome_col)
+      
+      # Create temporary data frame for plotting
+      temp_df <- data.frame(x = df[[x_metric_col]],y = df[[y_outcome_col]])
+      
+      p <- ggplot(data = temp_df,
+                  aes(x = x,
+                      y = y)) + 
+        geom_point() + 
+        labs(
+          title = paste("Scatter Plot of", y_outcome_col, "vs", x_metric_col),
+          y = y_outcome_col,
+          x = x_metric_col) +
+        theme_minimal()
+      print(p)
+      p 
+      ggsave(file.path(scatter_dir, 
+                       paste(x_metric_col, "_vs_", y_outcome_col, ".png")), 
+             bg = "white", width= 10, height=10)
+      
+    }
+  }
+}
+```
+
+## Univariate Mixed Effect Model - video, demographics, MS info
+
+```{r}
+
+all_univariate_mixed_effect <- function(data, outcome_column){ 
+  # remove hv or zv pattern in column name for consistency 
+  colnames(data) <- gsub("pose_zv", "pose", colnames(data))
+  colnames(data) <- gsub("pose_hv", "pose", colnames(data))
+  
+  ################### video metrics ################################
+  
+  # delta pixel ------------------------------------------------------
+  p <- ggplot(data = data, 
+              aes(x = delta_pix_h_rel_median_pose, 
+                  y = .data[[outcome_column]])) + 
+    geom_point()
+  print(p)
+  
+  formula1 <- as.formula(paste(outcome_column, 
+                               "~ delta_pix_h_rel_median_pose + (1 | bw_id)"))
+  print(formula1)
+  uni1 <- lmer(formula1, data = data)
+  print(summary(uni1))
+  
+  # Residuals vs. fitted values
+  hist(resid(uni1), main = "Residuals delta_pix_h_rel_median_pose")
+  
+  # Normality check
+  qqnorm(residuals(uni1), main = "Normal Q-Q plot: delta_pix_h_rel_median_pose")
+  
+  # uni df 
+  uni1_df <- tidy(uni1, conf.int = TRUE) %>% 
+    mutate(R2_conditional = r2(uni1)$R2_conditional) %>% 
+    mutate(R2_marginal = r2(uni1)$R2_marginal) %>% 
+    mutate(Variable = 'Pixel Height Proxy')
+  
+  # log delta pixel proxy ---------------------------------------------
+  p <- ggplot(data = data, 
+              aes(x = log_delta_pix_h_rel_median_pose, 
+                  y = .data[[outcome_column]])) + 
+    geom_point()
+  print(p)
+  
+  formula1 <- as.formula(paste(outcome_column, 
+                               "~ log_delta_pix_h_rel_median_pose + (1 | bw_id)"))
+  print(formula1)
+  uni1_log <- lmer(formula1, data = data)
+  print(summary(uni1_log))
+  
+  # Residuals vs. fitted values
+  hist(resid(uni1_log), main = "Residuals log_delta_pix_h_rel_median_pose")
+  
+  # Normality check
+  qqnorm(residuals(uni1_log), main = "Normal Q-Q plot: log_delta_pix_h_rel_median_pose")
+  
+  # uni df 
+  uni1_log_df <- tidy(uni1_log, conf.int = TRUE) %>% 
+    mutate(R2_conditional = r2(uni1_log)$R2_conditional) %>% 
+    mutate(R2_marginal = r2(uni1_log)$R2_marginal) %>% 
+    mutate(Variable = 'Log Pixel Height Proxy')
+  
+  # stride time --------------------------------------------------------------
+  print('stride_time_median_sec_pose')
+  p <- ggplot(data = data, 
+              aes(x = stride_time_median_sec_pose, 
+                  y = .data[[outcome_column]])) + 
+    geom_point()
+  print(p)
+  
+  formula2 <- as.formula(paste(outcome_column, 
+                               "~ stride_time_median_sec_pose + (1 | bw_id)"))
+  print(formula2)
+  uni2 <- lmer(formula2, data = data)
+  print(summary(uni2))
+  
+  # Residuals vs. fitted values
+  hist(resid(uni2), main = "Residuals stride_time_median_sec_pose")
+  
+  # Normality check
+  qqnorm(residuals(uni1), main = "Normal Q-Q plot: stride_time_median_sec_pose")
+  
+  # uni df 
+  uni2_df <- tidy(uni2, conf.int = TRUE) %>% 
+    mutate(R2_conditional = r2(uni2)$R2_conditional) %>% 
+    mutate(R2_marginal = r2(uni2)$R2_marginal) %>% 
+    mutate(Variable = 'Stride Time - Median')
+  
+  # cadence -------------------------------------------------------------------
+  print('mean_cadence_step_per_min_pose')
+  p <- ggplot(data = data, 
+              aes(x = mean_cadence_step_per_min_pose, 
+                  y = .data[[outcome_column]])) + 
+    geom_point()
+  print(p)
+  
+  formula3 <- as.formula(paste(outcome_column, 
+                               "~ mean_cadence_step_per_min_pose + (1 | bw_id)"))
+  print(formula3)
+  uni3 <- lmer(formula3, data = data)
+  print(summary(uni3))
+  
+  # Residuals vs. fitted values
+  hist(resid(uni3), main = "Residuals mean_cadence_step_per_min_pose")
+  
+  # Normality check
+  qqnorm(residuals(uni3), main = "Normal Q-Q plot: mean_cadence_step_per_min_pose")
+  
+  # uni df 
+  uni3_df <- tidy(uni3, conf.int = TRUE) %>% 
+    mutate(R2_conditional = r2(uni3)$R2_conditional) %>% 
+    mutate(R2_marginal = r2(uni3)$R2_marginal) %>% 
+    mutate(Variable = 'Cadence - Mean')
+  
+  # stride width ----------------------------------------------------------
+  print('stride_width_median_cm_pose')
+  
+  p <- ggplot(data = data, 
+              aes(x = stride_width_median_cm_pose, 
+                  y = .data[[outcome_column]])) + 
+    geom_point()
+  print(p)
+  
+  formula4 <- as.formula(paste(outcome_column, 
+                               "~ stride_width_median_cm_pose + (1 | bw_id)"))
+  print(formula4)
+  uni4 <- lmer(formula4, data = data)
+  print(summary(uni4))
+  
+  # Residuals vs. fitted values
+  hist(resid(uni4), main = "Residuals stride_width_median_cm_pose")
+  
+  # Normality check
+  qqnorm(residuals(uni4), main = "Normal Q-Q plot: stride_width_median_cm_pose")
+  
+  # uni df 
+  uni4_df <- tidy(uni4, conf.int = TRUE) %>% 
+    mutate(R2_conditional = r2(uni4)$R2_conditional) %>% 
+    mutate(R2_marginal = r2(uni4)$R2_marginal) %>% 
+    mutate(Variable = 'Stride Width - Median') 
+  
+  # stance time std  -------------------------------------------
+  print('stance_time_per_std_pose')
+  
+  p <- ggplot(data = data, 
+              aes(x = stance_time_sec_std_pose, 
+                  y = .data[[outcome_column]])) + 
+    geom_point()
+  print(p)
+  
+  formula10 <- as.formula(paste(outcome_column, 
+                               "~ stance_time_sec_std_pose + (1 | bw_id)"))
+  print(formula10)
+  uni10 <- lmer(formula10, data = data)
+  print(summary(uni10))
+  
+  # Residuals vs. fitted values
+  hist(resid(uni10), main = "Residuals stance_time_sec_std_pose")
+  
+  # Normality check
+  qqnorm(residuals(uni10), main = "Normal Q-Q plot: stance_time_sec_std_pose")
+  
+  # uni df 
+  uni10_df <- tidy(uni10, conf.int = TRUE) %>% 
+    mutate(R2_conditional = r2(uni10)$R2_conditional) %>% 
+    mutate(R2_marginal = r2(uni10)$R2_marginal) %>% 
+    mutate(Variable = 'Stance Time - STD') 
+  
+  # swing time std -------------------------------------------
+  print('swing_time_sec_std_pose')
+  
+  p <- ggplot(data = data, 
+              aes(x = swing_time_sec_std_pose, 
+                  y = .data[[outcome_column]])) + 
+    geom_point()
+  print(p)
+  
+  formula11 <- as.formula(paste(outcome_column, 
+                               "~ swing_time_sec_std_pose + (1 | bw_id)"))
+  print(formula11)
+  uni11 <- lmer(formula11, data = data)
+  print(summary(uni11))
+  
+  # Residuals vs. fitted values
+  hist(resid(uni11), main = "Residuals swing_time_sec_std_pose")
+  
+  # Normality check
+  qqnorm(residuals(uni11), main = "Normal Q-Q plot: swing_time_sec_std_pose")
+  
+  # uni df 
+  uni11_df <- tidy(uni11, conf.int = TRUE) %>% 
+    mutate(R2_conditional = r2(uni11)$R2_conditional) %>% 
+    mutate(R2_marginal = r2(uni11)$R2_marginal) %>% 
+    mutate(Variable = 'Swing Time - STD') 
+  
+   # stance per - median  -------------------------------------------
+  print('stance_time_per_mean_pose')
+  
+  p <- ggplot(data = data, 
+              aes(x = stance_time_per_mean_pose, 
+                  y = .data[[outcome_column]])) + 
+    geom_point()
+  print(p)
+  
+  formula12 <- as.formula(paste(outcome_column, 
+                               "~ stance_time_per_mean_pose + (1 | bw_id)"))
+  print(formula12)
+  uni12 <- lmer(formula12, data = data)
+  print(summary(uni12))
+  
+  # Residuals vs. fitted values
+  hist(resid(uni12), main = "Residuals stance_time_per_mean_pose")
+  
+  # Normality check
+  qqnorm(residuals(uni12), main = "Normal Q-Q plot: stance_time_per_mean_pose")
+  
+  # uni df 
+  uni12_df <- tidy(uni12, conf.int = TRUE) %>% 
+    mutate(R2_conditional = r2(uni12)$R2_conditional) %>% 
+    mutate(R2_marginal = r2(uni12)$R2_marginal) %>% 
+    mutate(Variable = 'Stance % - Mean') 
+  
+  # swing time -------------------------------------------
+  print('swing_time_per_mean_pose')
+  
+  p <- ggplot(data = data, 
+              aes(x = swing_time_per_mean_pose, 
+                  y = .data[[outcome_column]])) + 
+    geom_point()
+  print(p)
+  
+  formula13 <- as.formula(paste(outcome_column, 
+                               "~ swing_time_per_mean_pose + (1 | bw_id)"))
+  print(formula13)
+  uni13 <- lmer(formula13, data = data)
+  print(summary(uni13))
+  
+  # Residuals vs. fitted values
+  hist(resid(uni13), main = "Residuals swing_time_per_mean_pose")
+  
+  # Normality check
+  qqnorm(residuals(uni13), main = "Normal Q-Q plot: swing_time_per_mean_pose")
+  
+  # uni df 
+  uni13_df <- tidy(uni13, conf.int = TRUE) %>% 
+    mutate(R2_conditional = r2(uni13)$R2_conditional) %>% 
+    mutate(R2_marginal = r2(uni13)$R2_marginal) %>% 
+    mutate(Variable = 'Swing % - Mean') 
+  
+  # single support time - STD -----------------------
+  print('singlesupport_time_sec_std_pose')
+  
+  p <- ggplot(data = data, 
+              aes(x = singlesupport_time_sec_std_pose, 
+                  y = .data[[outcome_column]])) + 
+    geom_point()
+  print(p)
+  
+  formula14 <- as.formula(paste(outcome_column, 
+                               "~ singlesupport_time_sec_std_pose + (1 | bw_id)"))
+  print(formula14)
+  uni14 <- lmer(formula14, data = data)
+  print(summary(uni14))
+  
+  # Residuals vs. fitted values
+  hist(resid(uni14), main = "Residuals singlesupport_time_sec_std_pose")
+  
+  # Normality check
+  qqnorm(residuals(uni14), main = "Normal Q-Q plot: singlesupport_time_sec_std_pose")
+  
+  # uni df 
+  uni14_df <- tidy(uni14, conf.int = TRUE) %>% 
+    mutate(R2_conditional = r2(uni14)$R2_conditional) %>% 
+    mutate(R2_marginal = r2(uni14)$R2_marginal) %>% 
+    mutate(Variable = 'Single Support Time - STD') 
+  
+  # double support time - STD ------------------------
+  print('tot_dsupport_time_sec_std_pose')
+  
+  p <- ggplot(data = data, 
+              aes(x = tot_dsupport_time_sec_std_pose, 
+                  y = .data[[outcome_column]])) + 
+    geom_point()
+  print(p)
+  
+  formula15 <- as.formula(paste(outcome_column, 
+                               "~ tot_dsupport_time_sec_std_pose + (1 | bw_id)"))
+  print(formula15)
+  uni15 <- lmer(formula15, data = data)
+  print(summary(uni15))
+  
+  # Residuals vs. fitted values
+  hist(resid(uni15), main = "Residuals tot_dsupport_time_sec_std_pose")
+  
+  # Normality check
+  qqnorm(residuals(uni15), main = "Normal Q-Q plot: tot_dsupport_time_sec_std_pose")
+  
+  # uni df 
+  uni15_df <- tidy(uni15, conf.int = TRUE) %>% 
+    mutate(R2_conditional = r2(uni15)$R2_conditional) %>% 
+    mutate(R2_marginal = r2(uni15)$R2_marginal) %>% 
+    mutate(Variable = 'Double Support Time - STD') 
+  
+  # single support % - mean --------------------------
+  print('singlesupport_per_mean_pose')
+  
+  p <- ggplot(data = data, 
+              aes(x = singlesupport_per_mean_pose, 
+                  y = .data[[outcome_column]])) + 
+    geom_point()
+  print(p)
+  
+  formula16 <- as.formula(paste(outcome_column, 
+                               "~ singlesupport_per_mean_pose + (1 | bw_id)"))
+  print(formula16)
+  uni16 <- lmer(formula16, data = data)
+  print(summary(uni16))
+  
+  # Residuals vs. fitted values
+  hist(resid(uni16), main = "Residuals singlesupport_per_mean_pose")
+  
+  # Normality check
+  qqnorm(residuals(uni16), main = "Normal Q-Q plot: singlesupport_per_mean_pose")
+  
+  # uni df 
+  uni16_df <- tidy(uni16, conf.int = TRUE) %>% 
+    mutate(R2_conditional = r2(uni16)$R2_conditional) %>% 
+    mutate(R2_marginal = r2(uni16)$R2_marginal) %>% 
+    mutate(Variable = 'Single Support % - Mean') 
+  
+  # double support % - mean ------------------------- 
+  print('tot_dsupport_per_mean_pose')
+  
+  p <- ggplot(data = data, 
+              aes(x = tot_dsupport_per_mean_pose, 
+                  y = .data[[outcome_column]])) + 
+    geom_point()
+  print(p)
+  
+  formula17 <- as.formula(paste(outcome_column, 
+                               "~ tot_dsupport_per_mean_pose + (1 | bw_id)"))
+  print(formula17)
+  uni17 <- lmer(formula17, data = data)
+  print(summary(uni17))
+  
+  # Residuals vs. fitted values
+  hist(resid(uni17), main = "Residuals tot_dsupport_per_mean_pose")
+  
+  # Normality check
+  qqnorm(residuals(uni17), main = "Normal Q-Q plot: tot_dsupport_per_mean_pose")
+  
+  # uni df 
+  uni17_df <- tidy(uni17, conf.int = TRUE) %>% 
+    mutate(R2_conditional = r2(uni17)$R2_conditional) %>% 
+    mutate(R2_marginal = r2(uni17)$R2_marginal) %>% 
+    mutate(Variable = 'Double Support % - Mean') 
+  
+  
+  #### demographics and MS info ################## 
+  
+  # Age ---------------------------------------------
+  print('clean_Age')
+  
+  p <- ggplot(data = data, 
+              aes(x = clean_Age, 
+                  y = .data[[outcome_column]])) + 
+    geom_point()
+  print(p)
+  
+  formula5 <- as.formula(paste(outcome_column, 
+                               "~ clean_Age + (1 | bw_id)"))
+  print(formula5)
+  uni5 <- lmer(formula5, data = data)
+  print(summary(uni5))
+  
+  # Residuals vs. fitted values
+  hist(resid(uni5), main = "Residuals clean_Age")
+  
+  # Normality check
+  qqnorm(residuals(uni5), main = "Normal Q-Q plot: clean_Age")
+  
+  # uni df 
+  uni5_df <- tidy(uni5, conf.int = TRUE) %>% 
+    mutate(R2_conditional = r2(uni5)$R2_conditional) %>% 
+    mutate(R2_marginal = r2(uni5)$R2_marginal) %>% 
+    mutate(Variable = 'Age') 
+  
+  
+  # Disease Duration ---------------------------------------------
+  print('demoEHR_DiseaseDuration')
+  
+  p <- ggplot(data = data, 
+              aes(x = demoEHR_DiseaseDuration, 
+                  y = .data[[outcome_column]])) + 
+    geom_point()
+  print(p)
+  
+  formula6 <- as.formula(paste(outcome_column, 
+                               "~ demoEHR_DiseaseDuration + (1 | bw_id)"))
+  print(formula6)
+  uni6 <- lmer(formula6, data = data)
+  print(summary(uni6))
+  
+  # Residuals vs. fitted values
+  hist(resid(uni6), main = "Residuals demoEHR_DiseaseDuration")
+  
+  # Normality check
+  qqnorm(residuals(uni6), main = "Normal Q-Q plot: demoEHR_DiseaseDuration")
+  
+  # uni df 
+  uni6_df <- tidy(uni6, conf.int = TRUE) %>% 
+    mutate(R2_conditional = r2(uni6)$R2_conditional) %>% 
+    mutate(R2_marginal = r2(uni6)$R2_marginal) %>% 
+    mutate(Variable = 'Disease Duration') 
+  
+  # MS DX ---------------------------------------------
+  print('ms_dx_condensed')
+  
+  formula7 <- as.formula(paste(outcome_column, 
+                               "~ ms_dx_condensed + (1 | bw_id)"))
+  print(formula7)
+  uni7 <- lmer(formula7, data = data)
+  print(summary(uni7))
+  
+  # Residuals vs. fitted values
+  hist(resid(uni7), main = "Residuals ms_dx_condensed")
+  
+  # Normality check
+  qqnorm(residuals(uni7), main = "Normal Q-Q plot: ms_dx_condensed")
+  
+  # uni df 
+  uni7_df <- tidy(uni7, conf.int = TRUE) %>% 
+    mutate(R2_conditional = r2(uni7)$R2_conditional) %>% 
+    mutate(R2_marginal = r2(uni7)$R2_marginal) %>% 
+    mutate(Variable = 'MS DX') 
+  
+  
+  # tidy and bind all together --------------------------------
+  tidy_uni_df <- bind_rows(uni1_df, uni1_log_df, uni2_df, uni3_df, uni4_df, 
+                           uni5_df, uni6_df, uni7_df,  
+                           uni10_df, uni11_df, uni12_df, 
+                           uni13_df, uni14_df, uni15_df, uni16_df,
+                           uni17_df) %>% 
+    mutate(Model = "Univariate Unadjusted") 
+  
+  return(tidy_uni_df)
+}
+
+```
+
+## Round p-values for plotting 
+```{r}
+# Conditional rounding function
+format_p_value <- function(p) {
+  if (p < 0.001) {
+    return("<0.001")  # Scientific notation, 1 decimal place
+  } else {
+    return(formatC(p, format = "f", digits = 3))  # Standard notation, 2 decimal places
+  }
+}
+```
+
+## Format dataframes for tables 
+
+```{r}
+format_p_value_tables <- function(df){
+  
+  df <- df %>% 
+    mutate(formatted_pval = ifelse(p.value < 0.001, '<0.001', round(p.value, 3)))
+  
+  return(df)
+  
+}
+```
+
+```{r}
+format_tables <- function(df){
+  
+  df <- format_p_value_tables(df)
+  
+  df <- df %>% 
+    mutate(across(c('std.error', 'R2_conditional', 'R2_marginal'), \(x) round(x, digits = 2))) %>%
+    mutate(across(c('estimate', 'conf.low', 'conf.high'), \(x) signif(x, digits = 2)))
+  
+  return(df)
+}
+```
+
+
+
+
+
+##  Plot unadjusted regression estimates 
+Should work for univariate or multivariate models - plot each variable as diff color 
+Significance based transparency 
+
+```{r}
+univariate_regression_plot <- function(results, plot_title, x_adj) {
+  
+  # Filter rows 
+  results <- results %>% 
+    filter(effect != 'ran_pars') %>% 
+    filter(term != '(Intercept)')
+  
+  results$Variable <- factor(results$Variable)
+  
+  # Apply rounding function to p-value columns 
+  results <- results %>% mutate(pval_text = paste0("p=", sapply(p.value, format_p_value)))  # Format p-values
+  
+  # Apply formatting function and create significance indicators
+  results <- results %>%
+    mutate(
+      pval_text = paste0("p=", sapply(p.value, format_p_value)),
+      sig = ifelse(p.value < 0.05, "Significant", "Non-Significant"),  # Create significance group
+      alpha_level = ifelse(p.value < 0.05, 1, 0.3)  # More transparency for non-sig points
+    )
+  
+  # Determine x position for p-values (offset to the right of the max estimate)
+  x_max <- max(results$conf.high, na.rm = TRUE)  # Get max confidence interval upper bound
+  results <- results %>% mutate(pval_x_pos = x_max + x_adj)  # Place p-values slightly to the right of max x range
+  
+  p <- ggplot(results, aes(x = estimate, y = term, color = Variable, alpha = alpha_level))+ 
+    geom_point(size = 3)  + # dot = coefficient estimate 
+    geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = 0.2) +  # Whiskers for confidence intervals
+    geom_text(aes(x = pval_x_pos, label = pval_text, fontface = ifelse(p.value < 0.05, "bold", "plain")), 
+              hjust = 1, size = 3) +  # Right-aligned p-values, bold if significant
+    scale_alpha_identity() +  # Use manually set alpha levels
+    geom_vline(xintercept = 0, linetype = "dashed", color = "gray50") +  # Reference line at zero
+    theme_minimal() + 
+    labs(title = plot_title,
+         x = "Estimate (Effect Size)",
+         y = "Predictor") +
+    theme(legend.position = "right")  # Hide legend to keep it clean
+  
+  return(p)
+}
+```
+
+## Plot Adjusted vs Unadjusted Coefficient estimates 
+```{r}
+adj_vs_unadj_plot <- function(results_df, plot_title, x_adj){
+  
+  set.seed(42)  # Set seed for reproducibility
+  
+  # Filter rows 
+  results_df <- results_df %>% 
+    filter(effect != 'ran_pars') %>% 
+    filter(term != '(Intercept)')
+  
+  results_df <- results_df %>%
+    mutate(
+      pval_text = paste0("p=", sapply(p.value, format_p_value)),  # Format p-values
+      sig = ifelse(is.na(p.value) | p.value >= 0.05, "Non-Significant", "Significant"),  # Identify significance
+      alpha_level = ifelse(is.na(p.value) | p.value >= 0.05, 0.3, 1),  # More transparency for non-sig points
+      jitter_y = as.numeric(factor(term)) + runif(n(), -0.2, 0.2)  # Jitter y-axis values slightly
+    )
+  
+  # Define colors for models
+  model_colors <- c("Unadjusted - Multivariate Demographics and MS Info" = "darkgreen",
+                    "Unadjusted - Multivariate Video Metrics" = "darkblue", 
+                    "Adjusted - Multivariate Video Metrics" = "darkorange") 
+  
+  # Define shading by creating an index for each predictor group
+  results_df <- results_df %>%
+    arrange(term) %>%
+    mutate(group = as.integer(factor(term)) %% 2)  # Alternating shading
+  
+  
+  # Determine x position for p-values (offset to the right of max estimate)
+  x_max <- max(results_df$conf.high, na.rm = TRUE)  # Get max confidence interval upper bound
+  results_df <- results_df %>%
+    mutate(pval_x_pos = x_max + x_adj)  # Place p-values slightly to the right of max x range
+  
+  # Dot-and-whisker plot with enhancements
+  p <- ggplot(results_df, aes(x = estimate, y = term, color = Model, alpha = alpha_level)) +
+    # Add confidence intervals as horizontal whiskers
+    geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = 0.2, 
+                   position = position_dodge(width = 0.5)) + 
+    # Add dots for coefficient estimates
+    geom_point(position = position_dodge(width = 0.5), size = 3) + 
+    # Add background shading for alternate rows
+    geom_rect(data = results_df, aes(ymin = as.numeric(factor(term)) - 0.5, 
+                                     ymax = as.numeric(factor(term)) + 0.5,
+                                     xmin = -Inf, xmax = Inf, 
+                                     fill = factor(group)),
+              inherit.aes = FALSE, alpha = 0.1) +
+    # Add vertical line at zero (null effect)
+    geom_vline(xintercept = 0, linetype = "dashed", color = "gray50") + 
+    # Add jittered p-values at right side
+    geom_text(aes(x = pval_x_pos, y = jitter_y, label = pval_text, 
+                  fontface = ifelse(sig == "Significant", "bold", "plain")), 
+              hjust = 1, size = 3) + 
+    scale_color_manual(values = model_colors) +  # Set custom colors for models
+    scale_fill_manual(values = c("white", "gray90")) +  # Alternating shading
+    scale_alpha_identity() +  # Use manually set alpha levels
+    theme_minimal() +
+    labs(title = plot_title,
+         x = "Estimate (Effect Size)",
+         y = "Predictor",
+         color = "Model") +  
+    theme(legend.position = "right",  # Move legend to the right
+          panel.grid.major = element_blank(),  # Remove major grid lines for clarity
+          panel.grid.minor = element_blank())
+  
+  return(p)
+  
+} 
+```
+
+# T25FW Mixed Effect Model 
+
+## Check all Date Diff <+- 365 days 
+
+```{r}
+# PWS 
+p1 <- ggplot(data = zeno_pws_df, aes(msfcEHR_T25FW.SPEED.TRIAL.1.vDate.Diff)) + 
+  geom_histogram()
+p1
+
+# FW 
+p2 <- ggplot(data = zeno_fw_df, aes(msfcEHR_T25FW.SPEED.TRIAL.1.vDate.Diff)) + 
+  geom_histogram()
+p2
+
+# home 
+p3 <- ggplot(data = home_df, aes(msfcEHR_T25FW.SPEED.TRIAL.1.vDate.Diff)) + 
+  geom_histogram()
+p3
+```
+
+
+## Plot and transform T25FW 
+```{r}
+# preferred walking speed 
+ggplot(data = zeno_pws_df, mapping = aes(clean_T25FW_Avg)) + 
+  geom_histogram()
+
+# log transform 
+zeno_pws_df$t25fw_log <- log(zeno_pws_df$clean_T25FW_Avg)
+ggplot(data = zeno_pws_df, mapping = aes(t25fw_log)) + 
+  geom_histogram()
+
+# inverse transformation 
+zeno_pws_df$t25fw_inverse <- 1/zeno_pws_df$clean_T25FW_Avg
+ggplot(data = zeno_pws_df, mapping = aes(t25fw_inverse)) + 
+  geom_histogram()
+
+# square root  
+zeno_pws_df$t25fw_sqrt <- sqrt(zeno_pws_df$clean_T25FW_Avg) 
+ggplot(data = zeno_pws_df, mapping = aes(t25fw_sqrt)) + 
+  geom_histogram()
+```
+
+```{r}
+# Fast walking speed 
+ggplot(data = zeno_fw_df, mapping = aes(clean_T25FW_Avg)) + 
+  geom_histogram()
+
+# log transform 
+zeno_fw_df$t25fw_log <- log(zeno_fw_df$clean_T25FW_Avg) 
+ggplot(data = zeno_fw_df, mapping = aes(t25fw_log)) + 
+  geom_histogram()
+
+# inverse transformation 
+zeno_fw_df$t25fw_inverse <- 1/zeno_fw_df$clean_T25FW_Avg
+ggplot(data = zeno_fw_df, mapping = aes(t25fw_inverse)) + 
+  geom_histogram()
+
+# square root  
+zeno_fw_df$t25fw_sqrt <- sqrt(zeno_fw_df$clean_T25FW_Avg) 
+ggplot(data = zeno_fw_df, mapping = aes(t25fw_sqrt)) + 
+  geom_histogram()
+
+```
+
+```{r}
+# Home Videos 
+ggplot(data = home_df, mapping = aes(clean_T25FW_Avg)) + 
+  geom_histogram()
+
+# log transform 
+home_df$t25fw_log <- log(home_df$clean_T25FW_Avg) 
+ggplot(data = home_df, mapping = aes(t25fw_log)) + 
+  geom_histogram()
+
+# inverse transformation 
+home_df$t25fw_inverse <- 1/home_df$clean_T25FW_Avg
+ggplot(data = home_df, mapping = aes(t25fw_inverse)) + 
+  geom_histogram()
+
+# square root  
+home_df$t25fw_sqrt <- sqrt(home_df$clean_T25FW_Avg) 
+ggplot(data = home_df, mapping = aes(t25fw_sqrt)) + 
+  geom_histogram()
+```
+## Make output folder for each T25FW outcome 
+
+```{r}
+
+clean_t25fw_dir <- file.path(output_dir, "clean_T25FW_Avg")
+if (file.exists(clean_t25fw_dir) == FALSE){
+  dir.create(clean_t25fw_dir)
+}
+
+t25fw_log_dir <- file.path(output_dir, "t25fw_log")
+# create output folder if it doesn't already exist 
+if (file.exists(t25fw_log_dir) == FALSE){
+  dir.create(t25fw_log_dir)
+}
+
+t25fw_inverse_dir <- file.path(output_dir, "t25fw_inverse")
+# create output folder if it doesn't already exist 
+if (file.exists(t25fw_inverse_dir) == FALSE){
+  dir.create(t25fw_inverse_dir)
+}
+
+t25fw_sqrt_dir <- file.path(output_dir, "t25fw_sqrt")
+# create output folder if it doesn't already exist 
+if (file.exists(t25fw_sqrt_dir) == FALSE){
+  dir.create(t25fw_sqrt_dir)
+}
+
+```
+
+
+## Transform Velocity Proxy 
+log transform to improve linearity and replace inf values with NA 
+```{r}
+zeno_pws_df$log_delta_pix_h_rel_median_pose_zv <- log(zeno_pws_df$delta_pix_h_rel_median_pose_zv)
+zeno_fw_df$log_delta_pix_h_rel_median_pose_zv <- log(zeno_fw_df$delta_pix_h_rel_median_pose_zv)
+home_df$log_delta_pix_h_rel_median_pose_hv <- log(home_df$delta_pix_h_rel_median_pose_hv)
+
+# convert inf to NaN 
+zeno_pws_df[] <- lapply(zeno_pws_df, function(x) {
+  if (is.numeric(x)) replace(x, is.infinite(x), NA) else x
+})
+
+zeno_fw_df[] <- lapply(zeno_fw_df, function(x) {
+  if (is.numeric(x)) replace(x, is.infinite(x), NA) else x
+})
+
+home_df[] <- lapply(home_df, function(x) {
+  if (is.numeric(x)) replace(x, is.infinite(x), NA) else x
+})
+```
+
+
+## Preferred walking speed videos 
+### Check outcome transforms and select metrics 
+```{r}
+y_outcome_cols <- c("clean_T25FW_Avg", "t25fw_log", "t25fw_inverse", "t25fw_sqrt") 
+plot_outcome_transforms_vs_predictors(zeno_pws_df, y_outcome_cols, 'pws', output_dir)
+# maybe log T25FW? linear and more interpretable, less variance?
+```
+
+### Set outcome variable 
+Need to run this chunk and all below for consistency 
+```{r}
+pws_t25fw_outcome_col = "t25fw_inverse"
+```
+
+### Functions - try 
+```{r}
+run_save_univariate <- function(df, outcome_column_str, data_name_string){
+  
+  uni_results_all <- all_univariate_mixed_effect(data = df,
+                                                      outcome_column = outcome_column_str) %>% 
+    format_tables() %>% 
+    mutate(Outcome = outcome_column_str)
+  write.csv(uni_results_all, file.path(output_dir, 
+                                            outcome_column_str,
+                                            paste(outcome_column_str, 
+                                                  '_univariate_', 
+                                                  data_name_string, 
+                                                  '_results.csv', sep = '')))
+  
+  # save adjusted r_squared 
+  adj_r_squared_df <- uni_results_all[c('Variable', 'R2_conditional', 'R2_marginal')] %>% 
+    distinct()  # remove duplicates 
+  print(adj_r_squared_df)
+  write.csv(adj_r_squared_df, file.path(output_dir,
+                                        outcome_column_str,
+                                        paste(outcome_column_str, 
+                                              'univariate_',
+                                              data_name_string,
+                                              '_r2.csv', sep = '')))
+  
+  # Plot estimates 
+  plot_title <- paste(data_name_string, " Univariate - lmer(", 
+                      outcome_column_str, 
+                      "~ Predictor + (1 | bw_id))")
+  
+  p <- univariate_regression_plot(results = uni_results_all, 
+                                  plot_title = plot_title, 
+                                  x_adj = 0.1)
+  print(p)
+  p 
+  ggsave(file.path(output_dir, 
+                   outcome_column_str, 
+                   paste(outcome_column_str, 
+                         'univariate_',
+                         data_name_string,
+                         '_estimates.png', sep = '')), 
+         bg = "white", width= 10, height=10)
+  
+  
+}
+
+run_save_univariate(zeno_pws_df, pws_t25fw_outcome_col, 'PWS')
+```
+
+
+
+
+
+
+### Univariate Models 
+```{r}
+
+uni_zv_pws_t25fw_all <- all_univariate_mixed_effect(data = zeno_pws_df,
+                                                    outcome_column = pws_t25fw_outcome_col) %>% 
+  format_tables() %>% 
+  mutate(Outcome = pws_t25fw_outcome_col)
+write.csv(uni_zv_pws_t25fw_all, file.path(output_dir, 
+                                          pws_t25fw_outcome_col,
+                                          paste(pws_t25fw_outcome_col, '_univariate_pws_results.csv')))
+
+# save adjusted r_squared 
+adj_r_squared_df <- uni_zv_pws_t25fw_all[c('Variable', 'R2_conditional', 'R2_marginal')] %>% 
+  distinct()  # remove duplicates 
+print(adj_r_squared_df)
+write.csv(adj_r_squared_df, file.path(output_dir,
+                                      pws_t25fw_outcome_col,
+                                      paste(pws_t25fw_outcome_col, 'univariate_pws_r2.csv')))
+
+# Plot estimates 
+plot_title <- paste("PWS Univariate - lmer(", 
+                    pws_t25fw_outcome_col, 
+                    "~ Predictor + (1 | bw_id))")
+
+p <- univariate_regression_plot(results = uni_zv_pws_t25fw_all, 
+                                plot_title = plot_title, 
+                                x_adj = 0.1)
+p 
+ggsave(file.path(output_dir, 
+                 pws_t25fw_outcome_col, 
+                 paste(pws_t25fw_outcome_col, 'univariate_pws_estimates.png')), 
+       bg = "white", width= 10, height=10)
+
+
+```
+
+### Drop rows with any missing video metrics 
+Not all metrics could be calculated from each video metric 
+
+Dropped videos missing any video metric so models could be compared 
+```{r}
+zeno_pws_clean_df <- zeno_pws_df %>% 
+  drop_na(c("stride_time_median_sec_pose_zv", 
+            "log_delta_pix_h_rel_median_pose_zv",
+            "mean_cadence_step_per_min_pose_zv",
+            "stride_width_median_cm_pose_zv", 
+            "stance_time_sec_std_pose_zv", 
+            "swing_time_sec_std_pose_zv"))
+```
+
+
+### Multivariate Demographics and MS Info 
+```{r}
+t25fw_pws_multi_dem_formula <- as.formula(paste(pws_t25fw_outcome_col, 
+                                      "~ clean_Age +
+                                       demoEHR_DiseaseDuration +
+                                       ms_dx_condensed +
+                                       (1|bw_id)"))
+
+t25fw_pws_multi_dem <- lmer(t25fw_pws_multi_dem_formula, 
+                            data = zeno_pws_clean_df)
+summary(t25fw_pws_multi_dem)
+
+# Residuals vs. fitted values
+plot(t25fw_pws_multi_dem, main = "Fitted vs Residuals: All Demographic and MS Info")
+
+# Normality check
+qqnorm(residuals(t25fw_pws_multi_dem), main = "Normal Q-Q plot: Residuals All Demographic and MS Info")
+hist(resid(t25fw_pws_multi_dem), main = "Residuals All Demographic and MS Info")
+
+# tidy results
+t25fw_pws_multi_dem_df <- tidy(t25fw_pws_multi_dem, conf.int = TRUE) %>% 
+  mutate(R2_conditional = r2(t25fw_pws_multi_dem)$R2_conditional) %>% 
+  mutate(R2_marginal = r2(t25fw_pws_multi_dem)$R2_marginal) %>% 
+  mutate(Model = "Unadjusted - Multivariate Demographics and MS Info") %>%
+  mutate(Outcome = pws_t25fw_outcome_col)
+
+t25fw_pws_multi_dem_df
+```
+
+### Multivariate Video Models - Unadjusted 
+
+```{r}
+t25fw_pws_multi_vid_unadj_formula <- as.formula(paste(pws_t25fw_outcome_col, 
+                                                      "~ stride_time_median_sec_pose_zv +
+                                                      log_delta_pix_h_rel_median_pose_zv + 
+                                                      mean_cadence_step_per_min_pose_zv + 
+                                                      stride_width_median_cm_pose_zv + 
+                                                      stance_time_per_mean_pose_zv + 
+                                                      tot_dsupport_time_sec_std_pose_zv + 
+                                                      (1|bw_id)"))
+
+t25fw_pws_multi_vid_unadj <- lmer(t25fw_pws_multi_vid_unadj_formula, 
+                                  data = zeno_pws_clean_df)
+
+summary(t25fw_pws_multi_vid_unadj)
+
+# Residuals vs. fitted values
+plot(t25fw_pws_multi_vid_unadj, main = "Residuals All Video Metrics Unadjusted")
+
+# Normality check
+qqnorm(residuals(t25fw_pws_multi_vid_unadj), main = "Normal Q-Q plot: Residuals All Video Metrics Unadjusted")
+hist(resid(t25fw_pws_multi_vid_unadj), main = "Residuals All Video Metrics Unadjusted")
+
+# tidy results 
+t25fw_pws_multi_vid_unadj_df <- tidy(t25fw_pws_multi_vid_unadj, conf.int = TRUE) %>% 
+  mutate(R2_conditional = r2(t25fw_pws_multi_vid_unadj)$R2_conditional) %>% 
+  mutate(R2_marginal = r2(t25fw_pws_multi_vid_unadj)$R2_marginal) %>% 
+  mutate(Model = "Unadjusted - Multivariate Video Metrics") %>% 
+  mutate(Outcome = pws_t25fw_outcome_col)
+
+t25fw_pws_multi_vid_unadj_df
+```
+
+### Multivariate Video Models - Adjusted  
+```{r}
+t25fw_pws_multi_vid_adj_formula <- as.formula(paste(pws_t25fw_outcome_col, 
+                                                      "~ stride_time_median_sec_pose_zv +
+                                                      log_delta_pix_h_rel_median_pose_zv + 
+                                                      mean_cadence_step_per_min_pose_zv + 
+                                                      stride_width_median_cm_pose_zv + 
+                                                      stance_time_per_mean_pose_zv + 
+                                                      tot_dsupport_time_sec_std_pose_zv + 
+                                                      clean_Age +
+                                                      demoEHR_DiseaseDuration + 
+                                                      ms_dx_condensed +
+                                                      (1|bw_id)"))
+
+
+
+
+t25fw_pws_multi_vid_adj <- lmer(t25fw_pws_multi_vid_adj_formula, 
+                                data = zeno_pws_clean_df)
+
+summary(t25fw_pws_multi_vid_adj)
+
+# Residuals vs. fitted values
+plot(t25fw_pws_multi_vid_adj, main = "Fitted vs Residuals: All Video Metrics Adjusted")
+
+# Normality check
+qqnorm(residuals(t25fw_pws_multi_vid_adj), main = "Normal Q-Q plot: Residuals All Video Metrics Adjusted")
+hist(resid(t25fw_pws_multi_vid_adj), main = "Residuals All Video Metrics Adjusted")
+
+# tidy results
+t25fw_pws_multi_vid_adj_df <- tidy(t25fw_pws_multi_vid_adj, conf.int = TRUE) %>% 
+  mutate(R2_conditional = r2(t25fw_pws_multi_vid_adj)$R2_conditional) %>% 
+  mutate(R2_marginal = r2(t25fw_pws_multi_vid_adj)$R2_marginal) %>% 
+  mutate(Model = "Adjusted - Multivariate Video Metrics") %>% 
+  mutate(Outcome = pws_t25fw_outcome_col)
+
+t25fw_pws_multi_vid_adj_df
+
+```
+
+### ANOVA - Compare Multivar Models 
+p value < 0.05, more complex model is significantly better than the simpler model 
+
+https://bookdown.org/ndphillips/YaRrr/comparing-regression-models-with-anova.html 
+```{r}
+# Demographics only vs Video + Demographics 
+#anova(t25fw_pws_multi_dem, t25fw_pws_multi_vid_adj)
+
+# Video only vs Video + Demographics 
+#anova(t25fw_pws_multi_vid_unadj, t25fw_pws_multi_vid_adj)
+```
+### Save all Multivar R-squared values 
+```{r}
+t25fw_pws_multivar_all <- bind_rows(t25fw_pws_multi_dem_df, 
+                                    t25fw_pws_multi_vid_unadj_df, 
+                                    t25fw_pws_multi_vid_adj_df) %>% 
+  format_tables()
+write.csv(t25fw_pws_multivar_all, file.path(output_dir, 
+                                            pws_t25fw_outcome_col,
+                                            paste(pws_t25fw_outcome_col, 'adj_vs_unadj_pws_results.csv')))
+
+# save R-squared 
+adj_r_squared_df <- t25fw_pws_multivar_all[c('Model', 'R2_conditional', 'R2_marginal')] %>% 
+  distinct()  
+print(adj_r_squared_df)
+write.csv(adj_r_squared_df, file.path(output_dir, 
+                                      pws_t25fw_outcome_col,
+                                      paste(pws_t25fw_outcome_col, 'adj_vs_unadj_pws_r2.csv')))
+```
+### Plot Unadjusted vs Adjusted Estimates 
+```{r}
+p <- adj_vs_unadj_plot(results_df = t25fw_pws_multivar_all, 
+                       plot_title = paste("PWS: ", pws_t25fw_outcome_col), 
+                       x_adj = 0.1)
+p
+ggsave(file.path(output_dir, 
+                 pws_t25fw_outcome_col, 
+                 paste(pws_t25fw_outcome_col, 'adj_vs_unadj_pws_estimates.png')),
+       bg = "white", width= 12, height=10)
+```
+
+## Fast Walking Speed Videos 
+
+### Check outcome transforms 
+```{r}
+y_outcome_cols <- c("clean_T25FW_Avg", "t25fw_log", "t25fw_inverse", "t25fw_sqrt") 
+plot_outcome_transforms_vs_predictors(zeno_fw_df, 'fw', output_dir)
+# log? 
+```
+
+### Set Outcome variable 
+```{r}
+fw_t25fw_outcome_col = pws_t25fw_outcome_col
+```
+
+### Univariate Models 
+
+```{r}
+uni_zv_fw_t25fw_all <- all_univariate_mixed_effect(data = zeno_fw_df,
+                                                   outcome_column = fw_t25fw_outcome_col) %>% 
+  format_tables() %>% 
+  mutate(Outcome = fw_t25fw_outcome_col)
+write.csv(uni_zv_fw_t25fw_all, file.path(output_dir, 
+                                         fw_t25fw_outcome_col,
+                                         paste(fw_t25fw_outcome_col, 'univariate_fw_results.csv')))
+
+# save adjusted r_squared 
+adj_r_squared_df <- uni_zv_fw_t25fw_inv[c('Variable', 'R2_conditional', 'R2_marginal')] %>% 
+  distinct() # remove duplicates
+print(adj_r_squared_df)
+write.csv(adj_r_squared_df, file.path(output_dir, 
+                                      fw_t25fw_outcome_col,
+                                      paste(fw_t25fw_outcome_col,
+                                            't25fw_inverse_univariate_fw_r2.csv'))
+
+# Plot estimates 
+p <- univariate_regression_plot(results = uni_zv_fw_t25fw_inv, 
+                                plot_title = "FW Univariate - lmer(Inverse T25FW ~ Predictor + (1 | bw_id))", 
+                                x_adj = 0.1)
+p 
+ggsave(file.path(output_dir, 't25fw_inverse_univariate_fw_estimates.png'), 
+       bg = "white", width= 10, height=10)
+
+```
+
+### Drop rows with any missing video metrics 
+Not all metrics could be calculated from each video metric 
+
+Dropped videos missing any video metric so models could be compared 
+```{r}
+zeno_fw_clean_df <- zeno_fw_df %>% 
+  drop_na(c("stride_time_median_sec_pose_zv", 
+            "log_delta_pix_h_rel_median_pose_zv",
+            "mean_cadence_step_per_min_pose_zv",
+            "stride_width_median_cm_pose_zv",
+            "swing_time_sec_std_pose_zv",
+            "stance_time_sec_std_pose_zv"
+            ))
+```
+
+### Multivariate Demographics and MS Info 
+```{r}
+t25fw_fw_multi_dem <- lmer(t25fw_inverse ~ 
+                             clean_Age +
+                             demoEHR_DiseaseDuration + 
+                             ms_dx_condensed + 
+                             (1|bw_id), 
+                           data = zeno_fw_clean_df)
+
+
+summary(t25fw_fw_multi_dem)
+
+# Residuals vs. fitted values
+plot(t25fw_fw_multi_dem)
+
+# Normality check
+qqnorm(residuals(t25fw_fw_multi_dem), main = "Normal Q-Q plot: Residuals All Demographic and MS Info")
+hist(resid(t25fw_fw_multi_dem), main = "Residuals All Demographic and MS Info")
+
+# tidy results
+t25fw_fw_multi_dem_df <- tidy(t25fw_fw_multi_dem, conf.int = TRUE) %>% 
+  mutate(R2_conditional = r2(t25fw_fw_multi_dem)$R2_conditional) %>% 
+  mutate(R2_marginal = r2(t25fw_fw_multi_dem)$R2_marginal) %>% 
+  mutate(Model = "Unadjusted - Multivariate Demographics and MS Info")
+
+t25fw_fw_multi_dem_df
+```
+
+### Multivariate Video Models - Unadjusted 
+
+```{r}
+t25fw_fw_multi_vid_unadj <- lmer(t25fw_inverse ~ 
+                                   stride_time_median_sec_pose_zv +
+                                   log_delta_pix_h_rel_median_pose_zv + 
+                                   mean_cadence_step_per_min_pose_zv + 
+                                   stride_width_median_cm_pose_zv + 
+                                   stance_time_per_mean_pose_zv + 
+                                   tot_dsupport_time_sec_std_pose_zv +  
+                                   (1|bw_id), 
+                                 data = zeno_fw_clean_df)
+
+summary(t25fw_fw_multi_vid_unadj)
+
+# Residuals vs. fitted values
+plot(t25fw_fw_multi_vid_unadj)
+
+# Normality check
+qqnorm(residuals(t25fw_fw_multi_vid_unadj), main = "Normal Q-Q plot: Residuals All Video Metrics Unadjusted")
+hist(resid(t25fw_fw_multi_vid_unadj), main = "Residuals All Video Metrics Unadjusted")
+
+# tidy results 
+t25fw_fw_multi_vid_unadj_df <- tidy(t25fw_fw_multi_vid_unadj, conf.int = TRUE) %>% 
+  mutate(R2_conditional = r2(t25fw_fw_multi_vid_unadj)$R2_conditional) %>% 
+  mutate(R2_marginal = r2(t25fw_fw_multi_vid_unadj)$R2_marginal) %>% 
+  mutate(Model = "Unadjusted - Multivariate Video Metrics")
+
+t25fw_fw_multi_vid_unadj_df
+```
+
+### Multivariate Video Models - Adjusted  
+```{r}
+t25fw_fw_multi_vid_adj <- lmer(t25fw_inverse ~ 
+                                 stride_time_median_sec_pose_zv +
+                                 log_delta_pix_h_rel_median_pose_zv + 
+                                 mean_cadence_step_per_min_pose_zv + 
+                                 stride_width_median_cm_pose_zv + 
+                                 stance_time_per_mean_pose_zv + 
+                                 tot_dsupport_time_sec_std_pose_zv +  
+                                 clean_Age +
+                                 demoEHR_DiseaseDuration + 
+                                 ms_dx_condensed + 
+                                 (1|bw_id), 
+                               data = zeno_fw_clean_df)
+
+summary(t25fw_fw_multi_vid_adj)
+
+# Residuals vs. fitted values
+plot(t25fw_fw_multi_vid_adj)
+
+# Normality check
+qqnorm(residuals(t25fw_fw_multi_vid_adj), main = "Normal Q-Q plot: Residuals All Video Metrics Adjusted")
+hist(resid(t25fw_fw_multi_vid_adj), main = "Residuals All Video Metrics Adjusted")
+
+# tidy results
+t25fw_fw_multi_vid_adj_df <- tidy(t25fw_fw_multi_vid_adj, conf.int = TRUE) %>% 
+  mutate(R2_conditional = r2(t25fw_fw_multi_vid_adj)$R2_conditional) %>% 
+  mutate(R2_marginal = r2(t25fw_fw_multi_vid_adj)$R2_marginal) %>% 
+  mutate(Model = "Adjusted - Multivariate Video Metrics")
+
+t25fw_fw_multi_vid_adj_df
+
+```
+### ANOVA - Compare Multivar Models 
+p value < 0.05, more complex model is significantly better than the simpler model 
+
+https://bookdown.org/ndphillips/YaRrr/comparing-regression-models-with-anova.html 
+```{r}
+# Demographics only vs Video + Demographics 
+#anova(t25fw_fw_multi_dem, t25fw_fw_multi_vid_adj)
+
+# Video only vs Video + Demographics 
+#anova(t25fw_fw_multi_vid_unadj, t25fw_fw_multi_vid_adj)
+```
+### Save all Multivar R-squared values 
+```{r}
+t25fw_fw_multivar_all <- bind_rows(t25fw_fw_multi_dem_df, 
+                                   t25fw_fw_multi_vid_unadj_df, 
+                                   t25fw_fw_multi_vid_adj_df) %>% 
+  format_tables()
+write.csv(t25fw_fw_multivar_all, file.path(output_dir, 't25fw_inverse_adj_vs_unadj_fw_results.csv'))
+
+# save R-squared 
+adj_r_squared_df <- t25fw_fw_multivar_all[c('Model', 'R2_conditional', 'R2_marginal')] %>% 
+  distinct() # remove duplicates 
+print(adj_r_squared_df)
+write.csv(adj_r_squared_df, file.path(output_dir, 't25fw_inverse_adj_vs_unadj_fw_r2.csv'))
+```
+
+### Plot Unadjusted vs Adjusted Estimates 
+```{r}
+p <- adj_vs_unadj_plot(results_df = t25fw_fw_multivar_all, 
+                       plot_title = "FW: Inverse T25FW Unadjusted vs Adjusted", 
+                       x_adj = 0.1)
+p
+ggsave(file.path(output_dir, 't25fw_inverse_adj_vs_unadj_FW_estimates.png'),
+       bg = "white", width= 12, height=10)
+```
+
+## Home Videos 
+### Check outcome transforms  
+```{r}
+y_outcome_cols <- c("clean_T25FW_Avg", "t25fw_log", "t25fw_inverse", "t25fw_sqrt") 
+plot_outcome_transforms_vs_predictors(home_df, 'home', output_dir)
+```
+
+### Univariate Models 
+
+```{r}
+uni_hv_t25fw_inv <- all_univariate_mixed_effect(data = home_df,
+                                                outcome_column = "t25fw_inverse") %>% 
+  format_tables()
+write.csv(uni_hv_t25fw_inv, file.path(output_dir, 't25fw_inverse_univariate_home_results.csv'))
+
+# save adjusted r_squared 
+adj_r_squared_df <- uni_hv_t25fw_inv[c('Variable', 'R2_conditional', 'R2_marginal')] %>% 
+  distinct() # remove duplicates
+print(adj_r_squared_df)
+write.csv(adj_r_squared_df, file.path(output_dir, 't25fw_inverse_univariate_home_r2.csv'))
+
+# Plot estimates 
+p <- univariate_regression_plot(results = uni_hv_t25fw_inv, 
+                                plot_title = "Home Univariate - lmer(Inverse T25FW ~ Predictor + (1 | bw_id))", 
+                                x_adj = 0.1)
+p 
+ggsave(file.path(output_dir, 't25fw_inverse_univariate_home_estimates.png'), 
+       bg = "white", width= 10, height=10)
+
+```
+
+
+### Drop rows with any missing video metrics 
+Not all metrics could be calculated from each video metric 
+
+Dropped videos missing any video metric so models could be compared 
+```{r}
+home_clean_df <- home_df %>% 
+  drop_na(c("stride_time_median_sec_pose_hv", 
+            "log_delta_pix_h_rel_median_pose_hv",
+            "mean_cadence_step_per_min_pose_hv",
+            "stride_width_median_cm_pose_hv", 
+            "stance_time_sec_std_pose_hv", 
+            "swing_time_sec_std_pose_hv"))
+
+table(home_clean_df$race_ethnicity_clean)
+```
+
+### Multivariate Demographics and MS Info 
+```{r}
+t25fw_home_multi_dem <- lmer(t25fw_inverse ~ 
+                               clean_Age +
+                               demoEHR_DiseaseDuration + 
+                               ms_dx_condensed + 
+                               (1|bw_id), 
+                             data = home_clean_df)
+
+
+summary(t25fw_home_multi_dem)
+
+# Residuals vs. fitted values
+plot(t25fw_home_multi_dem)
+
+# Normality check
+qqnorm(residuals(t25fw_home_multi_dem), main = "Normal Q-Q plot: Residuals All Demographic and MS Info")
+hist(resid(t25fw_home_multi_dem), main = "Residuals All Demographic and MS Info")
+
+# tidy results
+t25fw_home_multi_dem_df <- tidy(t25fw_home_multi_dem, conf.int = TRUE) %>% 
+  mutate(R2_conditional = r2(t25fw_home_multi_dem)$R2_conditional) %>% 
+  mutate(R2_marginal = r2(t25fw_home_multi_dem)$R2_marginal) %>% 
+  mutate(Model = "Unadjusted - Multivariate Demographics and MS Info")
+
+t25fw_home_multi_dem_df
+```
+### Multivariate Video Models - Unadjusted 
+
+```{r}
+t25fw_home_multi_vid_unadj <- lmer(t25fw_inverse ~ 
+                                     stride_time_median_sec_pose_hv +
+                                     log_delta_pix_h_rel_median_pose_hv + 
+                                     mean_cadence_step_per_min_pose_hv + 
+                                     stride_width_median_cm_pose_hv + 
+                                     stance_time_per_mean_pose_hv + 
+                                     tot_dsupport_time_sec_std_pose_hv +  
+                                     (1|bw_id), 
+                                   data = home_clean_df)
+
+summary(t25fw_home_multi_vid_unadj)
+
+# Residuals vs. fitted values
+plot(t25fw_home_multi_vid_unadj)
+
+# Normality check
+qqnorm(residuals(t25fw_home_multi_vid_unadj), main = "Normal Q-Q plot: Residuals All Video Metrics Unadjusted")
+hist(resid(t25fw_home_multi_vid_unadj), main = "Residuals All Video Metrics Unadjusted")
+
+# tidy results 
+t25fw_home_multi_vid_unadj_df <- tidy(t25fw_home_multi_vid_unadj, conf.int = TRUE) %>% 
+  mutate(R2_conditional = r2(t25fw_home_multi_vid_unadj)$R2_conditional) %>% 
+  mutate(R2_marginal = r2(t25fw_home_multi_vid_unadj)$R2_marginal) %>% 
+  mutate(Model = "Unadjusted - Multivariate Video Metrics")
+
+t25fw_home_multi_vid_unadj_df
+```
+
+### Multivariate Video Models - Adjusted  
+```{r}
+t25fw_home_multi_vid_adj <- lmer(t25fw_inverse ~ 
+                                   stride_time_median_sec_pose_hv +
+                                   log_delta_pix_h_rel_median_pose_hv + 
+                                   mean_cadence_step_per_min_pose_hv + 
+                                   stride_width_median_cm_pose_hv + 
+                                   stance_time_per_mean_pose_hv + 
+                                   tot_dsupport_time_sec_std_pose_hv + 
+                                   clean_Age +
+                                   demoEHR_DiseaseDuration + 
+                                   ms_dx_condensed + 
+                                   (1|bw_id), 
+                                 data = home_clean_df)
+
+summary(t25fw_home_multi_vid_adj)
+
+# Residuals vs. fitted values
+plot(t25fw_home_multi_vid_adj)
+
+# Normality check
+qqnorm(residuals(t25fw_home_multi_vid_adj), main = "Normal Q-Q plot: Residuals All Video Metrics Adjusted")
+hist(resid(t25fw_home_multi_vid_adj), main = "Residuals All Video Metrics Adjusted")
+
+# tidy results
+t25fw_home_multi_vid_adj_df <- tidy(t25fw_home_multi_vid_adj, conf.int = TRUE) %>% 
+  mutate(R2_conditional = r2(t25fw_home_multi_vid_adj)$R2_conditional) %>% 
+  mutate(R2_marginal = r2(t25fw_home_multi_vid_adj)$R2_marginal) %>% 
+  mutate(Model = "Adjusted - Multivariate Video Metrics")
+
+t25fw_home_multi_vid_adj_df
+
+```
+### ANOVA compare multivariate models 
+p value < 0.05, more complex model is significantly better than the simpler model 
+
+https://bookdown.org/ndphillips/YaRrr/comparing-regression-models-with-anova.html 
+```{r}
+# Demographics only vs Video + Demographics 
+#anova(t25fw_home_multi_dem, t25fw_home_multi_vid_adj)
+
+# Video only vs Video + Demographics 
+#anova(t25fw_home_multi_vid_unadj, t25fw_home_multi_vid_adj)
+```
+
+### Save all Multivar R-squared values 
+```{r}
+t25fw_home_multivar_all <- bind_rows(t25fw_home_multi_dem_df, 
+                                     t25fw_home_multi_vid_unadj_df, 
+                                     t25fw_home_multi_vid_adj_df) %>% 
+  format_tables()
+write.csv(t25fw_home_multivar_all, file.path(output_dir, 't25fw_inverse_adj_vs_unadj_home_results.csv'))
+
+# save R-squared 
+adj_r_squared_df <- t25fw_home_multivar_all[c('Model', 'R2_conditional', 'R2_marginal')] %>% 
+  distinct() # remove duplicates 
+print(adj_r_squared_df)
+write.csv(adj_r_squared_df, file.path(output_dir, 't25fw_inverse_adj_vs_unadj_home_r2.csv'))
+```
+### Plot Unadjusted vs Adjusted 
+
+```{r}
+p <- adj_vs_unadj_plot(results_df = t25fw_home_multivar_all, 
+                       plot_title = "Home: Inverse T25FW Unadjusted vs Adjusted", 
+                       x_adj = 0.1)
+p
+ggsave(file.path(output_dir, 't25fw_inverse_adj_vs_unadj_home_estimates.png'),
+       bg = "white", width= 12, height=10)
+```
+
+
+# Zeno Mat Velocity Mixed Effect Model 
+## Plot and transform Zeno mat velocity  
+
+Preferred Walking Speed 
+```{r}
+# preferred walking speed 
+ggplot(data = zeno_pws_df, mapping = aes(PWS_velocitycmsecmean)) + 
+  geom_histogram()
+
+# log 
+zeno_pws_df$log_PWS_velocity <- log(zeno_pws_df$PWS_velocitycmsecmean)
+
+ggplot(data = zeno_pws_df, mapping = aes(log_PWS_velocity)) + 
+  geom_histogram()
+
+# inverse  
+zeno_pws_df$inv_PWS_velocity <- 1 / zeno_pws_df$PWS_velocitycmsecmean
+
+ggplot(data = zeno_pws_df, mapping = aes(inv_PWS_velocity)) + 
+  geom_histogram()
+
+# sqrt
+zeno_pws_df$sqrt_PWS_velocity <- sqrt(zeno_pws_df$PWS_velocitycmsecmean)
+
+ggplot(data = zeno_pws_df, mapping = aes(sqrt_PWS_velocity)) + 
+  geom_histogram()
+```
+
+Fast Walking Speed 
+```{r}
+# fast walking speed 
+ggplot(data = zeno_fw_df, mapping = aes(FW_velocitycmsecmean)) + 
+  geom_histogram()
+
+# log 
+zeno_fw_df$log_FW_velocity <- log(zeno_fw_df$FW_velocitycmsecmean)
+
+ggplot(data = zeno_fw_df, mapping = aes(log_FW_velocity)) + 
+  geom_histogram()
+
+# inverse  
+zeno_fw_df$inv_FW_velocity <- 1 / zeno_fw_df$FW_velocitycmsecmean
+
+ggplot(data = zeno_fw_df, mapping = aes(inv_FW_velocity)) + 
+  geom_histogram()
+
+# square root 
+zeno_fw_df$sqrt_FW_velocity <- sqrt(zeno_fw_df$FW_velocitycmsecmean)
+
+ggplot(data = zeno_fw_df, mapping = aes(sqrt_FW_velocity)) + 
+  geom_histogram()
+```
+
+Home Videos - most recent PWS and FW from mat 
+
+```{r}
+
+# preferred walking speed 
+
+# home videos 
+ggplot(data = home_df, mapping = aes(PWS_velocitycmsecmean)) + 
+  geom_histogram()
+
+# log 
+home_df$log_PWS_velocity <- log(home_df$PWS_velocitycmsecmean)
+
+ggplot(data = home_df, mapping = aes(log_PWS_velocity)) + 
+  geom_histogram()
+
+# inverse  
+home_df$inv_PWS_velocity <- 1 / home_df$PWS_velocitycmsecmean
+
+ggplot(data = home_df, mapping = aes(inv_PWS_velocity)) + 
+  geom_histogram()
+
+# square root 
+home_df$sqrt_PWS_velocity <- sqrt(home_df$PWS_velocitycmsecmean)
+
+ggplot(data = home_df, mapping = aes(sqrt_PWS_velocity)) + 
+  geom_histogram()
+################################################
+
+#FW 
+ggplot(data = home_df, mapping = aes(FW_velocitycmsecmean)) + 
+  geom_histogram()
+
+# log 
+home_df$log_FW_velocity <- log(home_df$FW_velocitycmsecmean)
+
+ggplot(data = home_df, mapping = aes(log_FW_velocity)) + 
+  geom_histogram()
+
+# inverse  
+home_df$inv_FW_velocity <- 1 / home_df$FW_velocitycmsecmean
+
+ggplot(data = home_df, mapping = aes(inv_FW_velocity)) + 
+  geom_histogram()
+
+# square root 
+home_df$sqrt_FW_velocity <- sqrt(home_df$FW_velocitycmsecmean)
+
+ggplot(data = home_df, mapping = aes(sqrt_FW_velocity)) + 
+  geom_histogram()
+
+```
+
+## Preferred Walking speed videos 
+### Check outcome transforms and select metrics 
+```{r}
+y_outcome_cols <- c("PWS_velocitycmsecmean", "log_PWS_velocity", "inv_PWS_velocity", "sqrt_PWS_velocity") 
+plot_outcome_transforms_vs_predictors(zeno_pws_df, y_outcome_cols, 'pws', output_dir)
+
+```
+
+### Univariate Models 
+```{r}
+uni_zv_pws_pwsvel <- all_univariate_mixed_effect(data = zeno_pws_df,
+                                                 outcome_column = "PWS_velocitycmsecmean") %>% 
+  format_tables()
+write.csv(uni_zv_pws_pwsvel, file.path(output_dir, 'ZenoVelPws_univariate_pws_results.csv'))
+
+
+# save adjusted r_squared 
+adj_r_squared_df <- uni_zv_pws_pwsvel[c('Variable', 'R2_conditional', 'R2_marginal')] %>% 
+  distinct() # remove duplicates 
+print(adj_r_squared_df)
+write.csv(adj_r_squared_df, file.path(output_dir, 'ZenoVelPws_univariate_pws_r2.csv'))
+
+# Plot estimates 
+p <- univariate_regression_plot(results = uni_zv_pws_pwsvel, 
+                                plot_title = "PWS Univariate - lmer(Zeno Mat Velocity ~ Predictor + (1 | bw_id))", 
+                                x_adj = 15)
+p 
+ggsave(file.path(output_dir, 'ZenoVelPws_univariate_pws_estimates.png'), 
+       bg = "white", width= 10, height=10)
+
+```
+
+### Multivariate Demographics and MS Info
+```{r}
+pwsVel_pws_multi_dem <- lmer(PWS_velocitycmsecmean ~ 
+                               clean_Age +
+                               demoEHR_DiseaseDuration + 
+                               ms_dx_condensed +
+                               (1|bw_id), 
+                             data = zeno_pws_clean_df)
+
+
+summary(pwsVel_pws_multi_dem)
+
+# Residuals vs. fitted values
+plot(pwsVel_pws_multi_dem, main = "Fitted vs Residuals All Demographic and MS Info")
+
+# Normality check
+qqnorm(residuals(pwsVel_pws_multi_dem), main = "Normal Q-Q plot: Residuals All Demographic and MS Info")
+hist(residuals(pwsVel_pws_multi_dem), main = "Residuals All Demographic and MS Info")
+
+# tidy results
+pwsVel_pws_multi_dem_df <- tidy(pwsVel_pws_multi_dem, conf.int = TRUE) %>% 
+  mutate(R2_conditional = r2(pwsVel_pws_multi_dem)$R2_conditional) %>% 
+  mutate(R2_marginal = r2(pwsVel_pws_multi_dem)$R2_marginal) %>% 
+  mutate(Model = "Unadjusted - Multivariate Demographics and MS Info")
+
+pwsVel_pws_multi_dem_df
+```
+
+### Multivariate Video Models - Unadjusted 
+
+```{r}
+pwsVel_pws_multi_vid_unadj <- lmer(PWS_velocitycmsecmean ~ 
+                                     stride_time_median_sec_pose_zv +
+                                     log_delta_pix_h_rel_median_pose_zv + 
+                                     mean_cadence_step_per_min_pose_zv + 
+                                     stride_width_median_cm_pose_zv + 
+                                     stance_time_per_mean_pose_zv + 
+                                     tot_dsupport_time_sec_std_pose_zv + 
+                                     (1|bw_id), 
+                                   data = zeno_pws_clean_df)
+
+summary(pwsVel_pws_multi_vid_unadj)
+
+# Residuals vs. fitted values
+plot(pwsVel_pws_multi_vid_unadj, main = "Fitted vs Residuals: Residuals All Video Metrics Unadjusted")
+
+# Normality check
+qqnorm(residuals(pwsVel_pws_multi_vid_unadj), main = "Normal Q-Q plot: Residuals All Video Metrics Unadjusted")
+hist(resid(pwsVel_pws_multi_vid_unadj), main = "Residuals All Video Metrics Unadjusted")
+
+# tidy results 
+pwsVel_pws_multi_vid_unadj_df <- tidy(pwsVel_pws_multi_vid_unadj, conf.int = TRUE) %>% 
+  mutate(R2_conditional = r2(pwsVel_pws_multi_vid_unadj)$R2_conditional) %>% 
+  mutate(R2_marginal = r2(pwsVel_pws_multi_vid_unadj)$R2_marginal) %>% 
+  mutate(Model = "Unadjusted - Multivariate Video Metrics")
+
+pwsVel_pws_multi_vid_unadj_df
+```
+
+### Multivariate Video Models - Adjusted  
+```{r}
+pwsVel_pws_multi_vid_adj <- lmer(PWS_velocitycmsecmean ~ 
+                                   stride_time_median_sec_pose_zv +
+                                   log_delta_pix_h_rel_median_pose_zv + 
+                                   mean_cadence_step_per_min_pose_zv + 
+                                   stride_width_median_cm_pose_zv + 
+                                   stance_time_per_mean_pose_zv + 
+                                   tot_dsupport_time_sec_std_pose_zv +
+                                   clean_Age +
+                                   demoEHR_DiseaseDuration + 
+                                   ms_dx_condensed + 
+                                   (1|bw_id), 
+                                 data = zeno_pws_clean_df)
+
+summary(pwsVel_pws_multi_vid_adj)
+
+# Residuals vs. fitted values
+plot(pwsVel_pws_multi_vid_adj, main = "Fitted vs Residuals: All Video Metrics Adjusted")
+
+# Normality check
+qqnorm(residuals(pwsVel_pws_multi_vid_adj), main = "Normal Q-Q plot: Residuals All Video Metrics Adjusted")
+hist(resid(pwsVel_pws_multi_vid_adj), main = "Residuals All Video Metrics Adjusted")
+
+# tidy results
+pwsVel_pws_multi_vid_adj_df <- tidy(pwsVel_pws_multi_vid_adj, conf.int = TRUE) %>% 
+  mutate(R2_conditional = r2(pwsVel_pws_multi_vid_adj)$R2_conditional) %>% 
+  mutate(R2_marginal = r2(pwsVel_pws_multi_vid_adj)$R2_marginal) %>% 
+  mutate(Model = "Adjusted - Multivariate Video Metrics")
+
+pwsVel_pws_multi_vid_adj_df
+
+```
+
+### ANOVA - Compare Multivar Models 
+p value < 0.05, more complex model is significantly better than the simpler model 
+
+https://bookdown.org/ndphillips/YaRrr/comparing-regression-models-with-anova.html 
+```{r}
+# Demographics only vs Video + Demographics 
+#anova(pwsVel_pws_multi_dem, pwsVel_pws_multi_vid_adj)
+
+# Video only vs Video + Demographics 
+#anova(pwsVel_pws_multi_vid_unadj, pwsVel_pws_multi_vid_adj)
+```
+
+
+### Save all Multivar R-squared values 
+```{r}
+pwsVel_pws_multivar_all <- bind_rows(pwsVel_pws_multi_dem_df, 
+                                     pwsVel_pws_multi_vid_unadj_df, 
+                                     pwsVel_pws_multi_vid_adj_df) %>% 
+  format_tables()
+write.csv(pwsVel_pws_multivar_all, file.path(output_dir, 'ZenoVelPws_adj_vs_unadj_pws_results.csv'))
+
+# save R-squared 
+adj_r_squared_df <- pwsVel_pws_multivar_all[c('Model', 'R2_conditional', 'R2_marginal')] %>% 
+  distinct()  # remove duplicates 
+print(adj_r_squared_df)
+write.csv(adj_r_squared_df, file.path(output_dir, 'ZenoVelPws_adj_vs_unadj_pws_r2.csv'))
+```
+
+### Plot Unadjusted vs Adjusted Estimates 
+```{r}
+p <- adj_vs_unadj_plot(results_df = pwsVel_pws_multivar_all, 
+                       plot_title = "PWS: PWS Mat Velocity Unadjusted vs Adjusted", 
+                       x_adj = 30)
+p
+ggsave(file.path(output_dir, 'ZenoVelPws_adj_vs_unadj_pws_estimates.png'),
+       bg = "white", width= 12, height=10)
+```
+## Fast Walking speed videos 
+### Check outcome transforms and select metrics 
+```{r}
+y_outcome_cols <- c("FW_velocitycmsecmean", "log_FW_velocity", "inv_FW_velocity", "sqrt_FW_velocity") 
+plot_outcome_transforms_vs_predictors(zeno_fw_df, y_outcome_cols, 'fw', output_dir)
+
+```
+
+### Univariate Models
+```{r}
+uni_zv_fw_fwvel <- all_univariate_mixed_effect(data = zeno_fw_df,
+                                               outcome_column = "FW_velocitycmsecmean") %>% 
+  format_tables()
+write.csv(uni_zv_fw_fwvel, file.path(output_dir, 'ZenoVelFw_univariate_fw_results.csv'))
+
+# save adjusted r_squared 
+adj_r_squared_df <- uni_zv_fw_fwvel[c('Variable', 'R2_conditional', 'R2_marginal')] %>% 
+  distinct() # remove duplicates 
+print(adj_r_squared_df)
+write.csv(adj_r_squared_df, file.path(output_dir, 'ZenoVelFw_univariate_fw_r2.csv'))
+
+
+# Plot estimates 
+p <- univariate_regression_plot(results = uni_zv_fw_fwvel, 
+                                plot_title = "FW Univariate - lmer(Zeno Mat Velocity ~ Predictor + (1 | bw_id))", 
+                                x_adj = 15)
+p 
+ggsave(file.path(output_dir, 'ZenoVelFw_univariate_fw_estimates.png'), 
+       bg = "white", width= 10, height=10)
+```
+
+### Multivariate Demographics and MS Info
+```{r}
+fwVel_fw_multi_dem <- lmer(FW_velocitycmsecmean ~ 
+                             clean_Age +
+                             demoEHR_DiseaseDuration + 
+                             ms_dx_condensed +  
+                             (1|bw_id), 
+                           data = zeno_fw_clean_df)
+
+
+summary(fwVel_fw_multi_dem)
+
+# Residuals vs. fitted values
+plot(fwVel_fw_multi_dem, main = "Fitted vs Residuals All Demographic and MS Info")
+
+# Normality check
+qqnorm(residuals(fwVel_fw_multi_dem), main = "Normal Q-Q plot: Residuals All Demographic and MS Info")
+hist(resid(fwVel_fw_multi_dem), main = "Residuals All Demographic and MS Info")
+
+# tidy results
+fwVel_fw_multi_dem_df <- tidy(fwVel_fw_multi_dem, conf.int = TRUE) %>% 
+  mutate(R2_conditional = r2(fwVel_fw_multi_dem)$R2_conditional) %>% 
+  mutate(R2_marginal = r2(fwVel_fw_multi_dem)$R2_marginal) %>% 
+  mutate(Model = "Unadjusted - Multivariate Demographics and MS Info")
+
+fwVel_fw_multi_dem_df
+```
+### Multivariate Video Models - Unadjusted 
+
+```{r}
+fwVel_fw_multi_vid_unadj <- lmer(FW_velocitycmsecmean ~ 
+                                   stride_time_median_sec_pose_zv +
+                                   log_delta_pix_h_rel_median_pose_zv + 
+                                   mean_cadence_step_per_min_pose_zv + 
+                                   stride_width_median_cm_pose_zv + 
+                                   stance_time_per_mean_pose_zv + 
+                                   tot_dsupport_time_sec_std_pose_zv +
+                                   (1|bw_id), 
+                                 data = zeno_fw_clean_df)
+
+summary(fwVel_fw_multi_vid_unadj)
+
+# Residuals vs. fitted values
+plot(fwVel_fw_multi_vid_unadj, main = "Fitted vs Residuals All Video Metrics Unadjusted")
+
+# Normality check
+qqnorm(residuals(fwVel_fw_multi_vid_unadj), main = "Normal Q-Q plot: Residuals All Video Metrics Unadjusted")
+hist(resid(fwVel_fw_multi_vid_unadj), main = "Residuals All Video Metrics Unadjusted")
+
+# tidy results 
+fwVel_fw_multi_vid_unadj_df <- tidy(fwVel_fw_multi_vid_unadj, conf.int = TRUE) %>% 
+  mutate(R2_conditional = r2(fwVel_fw_multi_vid_unadj)$R2_conditional) %>% 
+  mutate(R2_marginal = r2(fwVel_fw_multi_vid_unadj)$R2_marginal) %>% 
+  mutate(Model = "Unadjusted - Multivariate Video Metrics")
+
+fwVel_fw_multi_vid_unadj_df
+```
+
+### Multivariate Video Models - Adjusted  
+```{r}
+fwVel_fw_multi_vid_adj <- lmer(FW_velocitycmsecmean ~
+                                 stride_time_median_sec_pose_zv +
+                                 log_delta_pix_h_rel_median_pose_zv + 
+                                 mean_cadence_step_per_min_pose_zv + 
+                                 stride_width_median_cm_pose_zv + 
+                                 stance_time_per_mean_pose_zv + 
+                                 tot_dsupport_time_sec_std_pose_zv +
+                                 clean_Age +
+                                 demoEHR_DiseaseDuration + 
+                                 ms_dx_condensed +  
+                                 (1|bw_id), 
+                               data = zeno_fw_clean_df)
+
+summary(fwVel_fw_multi_vid_adj)
+
+# Residuals vs. fitted values
+plot(fwVel_fw_multi_vid_adj, main = "Fitted vs Residuals: All Video Metrics Adjusted")
+
+# Normality check
+qqnorm(residuals(fwVel_fw_multi_vid_adj), main = "Normal Q-Q plot: Residuals All Video Metrics Adjusted")
+hist(resid(fwVel_fw_multi_vid_adj), main = "Residuals All Video Metrics Adjusted")
+
+# tidy results
+fwVel_fw_multi_vid_adj_df <- tidy(fwVel_fw_multi_vid_adj, conf.int = TRUE) %>% 
+  mutate(R2_conditional = r2(fwVel_fw_multi_vid_adj)$R2_conditional) %>% 
+  mutate(R2_marginal = r2(fwVel_fw_multi_vid_adj)$R2_marginal) %>% 
+  mutate(Model = "Adjusted - Multivariate Video Metrics")
+
+fwVel_fw_multi_vid_adj_df
+
+```
+### ANOVA - Compare Multivar Models 
+p value < 0.05, more complex model is significantly better than the simpler model 
+
+https://bookdown.org/ndphillips/YaRrr/comparing-regression-models-with-anova.html 
+```{r}
+# Demographics only vs Video + Demographics 
+#anova(fwVel_fw_multi_dem, fwVel_fw_multi_vid_adj)
+
+# Video only vs Video + Demographics 
+#anova(fwVel_fw_multi_vid_unadj, fwVel_fw_multi_vid_adj)
+```
+### Save all Multivar R-squared values 
+```{r}
+fwVel_fw_multivar_all <- bind_rows(fwVel_fw_multi_dem_df, 
+                                     fwVel_fw_multi_vid_unadj_df, 
+                                     fwVel_fw_multi_vid_adj_df) %>% 
+  format_tables()
+write.csv(fwVel_fw_multivar_all, file.path(output_dir, 'ZenoVelFw_adj_vs_unadj_fw_results.csv'))
+
+# save R-squared 
+adj_r_squared_df <- fwVel_fw_multivar_all[c('Model', 'R2_conditional', 'R2_marginal')] %>% 
+  distinct() # remove duplicates 
+print(adj_r_squared_df)
+write.csv(adj_r_squared_df, file.path(output_dir, 'ZenoVelFw_adj_vs_unadj_fw_r2.csv'))
+```
+
+### Plot Unadjusted vs Adjusted Estimates 
+```{r}
+p <- adj_vs_unadj_plot(results_df = fwVel_fw_multivar_all, 
+                       plot_title = "FW: FW Mat Velocity Unadjusted vs Adjusted", 
+                       x_adj = 30)
+p
+ggsave(file.path(output_dir, 'ZenoVelFw_adj_vs_unadj_fw_estimates.png'),
+       bg = "white", width= 12, height=10)
+```
+
+## Home Videos: FW Velocity Outcome 
+### Check outcome transforms and select metrics 
+```{r}
+y_outcome_cols <- c("FW_velocitycmsecmean", "log_FW_velocity", "inv_FW_velocity", "sqrt_FW_velocity") 
+plot_outcome_transforms_vs_predictors(home_df, y_outcome_cols, 'home', output_dir)
+```
+
+### Univariate Models 
+```{r}
+uni_home_fwvel <- all_univariate_mixed_effect(data = home_df,
+                                               outcome_column = "FW_velocitycmsecmean") %>% 
+  format_tables()
+write.csv(uni_home_fwvel, file.path(output_dir, 'ZenoVelFW_univariate_home_results.csv'))
+
+# save adjusted r_squared 
+adj_r_squared_df <- uni_home_fwvel[c('Variable', 'R2_conditional', 'R2_marginal')] %>% 
+  distinct() # remove duplicates 
+print(adj_r_squared_df)
+write.csv(adj_r_squared_df, file.path(output_dir, 'ZenoVelFW_univariate_home_r2.csv'))
+
+
+# Plot estimates 
+p <- univariate_regression_plot(results = uni_home_fwvel, 
+                                plot_title = "Home Univariate - lmer(Zeno Mat FW Velocity ~ Predictor + (1 | bw_id))", 
+                                x_adj = 15)
+p 
+ggsave(file.path(output_dir, 'ZenoVelFW_univariate_home_estimates.png'), 
+       bg = "white", width= 10, height=10)
+
+```
+
+### Multivariate Demographics and MS Info
+```{r}
+fwVel_home_multi_dem <- lmer(FW_velocitycmsecmean ~ 
+                               clean_Age +
+                               demoEHR_DiseaseDuration + 
+                               ms_dx_condensed +
+                               (1|bw_id), 
+                             data = home_clean_df)
+
+
+summary(fwVel_home_multi_dem)
+
+# Residuals vs. fitted values
+plot(fwVel_home_multi_dem)
+
+# Normality check
+qqnorm(residuals(fwVel_home_multi_dem), main = "Normal Q-Q plot: Residuals All Demographic and MS Info")
+hist(resid(fwVel_home_multi_dem), main = "Residuals All Demographic and MS Info")
+
+# tidy results
+fwVel_home_multi_dem_df <- tidy(fwVel_home_multi_dem, conf.int = TRUE) %>% 
+  mutate(R2_conditional = r2(fwVel_home_multi_dem)$R2_conditional) %>% 
+  mutate(R2_marginal = r2(fwVel_home_multi_dem)$R2_marginal) %>% 
+  mutate(Model = "Unadjusted - Multivariate Demographics and MS Info")
+
+fwVel_home_multi_dem_df
+```
+### Multivariate Video Models - Unadjusted 
+
+```{r}
+fwVel_home_multi_vid_unadj <- lmer(FW_velocitycmsecmean ~ 
+                                     stride_time_median_sec_pose_hv +
+                                     log_delta_pix_h_rel_median_pose_hv + 
+                                     mean_cadence_step_per_min_pose_hv + 
+                                     stride_width_median_cm_pose_hv + 
+                                     stance_time_per_mean_pose_hv + 
+                                     tot_dsupport_time_sec_std_pose_hv +
+                                     (1|bw_id), 
+                                   data = home_clean_df)
+
+summary(fwVel_home_multi_vid_unadj)
+
+# Residuals vs. fitted values
+plot(fwVel_home_multi_vid_unadj)
+
+# Normality check
+qqnorm(residuals(fwVel_home_multi_vid_unadj), main = "Normal Q-Q plot: Residuals All Video Metrics Unadjusted")
+hist(resid(fwVel_home_multi_vid_unadj), main = "Residuals All Video Metrics Unadjusted")
+
+# tidy results 
+fwVel_home_multi_vid_unadj_df <- tidy(fwVel_home_multi_vid_unadj, conf.int = TRUE) %>% 
+  mutate(R2_conditional = r2(fwVel_home_multi_vid_unadj)$R2_conditional) %>% 
+  mutate(R2_marginal = r2(fwVel_home_multi_vid_unadj)$R2_marginal) %>% 
+  mutate(Model = "Unadjusted - Multivariate Video Metrics")
+
+fwVel_home_multi_vid_unadj_df
+```
+### Multivariate Video Models - Adjusted  
+```{r}
+fwVel_home_multi_vid_adj <- lmer(FW_velocitycmsecmean ~ 
+                                   stride_time_median_sec_pose_hv +
+                                   log_delta_pix_h_rel_median_pose_hv + 
+                                   mean_cadence_step_per_min_pose_hv + 
+                                   stride_width_median_cm_pose_hv + 
+                                   stance_time_per_mean_pose_hv + 
+                                   tot_dsupport_time_sec_std_pose_hv +
+                                   clean_Age +
+                                   demoEHR_DiseaseDuration + 
+                                   ms_dx_condensed + 
+                                   (1|bw_id), 
+                                 data = home_clean_df)
+
+summary(fwVel_home_multi_vid_adj)
+
+# Residuals vs. fitted values
+plot(fwVel_home_multi_vid_adj)
+
+# Normality check
+qqnorm(residuals(fwVel_home_multi_vid_adj), main = "Normal Q-Q plot: Residuals All Video Metrics Adjusted")
+hist(resid(fwVel_home_multi_vid_adj), main = "Residuals All Video Metrics Adjusted")
+
+# tidy results
+fwVel_home_multi_vid_adj_df <- tidy(fwVel_home_multi_vid_adj, conf.int = TRUE) %>% 
+  mutate(R2_conditional = r2(fwVel_home_multi_vid_adj)$R2_conditional) %>% 
+  mutate(R2_marginal = r2(fwVel_home_multi_vid_adj)$R2_marginal) %>% 
+  mutate(Model = "Adjusted - Multivariate Video Metrics")
+
+fwVel_home_multi_vid_adj_df
+
+```
+### ANOVA - Compare Multivar Models 
+p value < 0.05, more complex model is significantly better than the simpler model 
+
+https://bookdown.org/ndphillips/YaRrr/comparing-regression-models-with-anova.html 
+```{r}
+# Demographics only vs Video + Demographics 
+#anova(fwVel_home_multi_dem, fwVel_home_multi_vid_adj)
+
+# Video only vs Video + Demographics 
+#anova(fwVel_home_multi_vid_unadj, fwVel_home_multi_vid_adj)
+```
+### Save all Multivar R-squared values 
+```{r}
+fwVel_home_multivar_all <- bind_rows(fwVel_home_multi_dem_df, 
+                                     fwVel_home_multi_vid_unadj_df, 
+                                     fwVel_home_multi_vid_adj_df) %>% 
+  format_tables()
+write.csv(fwVel_home_multivar_all, file.path(output_dir, 'ZenoFW_adj_vs_unadj_home_results.csv'))
+
+# save R-squared 
+adj_r_squared_df <- fwVel_home_multivar_all[c('Model', 'R2_conditional', 'R2_marginal')] %>% 
+  distinct() # remove duplicates 
+print(adj_r_squared_df)
+write.csv(adj_r_squared_df, file.path(output_dir, 'ZenoFW_adj_vs_unadj_home_r2.csv'))
+```
+### Plot Unadjusted vs Adjusted Estimates 
+```{r}
+p <- adj_vs_unadj_plot(results_df = fwVel_home_multivar_all, 
+                       plot_title = "Home: FW Mat Velocity Unadjusted vs Adjusted", 
+                       x_adj = 30)
+p
+ggsave(file.path(output_dir, 'ZenoVelFW_adj_vs_unadj_home_estimates.png'),
+       bg = "white", width= 12, height=10)
+```
+
+
+## Home Videos: PWS Velocity Outcome 
+### Check outcome transforms and select metrics 
+```{r}
+y_outcome_cols <- c("PWS_velocitycmsecmean", "log_PWS_velocity", "inv_PWS_velocity", "sqrt_PWS_velocity") 
+plot_outcome_transforms_vs_predictors(home_df, y_outcome_cols, 'home', output_dir)
+```
+
+### Univariate Models 
+```{r}
+uni_home_pwsvel <- all_univariate_mixed_effect(data = home_df,
+                                               outcome_column = "PWS_velocitycmsecmean") %>% 
+  format_tables()
+write.csv(uni_home_pwsvel, file.path(output_dir, 'ZenoVelPWS_univariate_home_results.csv'))
+
+# save adjusted r_squared 
+adj_r_squared_df <- uni_home_pwsvel[c('Variable', 'R2_conditional', 'R2_marginal')] %>% 
+  distinct() # remove duplicates 
+print(adj_r_squared_df)
+write.csv(adj_r_squared_df, file.path(output_dir, 'ZenoVelPWS_univariate_home_r2.csv'))
+
+# Plot estimates 
+p <- univariate_regression_plot(results = uni_home_pwsvel, 
+                                plot_title = "Home Univariate - lmer(Zeno Mat PWS Velocity ~ Predictor + (1 | bw_id))", 
+                                x_adj = 15)
+p 
+ggsave(file.path(output_dir, 'ZenoVelPWS_univariate_home_estimates.png'), 
+       bg = "white", width= 10, height=10)
+
+```
+
+### Multivariate Demographics and MS Info
+```{r}
+pwsVel_home_multi_dem <- lmer(PWS_velocitycmsecmean ~ 
+                               clean_Age +
+                               demoEHR_DiseaseDuration + 
+                               ms_dx_condensed + 
+                               (1|bw_id), 
+                             data = home_clean_df)
+
+
+summary(pwsVel_home_multi_dem)
+
+# Residuals vs. fitted values
+plot(pwsVel_home_multi_dem)
+
+# Normality check
+qqnorm(residuals(pwsVel_home_multi_dem), main = "Normal Q-Q plot: Residuals All Demographic and MS Info")
+hist(resid(pwsVel_home_multi_dem), main = "Residuals All Demographic and MS Info")
+
+# tidy results
+pwsVel_home_multi_dem_df <- tidy(pwsVel_home_multi_dem, conf.int = TRUE) %>% 
+  mutate(R2_conditional = r2(pwsVel_home_multi_dem)$R2_conditional) %>% 
+  mutate(R2_marginal = r2(pwsVel_home_multi_dem)$R2_marginal) %>% 
+  mutate(Model = "Unadjusted - Multivariate Demographics and MS Info")
+
+pwsVel_home_multi_dem_df
+```
+### Multivariate Video Models - Unadjusted 
+
+```{r}
+pwsVel_home_multi_vid_unadj <- lmer(PWS_velocitycmsecmean ~ 
+                                     stride_time_median_sec_pose_hv +
+                                     log_delta_pix_h_rel_median_pose_hv + 
+                                     mean_cadence_step_per_min_pose_hv + 
+                                     stride_width_median_cm_pose_hv + 
+                                     stance_time_per_mean_pose_hv + 
+                                     tot_dsupport_time_sec_std_pose_hv +
+                                     (1|bw_id), 
+                                   data = home_clean_df)
+
+summary(pwsVel_home_multi_vid_unadj)
+
+# Residuals vs. fitted values
+plot(pwsVel_home_multi_vid_unadj)
+
+# Normality check
+qqnorm(residuals(pwsVel_home_multi_vid_unadj), main = "Normal Q-Q plot: Residuals All Video Metrics Unadjusted")
+hist(resid(pwsVel_home_multi_vid_unadj), main = "Residuals All Video Metrics Unadjusted")
+
+# tidy results 
+pwsVel_home_multi_vid_unadj_df <- tidy(pwsVel_home_multi_vid_unadj, conf.int = TRUE) %>% 
+  mutate(R2_conditional = r2(pwsVel_home_multi_vid_unadj)$R2_conditional) %>% 
+  mutate(R2_marginal = r2(pwsVel_home_multi_vid_unadj)$R2_marginal) %>% 
+  mutate(Model = "Unadjusted - Multivariate Video Metrics")
+
+pwsVel_home_multi_vid_unadj_df
+```
+### Multivariate Video Models - Adjusted  
+```{r}
+pwsVel_home_multi_vid_adj <- lmer(PWS_velocitycmsecmean ~ 
+                                   stride_time_median_sec_pose_hv +
+                                   log_delta_pix_h_rel_median_pose_hv + 
+                                   mean_cadence_step_per_min_pose_hv + 
+                                   stride_width_median_cm_pose_hv + 
+                                   stance_time_per_mean_pose_hv + 
+                                   tot_dsupport_time_sec_std_pose_hv +
+                                   clean_Age +
+                                   demoEHR_DiseaseDuration + 
+                                   ms_dx_condensed + 
+                                   (1|bw_id), 
+                                 data = home_clean_df)
+
+summary(pwsVel_home_multi_vid_adj)
+
+# Residuals vs. fitted values
+plot(pwsVel_home_multi_vid_adj)
+
+# Normality check
+qqnorm(residuals(pwsVel_home_multi_vid_adj), main = "Normal Q-Q plot: Residuals All Video Metrics Adjusted")
+hist(resid(pwsVel_home_multi_vid_adj), main = "Residuals All Video Metrics Adjusted")
+
+# tidy results
+pwsVel_home_multi_vid_adj_df <- tidy(pwsVel_home_multi_vid_adj, conf.int = TRUE) %>% 
+  mutate(R2_conditional = r2(pwsVel_home_multi_vid_adj)$R2_conditional) %>% 
+  mutate(R2_marginal = r2(pwsVel_home_multi_vid_adj)$R2_marginal) %>% 
+  mutate(Model = "Adjusted - Multivariate Video Metrics")
+
+pwsVel_home_multi_vid_adj_df
+
+```
+### ANOVA - Compare Multivar Models 
+p value < 0.05, more complex model is significantly better than the simpler model 
+
+https://bookdown.org/ndphillips/YaRrr/comparing-regression-models-with-anova.html 
+```{r}
+# Demographics only vs Video + Demographics 
+#anova(pwsVel_home_multi_dem, pwsVel_home_multi_vid_adj)
+
+# Video only vs Video + Demographics 
+#anova(pwsVel_home_multi_vid_unadj, pwsVel_home_multi_vid_adj)
+```
+### Save all Multivar R-squared values 
+```{r}
+pwsVel_home_multivar_all <- bind_rows(pwsVel_home_multi_dem_df, 
+                                     pwsVel_home_multi_vid_unadj_df, 
+                                     pwsVel_home_multi_vid_adj_df) %>% 
+  format_tables()
+write.csv(pwsVel_home_multivar_all, file.path(output_dir, 'ZenoVelPWS_adj_vs_unadj_home_results.csv'))
+
+# save R-squared 
+adj_r_squared_df <- pwsVel_home_multivar_all[c('Model', 'R2_conditional', 'R2_marginal')] %>% 
+  distinct() # remove duplicates 
+print(adj_r_squared_df)
+write.csv(adj_r_squared_df, file.path(output_dir, 'ZenoVelPWS_adj_vs_unadj_home_r2.csv'))
+```
+### Plot Unadjusted vs Adjusted Estimates 
+```{r}
+p <- adj_vs_unadj_plot(results_df = pwsVel_home_multivar_all, 
+                       plot_title = "Home: PWS Mat Velocity Unadjusted vs Adjusted", 
+                       x_adj = 30)
+p
+ggsave(file.path(output_dir, 'ZenoPWS_adj_vs_unadj_home_estimates.png'),
+       bg = "white", width= 12, height=10)
+```
