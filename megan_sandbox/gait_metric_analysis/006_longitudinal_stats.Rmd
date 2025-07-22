@@ -1022,6 +1022,13 @@ pca_pix_stride$rotation
 
 biplot(pca_pix_stride)
 ```
+
+
+
+
+
+
+
 ## Cross sectional 
 Add PCA scores to data frame 
 
@@ -1072,6 +1079,7 @@ hist(zv_fw_clean_wPCs$log_t25fw)
 # spearman corr will be the same, based on rank 
 ```
 ### mixed effects regression 
+pixel and stride time principal component 
 ```{r}
 library(lme4)
 library(lmerTest)
@@ -1108,6 +1116,57 @@ lme_results_df
 write.csv(lme_results_df, file.path(pca_output_dir,
                                     'pc1_mixed_effect_results.csv'))
 ```
+
+
+### Try pixel, stride, and cadence pca 
+
+```{r}
+# pixel stride time cadence
+
+pca_pix_stride_cadence <- prcomp(~ log_delta_pixel_median + 
+                           stride_time_median_sec_pose_zv + 
+                           mean_cadence_step_per_min_pose_zv, 
+                         data = zv_fw_clean_df, 
+                         scale = TRUE)
+
+summary(pca_pix_stride_cadence)
+pca_pix_stride_cadence$rotation 
+
+biplot(pca_pix_stride_cadence)
+
+# add to df 
+pca_scores_test <- pca_pix_stride_cadence$x
+
+zv_fw_clean_wPCs_test <- cbind(zv_fw_clean_df, pca_scores_test) 
+head(zv_fw_clean_wPCs_test)
+
+## plot vs T25FW 
+# original T25FW data 
+plot(zv_fw_clean_wPCs_test$clean_T25FW_Avg,
+     zv_fw_clean_wPCs_test$PC1)
+
+cor.test(zv_fw_clean_wPCs_test$clean_T25FW_Avg, 
+         zv_fw_clean_wPCs_test$PC1, 
+         method=c("spearman")) # non-parametric 
+
+zv_fw_clean_wPCs_test$log_t25fw <- log(zv_fw_clean_wPCs_test$clean_T25FW_Avg)
+
+plot(zv_fw_clean_wPCs_test$log_t25fw,
+     zv_fw_clean_wPCs_test$PC1)
+
+# regression 
+# log T25FW + age 
+lme_log_results_test <- lmer(log_t25fw ~ PC1 + clean_Age 
+                        + (1|bw_id), 
+                        data = zv_fw_clean_wPCs_test,
+                        REML = FALSE)
+
+summary(lme_log_results_test)
+hist(residuals(lme_log_results_test))
+r2(lme_log_results_test)$R2_conditional
+r2(lme_log_results_test)$R2_marginal
+```
+
 
 ### Plots 
 ```{r}
