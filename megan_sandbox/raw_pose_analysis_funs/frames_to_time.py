@@ -21,23 +21,6 @@ def get_frames_per_second(path_to_video):
     return(fps)
 
 
-# In[4]:
-
-
-# load data frames from previous step (after merging two mp dfs and adding negative Y column)  
-#mp_all_filepath = r'..\temp\test_sandbox_pipeline_outputs\001_merge_mp_yolo_dfs\DS_HC_gait_vertical_left_mediapipe_all.csv'
-#yolo_filepath = r'..\temp\test_sandbox_pipeline_outputs\001_merge_mp_yolo_dfs\DS_HC_gait_vertical_left_yolo.csv'
-
-#mp_all_df = pd.read_csv(mp_all_filepath, index_col = 0)
-#yolo_df = pd.read_csv(yolo_filepath, index_col = 0)
-
-# output folder
-#output_parent_folder = r'..\temp\test_sandbox_pipeline_outputs'
-
-
-# In[5]:
-
-
 # add time column in seconds to each data frame 
 def add_time_column(mp_all_df, yolo_df, fps):
     mp_all_df.loc[:,'time_seconds'] = mp_all_df['frame']/fps
