@@ -27,7 +27,7 @@ def pivot_merge_yolo_df(mp_all_df, yolo_df, fps):
     yolo_long = yolo_marker_subset.pivot(index = 'frame', columns = 'label', values = ['X_yolo', 'landmark_visible', 'time_seconds'])
     yolo_long.columns = [f"{col[1]}_{col[0]}" for col in yolo_long.columns]
 
-    # smooth hip width 
+    # hip_width
     yolo_long['hip_x_width_yolo'] = abs(yolo_long['left_hip_X_yolo'] - yolo_long['right_hip_X_yolo'])
 
     # filter hip width 
@@ -209,8 +209,6 @@ def plot_valid_walking_segments(mp_yolo_df, mp_all_df, valid_segments, vid_in_pa
     plt.close(fig1)
     plt.close()
     
-
-
 # run on all 
 def select_plot_linear_walking(mp_all_df, yolo_df, fps, vid_in_path, output_parent_folder):
     mp_yolo_df = pivot_merge_yolo_df(mp_all_df, yolo_df, fps)

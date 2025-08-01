@@ -64,8 +64,15 @@ def calculate_stride_time(mp_ankle_Y_interp, fps, vid_in_path, output_parent_fol
     diff_df['seconds'] = diff_df['frame'] / fps
 
     # find index of local minimum and maximum of distance between right and left ankle  
-    ank_y_diff_peaks_i, _ = sig.find_peaks(diff_df['ank_y_diff_smooth'], distance = find_peaks_distance, prominence = (find_peaks_prominence, None))
-    ank_y_diff_valleys_i, _ = sig.find_peaks(-diff_df['ank_y_diff_smooth'], distance = find_peaks_distance, prominence = (find_peaks_prominence, None))
+    ank_y_diff_peaks_i, _ = sig.find_peaks(diff_df['ank_y_diff_smooth'], 
+                                           distance = find_peaks_distance, 
+                                           prominence = (find_peaks_prominence, None),
+                                           width = (0.2 * fps, None)) # based off FW fastest stide time of 0.6s
+    
+    ank_y_diff_valleys_i, _ = sig.find_peaks(-diff_df['ank_y_diff_smooth'], 
+                                             distance = find_peaks_distance, 
+                                             prominence = (find_peaks_prominence, None), 
+                                            width = (0.2*fps, None)) # based off FW fastest stride times of 0.6s
 
     # df of only peaks and valleys 
     #peaks_df = diff_df.iloc[ank_y_diff_peaks_i]
@@ -90,7 +97,22 @@ def calculate_stride_time(mp_ankle_Y_interp, fps, vid_in_path, output_parent_fol
 
     stride_times_peaks = peaks_df['seconds'].diff()
     stride_times_valleys = valleys_df['seconds'].diff()
-   
+
+    # don't calculate stride time for segment if < 1 stride per leg 
+    num_peaks = len(stride_times_peaks)
+    num_valleys = len(stride_times_valleys)
+
+    if (num_peaks <= 1) or (num_valleys <= 1):
+        # set stride time peaks and valleys to nan - when appended to calculate over entire video - not included in calc 
+        stride_times_peaks = pd.Series([np.nan], name = 'seconds')
+        stride_times_valleys = pd.Series([np.nan], name = 'seconds')
+
+        # save variable to use in later metric calculations 
+        # True = not enough strides to calculate metrisc 
+        too_few_strides = True
+    else: 
+        too_few_strides = False
+
     # Stride time stats 
     stats = ['mean_sec', 'median_sec', 'std', 'cv']
     stride_time_stats_df = pd.DataFrame(index = stats, columns = ['leg_1_peaks', 'leg_2_valleys', 'all_strides'])
@@ -116,9 +138,7 @@ def calculate_stride_time(mp_ankle_Y_interp, fps, vid_in_path, output_parent_fol
     stride_time_df_unstacked.columns = ['stride_time_' + col for col in stride_time_df_unstacked.columns] 
     stride_time_df_unstacked = stride_time_df_unstacked.astype(float)\
 
-         
-
-    #save outputs 
+    #set output folder 
     output_folder = os.path.join(output_parent_folder, '005_gait_metrics', 'stride_time')
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
@@ -156,10 +176,10 @@ def calculate_stride_time(mp_ankle_Y_interp, fps, vid_in_path, output_parent_fol
 
     output_plot_path = os.path.normpath(os.path.join(output_folder, (vid_in_path_no_ext + '_' + walk_num + '_stride_time.png')))
     fig1.savefig(output_plot_path, bbox_inches = 'tight', dpi = 300)
- #   plt.show()
+#    plt.show()
     plt.close(fig1)
     plt.close()
 
 
-    return([stride_time_df_unstacked, stride_times_peaks, stride_times_valleys])
+    return([stride_time_df_unstacked, stride_times_peaks, stride_times_valleys, too_few_strides])
 
