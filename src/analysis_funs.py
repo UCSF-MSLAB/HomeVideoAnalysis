@@ -1,19 +1,37 @@
 import pandas as pd
 import numpy as np
 from scipy.ndimage import gaussian_filter1d
+from src.keypoint_labels import keypoint_labels
+from sklearn import linear_model
+
+LAB_DICT = {val: ind for ind, val in enumerate(keypoint_labels.mpipe_labels)}
+PARTS_LIST = ["left_ankle", "right_ankle"]
+M_to_FT = 3.28084
+
+
+def rm_nulls(df):
+    df.rename(columns={'Unnamed: 0': 'subframe_id'})
+    return df[df['label'].notnull()]
 
 
 def get_all_unique_pairs(df):
+
     df_pairs = df.merge(df, on='frame', how='left')
     df_pairs = df_pairs[df_pairs['label_x'] != df_pairs['label_y']]
 
-    def make_id(x, y, i):
-        return str(i) + "-" + str(max(x, y)) + "-" + str(min(x, y))
+    def make_id(x, y):
+        x = LAB_DICT[x]
+        y = LAB_DICT[y]
+        return str(max(x, y)) + "-" + str(min(x, y))
 
-    df_pairs["row_id"] = df_pairs.apply(lambda row: make_id(row["subframe_id_x"],
-                                                            row["subframe_id_y"],
-                                                            row["frame"]),
+    df_pairs["labpair_id"] = df_pairs.apply(lambda row: make_id(row.label_x,
+                                                                row.label_y),
+                                            axis=1)
+    df_pairs["row_id"] = df_pairs.apply(lambda row: str(row.frame) +
+                                        "-" +
+                                        row.labpair_id,
                                         axis=1)
+
     return df_pairs.drop_duplicates(subset="row_id", keep="first")
 
 
@@ -23,8 +41,52 @@ def get_landmark_pairs(landmark_df, label_x, label_y):
     return tmp[(tmp.label_x == label_x) & (tmp.label_y == label_y)].copy()
 
 
-def calculate_pair_dist():
-    pass
+def check_consistency(labxx, labyx, labxy, labyy):
+    return set([labxx, labyx]) == set([labxy, labyy])
+
+
+def est_landmark_dist(mp_world_df, marigold_df):
+
+    # filter down to the benchmark landmarks
+    # then get all pairs and calculate the Z/depth differences
+
+    mpipe_filt = mp_world_df[mp_world_df['label'].isin(PARTS_LIST)]
+    mpipe_filt = mp_world_df[mp_world_df['vis'] > .7]
+    mpipe_pairs = get_all_unique_pairs(mpipe_filt)
+    mpipe_pairs["world_diff"] = abs(mpipe_pairs["Z_x"] - mpipe_pairs["Z_y"])
+
+    mari_filt = marigold_df[marigold_df['label'].isin(PARTS_LIST)]
+    mari_pairs = get_all_unique_pairs(mari_filt)
+    mari_pairs["depth_diff"] = abs(mari_pairs["depth_est_x"] -
+                                   mari_pairs["depth_est_y"])
+
+    # merge the world and depth data
+    mari_mpipe = mari_pairs.merge(mpipe_pairs,
+                                  on=['frame', 'row_id', 'labpair_id'])
+
+    # check that the rows align
+    mari_mpipe["label_agreement"] = mari_mpipe.apply(lambda row: check_consistency(row["label_x_x"],
+                                                                                   row["label_y_x"],
+                                                                                   row["label_x_y"],
+                                                                                   row["label_y_y"]),
+                                                     axis=1)
+    if not mari_mpipe["label_agreement"].all():
+        raise ValueError("World/Depth rows do not agree")
+
+    # prep data for linear model
+    X = np.array(mari_mpipe.depth_diff).reshape(-1, 1)
+    y = np.array(mari_mpipe.world_diff)
+
+    # Robustly fit linear model with RANSAC algorithm
+    model = linear_model.LinearRegression()
+    # model = linear_model.RANSACRegressor(random_state=0)
+    model.fit(X, y)
+
+    mari_filt["preds"] = model.predict(np.array(mari_filt["depth_est"]).reshape(-1, 1)) * M_to_FT
+
+    return mari_filt.groupby(['label']).agg({'preds': ["min", "max"]})
+
+
 
 # def calc_max_horizontal_speed(landmark_df, forearm_len, fps):
 #     """
@@ -45,7 +107,7 @@ def calculate_pair_dist():
 
 #     frame_to_side = hip_df[['frame', 'left_closer']].copy()
 #     frame_to_side["right_closer"] = ~frame_to_side.left_closer
-
+ 
 #     # determine turns (label with id)
 #     # #############################################
 

@@ -134,11 +134,11 @@ latents = latent_common
 if last_frame_latent is not None:
     latents = .9 * latents + .1*last_frame_latent
 
-pipe = diffusers.MarigoldDepthPipeline.from_pretrained("prs-eth/marigold-depth-lcm-v1-0",half_precision=True)
+pipe = diffusers.MarigoldDepthPipeline.from_pretrained("prs-eth/marigold-depth-v1-1")
 pipe.vae = diffusers.AutoencoderTiny.from_pretrained("madebyollin/taesd")
 
 output = pipe(Image.fromarray(image),
-              match_input_resolution=True,
+              match_input_resolution=False,
               latents=latents,
               output_latent=True)
 
