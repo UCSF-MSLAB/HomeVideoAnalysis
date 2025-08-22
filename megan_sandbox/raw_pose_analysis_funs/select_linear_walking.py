@@ -116,12 +116,12 @@ def find_valid_segments(df):
 def plot_valid_walking_segments(mp_yolo_df, mp_all_df, valid_segments, vid_in_path, output_parent_folder):
 
      # plot #1 - hip width 
-    fig1, (ax1, ax2) = plt.subplots(2, figsize=(10, 6))
-    fig1.suptitle(os.path.splitext(os.path.basename(vid_in_path))[0])
+    fig1, (ax1, ax2) = plt.subplots(2, sharex = True, figsize=(5.75, 5))
+#    fig1.suptitle(os.path.splitext(os.path.basename(vid_in_path))[0])
 
     # suplot 1 - hip x width 
   #  ax1.scatter(mp_yolo_df['time_seconds'], mp_yolo_df['hip_x_width_yolo'], label = 'raw hip_width_yolo_x', color = 'black', alpha = 0.25, s =1)
-    ax1.scatter(mp_yolo_df['time_seconds'], mp_yolo_df['hip_x_width_yolo_filt'], label = 'filtered hip_width_yolo_x', color = 'grey', alpha = 0.3, s = 1)
+    ax1.scatter(mp_yolo_df['time_seconds'], mp_yolo_df['hip_x_width_yolo_filt'], label = 'filtered hip_width_yolo_x', color = 'black', s = 1)
 
     # subplot 2 - landmark visibility 
     # change label to string for future filtering 
@@ -129,13 +129,23 @@ def plot_valid_walking_segments(mp_yolo_df, mp_all_df, valid_segments, vid_in_pa
 
     # set labels to plot and filter data frame by label column
     labels_to_plot = ['left_heel', 'right_heel',
-                  'left_ankle', 'right_ankle',
-                   'left_hip', 'right_hip']
+                      'left_ankle', 'right_ankle',
+                      'left_hip', 'right_hip']
 
     mp_all_filt_df = mp_all_df[mp_all_df['label'].str.contains('|'.join(labels_to_plot), case=False)]
+    mp_all_filt_df = mp_all_filt_df.sort_values(by = ['label']) # order by label alphabetically 
     
     # plot 
-    ax2 = sns.lineplot(data=mp_all_filt_df, x='time_seconds', y='vis', hue='label', markers=True, dashes=False, estimator = None)
+    marker_colors_dict = {'left_ankle' : 'darkblue', 
+                          'left_heel' : 'cornflowerblue', 
+                          'left_hip' : 'lightsteelblue', 
+                          'right_ankle' : 'darkorange', 
+                          'right_heel' : 'lightcoral' ,
+                          'right_hip' : 'burlywood'}
+    
+    ax2 = sns.lineplot(data=mp_all_filt_df, x='time_seconds', y='vis',
+                       hue='label', palette = marker_colors_dict,
+                       markers=True, dashes=False, estimator = None)
     ax2.set_ylim(0, 1.2)
 
     if len(valid_segments) > 0: # if first for loop found any valid segments 
@@ -147,24 +157,40 @@ def plot_valid_walking_segments(mp_yolo_df, mp_all_df, valid_segments, vid_in_pa
             ax1.vlines(x = current_start_sec, 
                        ymin = mp_yolo_df['hip_x_width_yolo'].min(), 
                        ymax = mp_yolo_df['hip_x_width_yolo'].max(),
-                       color = 'green', alpha = 0.25, linewidth = 2.5)
+                       color = 'seagreen', linewidth = 1, alpha = 0.9)
             ax1.vlines(x = current_end_sec, 
                        ymin = mp_yolo_df['hip_x_width_yolo'].min(), 
                        ymax = mp_yolo_df['hip_x_width_yolo'].max(),
-                       color = 'black', alpha = 0.25, linewidth = 2.5)
-
+                       color = 'black', linewidth = 1, alpha = 0.9, linestyle = ':')
+            
             ax2.vlines(x = current_start_sec, 
                        ymin = 0, 
                        ymax = 1.2,
-                       color = 'green', alpha = 0.25, linewidth = 2.5)
+                       color = 'seagreen', linewidth = 1, alpha = 0.9)
             ax2.vlines(x = current_end_sec, 
                        ymin = 0, 
                        ymax = 1.2,
-                       color = 'black', alpha = 0.25, linewidth = 2.5)
+                       color = 'black', linewidth = 1, alpha = 0.9, linestyle = ':')
 
 
-    ax1.legend(loc='center left', bbox_to_anchor=(1, 0.5))   
-    ax2.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+   # ax1.legend(loc='center left', bbox_to_anchor=(1, 0.5))   
+    ax2.legend(loc='center left', bbox_to_anchor=(1, 0.5), fontsize = 10)
+    mp_legend = ax2.get_legend()
+    mp_legend.texts[0].set_text("Left Ankle")
+    mp_legend.texts[1].set_text("Left Heel")
+    mp_legend.texts[2].set_text("Left Hip")
+    mp_legend.texts[3].set_text("Right Ankle")
+    mp_legend.texts[4].set_text("Right Heel")
+    mp_legend.texts[5].set_text("Right Hip")
+    
+
+    ax1.set_ylabel("Hip Width (Pixels)", fontsize = 11) 
+    ax2.set_ylabel("MediaPipe Visibility Score", fontsize = 11)
+    ax2.set_xlabel("Time (Seconds)", fontsize = 11)
+
+    # axis tick labels 
+    ax1.tick_params(labelsize=10) 
+    ax2.tick_params(labelsize = 10)
 
     # save plot
     output_folder = os.path.join(output_parent_folder, '003_b_select_linear_walking')
@@ -177,8 +203,9 @@ def plot_valid_walking_segments(mp_yolo_df, mp_all_df, valid_segments, vid_in_pa
     output_file = os.path.normpath(os.path.join(output_folder, input_file_no_ext +'_walking_segment_selected.png'))
 
     # save figure 
-#    plt.show()
-    fig1.savefig(output_file, bbox_inches = 'tight')
+    plt.tight_layout()
+    #plt.show()
+    fig1.savefig(output_file, bbox_inches = 'tight', dpi = 300)
     plt.close(fig1)
     plt.close()
     

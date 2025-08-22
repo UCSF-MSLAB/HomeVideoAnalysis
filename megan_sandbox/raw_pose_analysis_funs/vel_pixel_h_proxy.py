@@ -65,17 +65,33 @@ def calc_velocity_proxy(yolo_df, video_id_date_name, output_folder, fps):
     peaks_valleys = np.concatenate((peak_frames, valley_frames))
 
     # plot pixel Y position with time groups in grey lines and peaks valleys as scatter plots 
-    sns.scatterplot(x = 'frame', y = 'approx_height_Y_pix', data = l_ank_to_hip_df, label = 'Y Dist L Hip to L Ank')
-    plt.plot(l_ank_to_hip_df['frame'], l_ank_to_hip_df['smooth_approx_height_Y_pix'], label='Smoothed Height')
-    plt.scatter(peak_frames, l_ank_to_hip_df.iloc[peaks]['smooth_approx_height_Y_pix'], color='red', label='Peaks')
-    plt.scatter(valley_frames, l_ank_to_hip_df.iloc[valleys]['smooth_approx_height_Y_pix'], color='orange', label='Valleys')
+    fig1, ax1 = plt.subplots(figsize=(5.75, 3))
+#    sns.scatterplot(x = 'frame', y = 'approx_height_Y_pix', data = l_ank_to_hip_df, label = 'Y Dist L Hip to L Ank')
+    plt.plot(l_ank_to_hip_df['frame'], l_ank_to_hip_df['smooth_approx_height_Y_pix'], color = 'black')
+#    plt.scatter(peak_frames, l_ank_to_hip_df.iloc[peaks]['smooth_approx_height_Y_pix'], color='red', label='Local Maxima')
+#    plt.scatter(valley_frames, l_ank_to_hip_df.iloc[valleys]['smooth_approx_height_Y_pix'], color='red', label='Local Minima')
     for time_group in l_ank_to_hip_df['time_group'].unique():
         plt.axvline(x = time_group * (fps), color = 'grey', alpha = 0.5)
+
+    ax1.set_ylabel('Pixels', fontsize = 11)
+    ax1.set_xlabel('Time (Frames)', fontsize = 11)
+
+    ax1.set_title('Vertical Distance Between Hip to Ankle')
+
+    # axis tick labels 
+    ax1.tick_params(labelsize=10) 
+
+    # for paper figure - set x limits 
+#    ax1.set_xlim([200, 400])
+    
     # name and save plot 
-    plt.title(video_id_date_name)
+#    plt.title(video_id_date_name)
+    # save figure 
+    fig1.tight_layout()
+    
 #    plt.show()
     fig_path = os.path.join(output_folder, video_id_date_name + '_pix_change.png') 
-    plt.savefig(fig_path) 
+    fig1.savefig(fig_path) 
     plt.close()
 
     # calculate depth proxy values and summarize 

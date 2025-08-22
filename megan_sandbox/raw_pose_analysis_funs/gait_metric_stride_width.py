@@ -89,6 +89,10 @@ def calculate_stride_width(mp_stride_width_interp_dfs, vid_in_path, output_paren
     heel_x_diff_at_cross = heel_x_diff_df.loc[common_valid_cross_indices]
     x_diff = abs(heel_x_diff_at_cross['heel_x_diff_0']) * 100 # convert m to cm 
     #x_diff_smooth = abs(heel_x_diff_at_cross['heel_x_diff_0']).rolling(window=15, min_periods=1).mean()
+
+    # print frames x_diff is calculated at 
+#    print('heel_x_diff_at_cross_df')
+#    print(heel_x_diff_at_cross)
     
     x_diff_mean = x_diff.mean(skipna = True)
     x_diff_median = x_diff.median(skipna = True)
@@ -115,19 +119,25 @@ def calculate_stride_width(mp_stride_width_interp_dfs, vid_in_path, output_paren
 
     # plots --------------------------------------------------
     # plot y distance between heels, confirm zero crossing values are correct 
-    fig1, ax1 = plt.subplots(figsize=(10, 6))
-    fig1.suptitle(os.path.splitext(os.path.basename(vid_in_path_no_ext))[0] + ': Stride Width')
-    ax1.plot(heel_y_diff_df['frame'], heel_y_diff_df['heel_y_diff_smooth'], label = 'Y Difference')
-    ax1.axhline(y=0, color='black', linestyle='--')
+    fig1, ax1 = plt.subplots(figsize=(5.75, 3))
+   # fig1.suptitle(os.path.splitext(os.path.basename(vid_in_path_no_ext))[0] + ': Stride Width')
+    ax1.set_title('Vertical Distance Between Heels')
+    ax1.plot(heel_y_diff_df['frame'], heel_y_diff_df['heel_y_diff_smooth'], color = 'black')
+    ax1.axhline(y=0, color='grey', linestyle='--')
     ax1.plot(heel_y_diff_df.loc[common_valid_cross_indices, 'frame'], 
              heel_y_diff_df.loc[common_valid_cross_indices, 'heel_y_diff_smooth'], 
-             "x", label='Zero Crossing')
-    ax1.set_xlabel("Frame")
-    ax1.set_ylabel("L Heel Y - R Heel Y (meters)")
-    ax1.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+             "o", markersize = 7, color = 'black', label = 'Zero Crossing Frames')
+    ax1.set_xlabel("Time (Frames)", fontsize = 11)
+    ax1.set_ylabel("Meters", fontsize = 11)
+    ax1.legend(loc='best', fontsize = 11)
+
+    # for paper figure 
+#    ax1.set_xlim([90, 145]) 
+    
 
     output_plot_path_1 = os.path.normpath(os.path.join(output_folder, (vid_in_path_no_ext + '_' + walk_num + '_y_zero_cross.png')))
     fig1.savefig(output_plot_path_1, bbox_inches = 'tight')
+#    plt.show()
     plt.close(fig1)
     plt.close()
 
