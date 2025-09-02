@@ -90,7 +90,7 @@ def save_RBase_peak_inflection(peaks_df, peaks_RBase_df, Y_position_df, fps):
         ax2.plot(max_gradient_i, max_gradient, 'o', color = 'red') 
         ax2.set_ylim([-.001, max(grad_data)+.001])
 
-        plt.show() 
+#        plt.show() 
         plt.close() 
       
         # save all inflection frames 
@@ -157,7 +157,7 @@ def find_down_inflection_points(time_series_series, threshold):
 
     # get frames of inflection points 
     inflection_frames = inflection_points_data.index
-    print(f"inflection_frames - 0.5: {inflection_frames - 0.5}") 
+    inflection_frames = inflection_frames - 0.5
     
     return(gradient_data_w_nan, inflection_points_data, inflection_frames)
 
@@ -200,7 +200,7 @@ def save_peak_Rbase_inflection(peaks_df, peaks_RBase_df, Y_position_df, threshol
         ax2.axhline(y=threshold, color='grey', linestyle='--', linewidth=0.8)
         ax2.set_ylim([min(grad_2_data['gradient'])-.001, 0.005])
 
-        plt.show() 
+#        plt.show() 
         plt.close() 
 
         # total num frames between R base and next peak 
@@ -324,14 +324,14 @@ def id_calc_support_metrics(mp_df, fps, vid_in_path, dir_out_prefix, walk_num):
     # -----------------------------------
     # save toe offs = inflection point between previous RBase and peak 
     # right 
-    print('---------- right toe offs-------------')
+#    print('---------- right toe offs-------------')
     r_foot_toe_off_frames_df = save_RBase_peak_inflection(r_combined_peaks_df,
                                                           r_combined_peaks_RBase_df,
                                                           mp_r_combined, 
                                                          fps)
     r_foot_toe_off_frames_df['event'] = 'r_toe_off'
     
-    print('---------- left toe offs-------------')
+#    print('---------- left toe offs-------------')
     l_foot_toe_off_frames_df = save_RBase_peak_inflection(l_combined_peaks_df,
                                                           l_combined_peaks_RBase_df,
                                                           mp_l_combined, 
@@ -341,7 +341,7 @@ def id_calc_support_metrics(mp_df, fps, vid_in_path, dir_out_prefix, walk_num):
     # ---------------------------------
     # save heel strikes = inflection point between peak and next R base 
     # right 
-    print('---------- right heel strikes-------------')
+#    print('---------- right heel strikes-------------')
     r_heel_heel_strike_frames_df = save_peak_Rbase_inflection(peaks_df = r_combined_peaks_df,
                                                               peaks_RBase_df = r_combined_peaks_RBase_df, 
                                                               Y_position_df = mp_r_combined, 
@@ -349,7 +349,7 @@ def id_calc_support_metrics(mp_df, fps, vid_in_path, dir_out_prefix, walk_num):
     r_heel_heel_strike_frames_df['event'] = 'r_heel_strike' 
 
     # left 
-    print('---------- left heel strikes-------------')
+#    print('---------- left heel strikes-------------')
     l_heel_heel_strike_frames_df = save_peak_Rbase_inflection(peaks_df = l_combined_peaks_df,
                                                               peaks_RBase_df = l_combined_peaks_RBase_df, 
                                                               Y_position_df = mp_l_combined, 
@@ -461,7 +461,7 @@ def id_calc_support_metrics(mp_df, fps, vid_in_path, dir_out_prefix, walk_num):
 
     plot_path = os.path.normpath(os.path.join(output_folder, (vid_in_path_no_ext + '_' + walk_num + 'all_identified_gait_events.png')))
     plt.savefig(plot_path)
-    plt.show() 
+#    plt.show() 
     plt.close() 
 
     # -------------------------------------------------------------------
@@ -577,7 +577,7 @@ def id_calc_support_metrics(mp_df, fps, vid_in_path, dir_out_prefix, walk_num):
 
         # if no strides identified with events in correct order, save empty data frame 
         if len(all_gait_events) == 0: 
-            print('no strides identfied') 
+           # print('no strides identfied') 
             all_gait_events_df = pd.DataFrame(columns = ['first_toe_off_foot',
                                                          'foot_1_heel_strike_a',
                                                          'foot_2_toe_off',

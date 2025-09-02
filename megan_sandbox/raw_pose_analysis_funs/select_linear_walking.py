@@ -267,7 +267,7 @@ def plot_valid_walking_segments(mp_yolo_df, mp_all_df, valid_segments, vid_in_pa
 
     # save figure 
     plt.tight_layout()
-    plt.show()
+  #  plt.show()
     fig1.savefig(output_file, bbox_inches = 'tight', dpi = 300)
     plt.close(fig1)
     plt.close()

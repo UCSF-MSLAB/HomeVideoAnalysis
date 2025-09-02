@@ -99,10 +99,10 @@ def calculate_stride_time(mp_ankle_Y_interp, fps, vid_in_path, output_parent_fol
     stride_times_valleys = valleys_df['seconds'].diff()
 
     # don't calculate stride time for segment if < 1 stride per leg 
-    num_peaks = len(stride_times_peaks)
-    num_valleys = len(stride_times_valleys)
+    num_peak_strides = len(stride_times_peaks)
+    num_valley_strides = len(stride_times_valleys)
 
-    if (num_peaks <= 1) or (num_valleys <= 1):
+    if (num_peak_strides <= 1) and (num_valley_strides <= 1):
         # set stride time peaks and valleys to nan - when appended to calculate over entire video - not included in calc 
         stride_times_peaks = pd.Series([np.nan], name = 'seconds')
         stride_times_valleys = pd.Series([np.nan], name = 'seconds')
@@ -112,6 +112,7 @@ def calculate_stride_time(mp_ankle_Y_interp, fps, vid_in_path, output_parent_fol
         too_few_strides = True
     else: 
         too_few_strides = False
+
 
     # Stride time stats 
     stats = ['mean_sec', 'median_sec', 'std', 'cv']
@@ -176,7 +177,7 @@ def calculate_stride_time(mp_ankle_Y_interp, fps, vid_in_path, output_parent_fol
 
     output_plot_path = os.path.normpath(os.path.join(output_folder, (vid_in_path_no_ext + '_' + walk_num + '_stride_time.png')))
     fig1.savefig(output_plot_path, bbox_inches = 'tight', dpi = 300)
-#    plt.show()
+ #   plt.show()
     plt.close(fig1)
     plt.close()
 

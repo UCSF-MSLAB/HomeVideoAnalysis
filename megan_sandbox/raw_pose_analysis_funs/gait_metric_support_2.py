@@ -109,31 +109,85 @@ def id_calc_support_metrics(mp_df, fps, vid_in_path, dir_out_prefix, walk_num):
     # r ankle 
     mp_r_ank_df = mp_df.loc[mp_df['label'] == 'right_ankle']
     mp_r_ank_df = mp_r_ank_df.copy()
-    mp_r_ank_df['Y_smooth'] = mp_r_ank_df['Y_pose'].rolling(window=5, min_periods=1).mean()
-    mp_r_ank_df['Y_pose_negative_smooth'] = mp_r_ank_df['Y_pose_negative'].rolling(window=5, min_periods=1).mean()
+    mp_r_ank_df['Y_smooth'] = mp_r_ank_df['Y_pose'].rolling(window=round(0.166 * fps), min_periods=1).mean()
+    mp_r_ank_df['Y_pose_negative_smooth'] = mp_r_ank_df['Y_pose_negative'].rolling(window=round(0.166 * fps), min_periods=1).mean()
     mp_r_ank_df.set_index('frame', inplace=True)
 
     # l ankle 
     mp_l_ank_df = mp_df.loc[mp_df['label'] == 'left_ankle']
     mp_l_ank_df = mp_l_ank_df.copy()
-    mp_l_ank_df['Y_smooth'] = mp_l_ank_df['Y_pose'].rolling(window=5, min_periods=1).mean()
-    mp_l_ank_df['Y_pose_negative_smooth'] = mp_l_ank_df['Y_pose_negative'].rolling(window=5, min_periods=1).mean()
+    mp_l_ank_df['Y_smooth'] = mp_l_ank_df['Y_pose'].rolling(window=round(0.166 * fps), min_periods=1).mean()
+    mp_l_ank_df['Y_pose_negative_smooth'] = mp_l_ank_df['Y_pose_negative'].rolling(window=round(0.166 * fps), min_periods=1).mean()
     mp_l_ank_df.set_index('frame', inplace=True) 
 
     # r hip 
     mp_r_hip_df = mp_df.loc[mp_df['label'] == 'right_hip']
     mp_r_hip_df = mp_r_hip_df.copy()
-    mp_r_hip_df['Y_smooth'] = mp_r_hip_df['Y_pose'].rolling(window=5, min_periods=1).mean()
-    mp_r_hip_df['Y_pose_negative_smooth'] = mp_r_hip_df['Y_pose_negative'].rolling(window=5, min_periods=1).mean()
+    mp_r_hip_df['Y_smooth'] = mp_r_hip_df['Y_pose'].rolling(window=round(0.166 * fps), min_periods=1).mean()
+    mp_r_hip_df['Y_pose_negative_smooth'] = mp_r_hip_df['Y_pose_negative'].rolling(window=round(0.166 * fps), min_periods=1).mean()
     mp_r_hip_df.set_index('frame', inplace=True)
 
     # l hhip 
     mp_l_hip_df = mp_df.loc[mp_df['label'] == 'left_hip']
     mp_l_hip_df = mp_l_hip_df.copy()
-    mp_l_hip_df['Y_smooth'] = mp_l_hip_df['Y_pose'].rolling(window=5, min_periods=1).mean()
-    mp_l_hip_df['Y_pose_negative_smooth'] = mp_l_hip_df['Y_pose_negative'].rolling(window=5, min_periods=1).mean()
+    mp_l_hip_df['Y_smooth'] = mp_l_hip_df['Y_pose'].rolling(window=round(0.166 * fps), min_periods=1).mean()
+    mp_l_hip_df['Y_pose_negative_smooth'] = mp_l_hip_df['Y_pose_negative'].rolling(window=round(0.166 * fps), min_periods=1).mean()
     mp_l_hip_df.set_index('frame', inplace=True)
 
+    # new ---------------------
+    # R heel
+    mp_r_heel_df = mp_df.loc[mp_df['label'] == 'right_heel']
+    mp_r_heel_df = mp_r_heel_df.copy()
+    mp_r_heel_df['Y_smooth'] = mp_r_heel_df['Y_pose'].rolling(window=round(0.166* fps), min_periods=1).mean()
+    mp_r_heel_df['Y_pose_negative_smooth'] = mp_r_heel_df['Y_pose_negative'].rolling(window=round(0.166 * fps), min_periods=1).mean()
+    mp_r_heel_df.set_index('frame', inplace=True)
+    
+    # l heel 
+    mp_l_heel_df = mp_df.loc[mp_df['label'] == 'left_heel']
+    mp_l_heel_df = mp_l_heel_df.copy()
+    mp_l_heel_df['Y_smooth'] = mp_l_heel_df['Y_pose'].rolling(window=round(0.166 * fps), min_periods=1).mean()
+    mp_l_heel_df['Y_pose_negative_smooth'] = mp_l_heel_df['Y_pose_negative'].rolling(window=round(0.166 * fps), min_periods=1).mean()
+    mp_l_heel_df.set_index('frame', inplace=True)
+    
+    # R foot (toe) 
+    mp_r_foot_df = mp_df.loc[mp_df['label'] == 'right_foot_index']
+    mp_r_foot_df = mp_r_foot_df.copy()
+    mp_r_foot_df['Y_smooth'] = mp_r_foot_df['Y_pose'].rolling(window=round(0.166 * fps), min_periods=1).mean()
+    mp_r_foot_df['Y_pose_negative_smooth'] = mp_r_foot_df['Y_pose_negative'].rolling(window=round(0.166 * fps), min_periods=1).mean()
+    mp_r_foot_df.set_index('frame', inplace=True)
+    
+    # l foot (toe) 
+    mp_l_foot_df = mp_df.loc[mp_df['label'] == 'left_foot_index']
+    mp_l_foot_df = mp_l_foot_df.copy()
+    mp_l_foot_df['Y_smooth'] = mp_l_foot_df['Y_pose'].rolling(window=round(0.166 * fps), min_periods=1).mean()
+    mp_l_foot_df['Y_pose_negative_smooth'] = mp_l_foot_df['Y_pose_negative'].rolling(window=round(0.166 * fps), min_periods=1).mean()
+    mp_l_foot_df.set_index('frame', inplace=True)
+
+    fig_test, [ax1, ax2] = plt.subplots(nrows=2,  figsize=(5.75, 3))  
+    
+    sns.lineplot(x = 'frame', y = 'Y_pose_negative_smooth', 
+                     data = mp_r_foot_df, 
+                     color = 'red', label = 'right foot Y',
+                     ax = ax1) 
+    sns.lineplot(x = 'frame', y = 'Y_pose_negative_smooth', 
+                     data = mp_l_foot_df, 
+                     color = 'green', label = 'left foot Y',
+                     ax = ax2)  
+    sns.lineplot(x = 'frame', y = 'Y_pose_negative_smooth', 
+                     data = mp_r_heel_df, 
+                     color = 'orange', label = 'right heel Y',
+                     ax = ax1)  
+    sns.lineplot(x = 'frame', y = 'Y_pose_negative_smooth', 
+                     data = mp_l_heel_df, 
+                     color = 'blue', label = 'left heel Y',
+                     ax = ax2)  
+
+    
+    #plt.show() 
+    plt.close() 
+    
+
+    # new --------------------- 
     # calculate the difference between hip and ankle at each frame 
     r_hip_ank_diff = abs(mp_r_hip_df['Y_pose'] - mp_r_ank_df['Y_pose'])
     l_hip_ank_diff = abs(mp_l_hip_df['Y_pose'] - mp_l_ank_df['Y_pose'])
