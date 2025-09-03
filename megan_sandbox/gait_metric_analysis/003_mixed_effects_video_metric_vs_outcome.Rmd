@@ -31,7 +31,7 @@ Reviewed "check outcome transorm" section plots to select outcome (original, log
 ## output directory 
 ```{r}
 # analysis folder 
-analysis_version <- '007'
+analysis_version <- '011'
 
 ```
 
@@ -330,29 +330,30 @@ all_univariate_mixed_effect <- function(data, outcome_column){
   ################### video metrics ################################
   
   # delta pixel ------------------------------------------------------
-#  p <- ggplot(data = data, 
-#              aes(x = delta_pix_h_rel_median_pose, 
-#                  y = .data[[outcome_column]])) + 
-#    geom_point()
-#  print(p)
+  p <- ggplot(data = data, 
+              aes(x = delta_pix_h_rel_median_pose, 
+                  y = .data[[outcome_column]])) + 
+    geom_point()
+  print(p)
   
-#  formula1 <- as.formula(paste(outcome_column, 
-#                               "~ delta_pix_h_rel_median_pose + (1 | bw_id)"))
-#  print(formula1)
-#  uni1 <- lmer(formula1, data = data, REML = FALSE)
-#  print(summary(uni1))
+  formula1 <- as.formula(paste(outcome_column, 
+                               "~ delta_pix_h_rel_median_pose + (1 | bw_id)"))
+  print(formula1)
+  uni1 <- lmer(formula1, data = data, REML = FALSE)
+  print(summary(uni1))
   
   # Residuals vs. fitted values
-#  hist(resid(uni1), main = "Residuals delta_pix_h_rel_median_pose")
+  hist(resid(uni1), main = "Residuals delta_pix_h_rel_median_pose")
   
   # Normality check
-#  qqnorm(residuals(uni1), main = "Normal Q-Q plot: delta_pix_h_rel_median_pose")
+  qqnorm(residuals(uni1), main = "Normal Q-Q plot: delta_pix_h_rel_median_pose")
   
   # uni df 
-#  uni1_df <- tidy(uni1, conf.int = TRUE) %>% 
-#    mutate(R2_conditional = r2(uni1)$R2_conditional) %>% 
-#    mutate(R2_marginal = r2(uni1)$R2_marginal) %>% 
-#    mutate(Variable = 'Pixel Height Proxy')
+  uni1_df <- tidy(uni1, conf.int = TRUE) %>% 
+    mutate(R2_conditional = r2(uni1)$R2_conditional) %>% 
+    mutate(R2_marginal = r2(uni1)$R2_marginal) %>% 
+    mutate(Variable = 'Pixel Height Proxy') %>% 
+    mutate(N_observations = nobs(uni1))
   
   # log delta pixel proxy ---------------------------------------------
   p <- ggplot(data = data, 
@@ -361,10 +362,10 @@ all_univariate_mixed_effect <- function(data, outcome_column){
     geom_point()
   print(p)
   
-  formula1 <- as.formula(paste(outcome_column, 
+  formula1_log <- as.formula(paste(outcome_column, 
                                "~ log_delta_pix_h_rel_median_pose + (1 | bw_id)"))
-  print(formula1)
-  uni1_log <- lmer(formula1, data = data, REML = FALSE)
+  print(formula1_log)
+  uni1_log <- lmer(formula1_log, data = data, REML = FALSE)
   print(summary(uni1_log))
   
   # Residuals vs. fitted values
@@ -377,7 +378,8 @@ all_univariate_mixed_effect <- function(data, outcome_column){
   uni1_log_df <- tidy(uni1_log, conf.int = TRUE) %>% 
     mutate(R2_conditional = r2(uni1_log)$R2_conditional) %>% 
     mutate(R2_marginal = r2(uni1_log)$R2_marginal) %>% 
-    mutate(Variable = 'Log Pixel Height Proxy')
+    mutate(Variable = 'Log Pixel Height Proxy') %>% 
+    mutate(N_observations = nobs(uni1_log))
   
   # stride time --------------------------------------------------------------
   print('stride_time_median_sec_pose')
@@ -403,7 +405,8 @@ all_univariate_mixed_effect <- function(data, outcome_column){
   uni2_df <- tidy(uni2, conf.int = TRUE) %>% 
     mutate(R2_conditional = r2(uni2)$R2_conditional) %>% 
     mutate(R2_marginal = r2(uni2)$R2_marginal) %>% 
-    mutate(Variable = 'Stride Time Median')
+    mutate(Variable = 'Stride Time Median')  %>% 
+    mutate(N_observations = nobs(uni2))
   
   # cadence -------------------------------------------------------------------
   print('mean_cadence_step_per_min_pose')
@@ -429,7 +432,8 @@ all_univariate_mixed_effect <- function(data, outcome_column){
   uni3_df <- tidy(uni3, conf.int = TRUE) %>% 
     mutate(R2_conditional = r2(uni3)$R2_conditional) %>% 
     mutate(R2_marginal = r2(uni3)$R2_marginal) %>% 
-    mutate(Variable = 'Cadence Mean')
+    mutate(Variable = 'Cadence Mean')  %>% 
+    mutate(N_observations = nobs(uni3))
   
   # stride width ----------------------------------------------------------
   print('stride_width_median_cm_pose')
@@ -456,7 +460,8 @@ all_univariate_mixed_effect <- function(data, outcome_column){
   uni4_df <- tidy(uni4, conf.int = TRUE) %>% 
     mutate(R2_conditional = r2(uni4)$R2_conditional) %>% 
     mutate(R2_marginal = r2(uni4)$R2_marginal) %>% 
-    mutate(Variable = 'Stride Width Median') 
+    mutate(Variable = 'Stride Width Median')  %>% 
+    mutate(N_observations = nobs(uni4))
   
   # stance time std  -------------------------------------------
   print('stance_time_per_std_pose')
@@ -483,7 +488,8 @@ all_univariate_mixed_effect <- function(data, outcome_column){
   uni10_df <- tidy(uni10, conf.int = TRUE) %>% 
     mutate(R2_conditional = r2(uni10)$R2_conditional) %>% 
     mutate(R2_marginal = r2(uni10)$R2_marginal) %>% 
-    mutate(Variable = 'Stance Time S.D.') 
+    mutate(Variable = 'Stance Time S.D.')  %>% 
+    mutate(N_observations = nobs(uni10))
   
   # swing time std -------------------------------------------
   print('swing_time_sec_std_pose')
@@ -510,7 +516,8 @@ all_univariate_mixed_effect <- function(data, outcome_column){
   uni11_df <- tidy(uni11, conf.int = TRUE) %>% 
     mutate(R2_conditional = r2(uni11)$R2_conditional) %>% 
     mutate(R2_marginal = r2(uni11)$R2_marginal) %>% 
-    mutate(Variable = 'Swing Time S.D.') 
+    mutate(Variable = 'Swing Time S.D.')  %>% 
+    mutate(N_observations = nobs(uni11))
   
    # stance per - median  -------------------------------------------
   print('stance_time_per_mean_pose')
@@ -537,7 +544,8 @@ all_univariate_mixed_effect <- function(data, outcome_column){
   uni12_df <- tidy(uni12, conf.int = TRUE) %>% 
     mutate(R2_conditional = r2(uni12)$R2_conditional) %>% 
     mutate(R2_marginal = r2(uni12)$R2_marginal) %>% 
-    mutate(Variable = 'Stance % Mean') 
+    mutate(Variable = 'Stance % Mean')  %>% 
+    mutate(N_observations = nobs(uni12))
   
   # swing time %-------------------------------------------
   # removed - inverse of stance 
@@ -565,7 +573,8 @@ all_univariate_mixed_effect <- function(data, outcome_column){
 #  uni13_df <- tidy(uni13, conf.int = TRUE) %>% 
 #    mutate(R2_conditional = r2(uni13)$R2_conditional) %>% 
 #    mutate(R2_marginal = r2(uni13)$R2_marginal) %>% 
-#    mutate(Variable = 'Swing % Mean') 
+#    mutate(Variable = 'Swing % Mean')  %>% 
+#    mutate(N_observations = nobs(uni13)
   
   # single support time - S.D. -----------------------
   print('singlesupport_time_sec_std_pose')
@@ -592,7 +601,8 @@ all_univariate_mixed_effect <- function(data, outcome_column){
   uni14_df <- tidy(uni14, conf.int = TRUE) %>% 
     mutate(R2_conditional = r2(uni14)$R2_conditional) %>% 
     mutate(R2_marginal = r2(uni14)$R2_marginal) %>% 
-    mutate(Variable = 'Single Support Time S.D.') 
+    mutate(Variable = 'Single Support Time S.D.')  %>% 
+    mutate(N_observations = nobs(uni14))
   
   # double support time - S.D. ------------------------
   print('tot_dsupport_time_sec_std_pose')
@@ -619,7 +629,8 @@ all_univariate_mixed_effect <- function(data, outcome_column){
   uni15_df <- tidy(uni15, conf.int = TRUE) %>% 
     mutate(R2_conditional = r2(uni15)$R2_conditional) %>% 
     mutate(R2_marginal = r2(uni15)$R2_marginal) %>% 
-    mutate(Variable = 'Double Support Time S.D.') 
+    mutate(Variable = 'Double Support Time S.D.')  %>% 
+    mutate(N_observations = nobs(uni15))
   
   # single support % - mean --------------------------
   print('singlesupport_per_mean_pose')
@@ -646,7 +657,8 @@ all_univariate_mixed_effect <- function(data, outcome_column){
   uni16_df <- tidy(uni16, conf.int = TRUE) %>% 
     mutate(R2_conditional = r2(uni16)$R2_conditional) %>% 
     mutate(R2_marginal = r2(uni16)$R2_marginal) %>% 
-    mutate(Variable = 'Single Support % Mean') 
+    mutate(Variable = 'Single Support % Mean')  %>% 
+    mutate(N_observations = nobs(uni16))
   
   # double support % - mean ------------------------- 
   print('tot_dsupport_per_mean_pose')
@@ -673,7 +685,8 @@ all_univariate_mixed_effect <- function(data, outcome_column){
   uni17_df <- tidy(uni17, conf.int = TRUE) %>% 
     mutate(R2_conditional = r2(uni17)$R2_conditional) %>% 
     mutate(R2_marginal = r2(uni17)$R2_marginal) %>% 
-    mutate(Variable = 'Double Support % Mean') 
+    mutate(Variable = 'Double Support % Mean')  %>% 
+    mutate(N_observations = nobs(uni17))
   
   
   #### demographics and MS info ################## 
@@ -703,7 +716,8 @@ all_univariate_mixed_effect <- function(data, outcome_column){
   uni5_df <- tidy(uni5, conf.int = TRUE) %>% 
     mutate(R2_conditional = r2(uni5)$R2_conditional) %>% 
     mutate(R2_marginal = r2(uni5)$R2_marginal) %>% 
-    mutate(Variable = 'Age') 
+    mutate(Variable = 'Age')  %>% 
+    mutate(N_observations = nobs(uni5))
   
   
   # Disease Duration ---------------------------------------------
@@ -731,7 +745,8 @@ all_univariate_mixed_effect <- function(data, outcome_column){
   uni6_df <- tidy(uni6, conf.int = TRUE) %>% 
     mutate(R2_conditional = r2(uni6)$R2_conditional) %>% 
     mutate(R2_marginal = r2(uni6)$R2_marginal) %>% 
-    mutate(Variable = 'Disease Duration') 
+    mutate(Variable = 'Disease Duration')  %>% 
+    mutate(N_observations = nobs(uni6))
   
   # MS DX ---------------------------------------------
   print('ms_dx_condensed')
@@ -752,12 +767,13 @@ all_univariate_mixed_effect <- function(data, outcome_column){
   uni7_df <- tidy(uni7, conf.int = TRUE) %>% 
     mutate(R2_conditional = r2(uni7)$R2_conditional) %>% 
     mutate(R2_marginal = r2(uni7)$R2_marginal) %>% 
-    mutate(Variable = 'MS DX') 
+    mutate(Variable = 'MS DX')  %>% 
+    mutate(N_observations = nobs(uni7))
   
   
   # tidy and bind all together --------------------------------
   tidy_uni_df <- bind_rows(uni5_df, uni6_df, uni7_df, 
-                           uni1_log_df, uni2_df, uni3_df, uni4_df, 
+                           uni1_df, uni1_log_df, uni2_df, uni3_df, uni4_df, 
                            uni10_df, uni11_df, uni12_df, 
                            uni14_df, uni15_df, uni16_df,
                            uni17_df) %>% 
@@ -1110,7 +1126,8 @@ multivariate_save_results <- function(formula, df, outcome_column_str, model_str
     mutate(R2_conditional = r2(multivar_results)$R2_conditional) %>% 
     mutate(R2_marginal = r2(multivar_results)$R2_marginal) %>% 
     mutate(Model = model_str) %>%
-    mutate(Outcome = outcome_column_str)
+    mutate(Outcome = outcome_column_str)  %>% 
+    mutate(N_observations = nobs(multivar_results))
   
   return(list(df = multivar_results_df, object = multivar_results))
 }
@@ -1323,7 +1340,7 @@ home_df[] <- lapply(home_df, function(x) {
 ### Check outcome transforms and select metrics 
 ```{r}
 y_outcome_cols <- c("clean_T25FW_Avg", "t25fw_log", "t25fw_inverse", "t25fw_sqrt") 
-plot_outcome_transforms_vs_predictors(zeno_pws_df, y_outcome_cols, 'pws', output_dir)
+#plot_outcome_transforms_vs_predictors(zeno_pws_df, y_outcome_cols, 'pws', output_dir)
 ```
 
 ### Set outcome variable 
@@ -1340,18 +1357,17 @@ zeno_pws_clean_df <- zeno_pws_df %>%
   drop_na(c("stride_time_median_sec_pose_zv", 
             "log_delta_pix_h_rel_median_pose_zv",
             "mean_cadence_step_per_min_pose_zv",
-            "stride_width_median_cm_pose_zv", 
-            "stance_time_sec_std_pose_zv", 
-            "swing_time_sec_std_pose_zv"))
+            "stride_width_median_cm_pose_zv"))
+
+print(nrow(zeno_pws_clean_df))
 ```
 
 
 
 ### Univariate Models 
 ```{r}
-run_save_univariate(zeno_pws_clean_df, pws_t25fw_outcome_col, 'PWS', plot_x_adj = 0.5)
+run_save_univariate(zeno_pws_df, pws_t25fw_outcome_col, 'PWS', plot_x_adj = 0.5)
 ```
-
 
 ### Multivariate MS Info and Demographics
 
@@ -1375,11 +1391,8 @@ summary(t25fw_pws_multi_dem_results$object)
 ```{r}
 t25fw_pws_multi_metrics_formula <- as.formula(paste(pws_t25fw_outcome_col, "~ stride_time_median_sec_pose_zv +
                                                       log_delta_pix_h_rel_median_pose_zv + 
-                                                      mean_cadence_step_per_min_pose_zv + 
-                                                      stride_width_median_cm_pose_zv + 
-                                                      stance_time_per_mean_pose_zv + 
-                                                      tot_dsupport_time_sec_std_pose_zv + 
-                                                      singlesupport_time_sec_std_pose_zv +
+                                                    #  mean_cadence_step_per_min_pose_zv + 
+                                                      stride_width_median_cm_pose_zv +
                                                       (1|bw_id)"))
 t25fw_pws_multi_metrics_formula
 
@@ -1399,11 +1412,8 @@ summary(t25fw_pws_multi_metrics_results$object)
 t25fw_pws_multi_vid_adj_formula <- as.formula(paste(pws_t25fw_outcome_col, 
                                                       "~ stride_time_median_sec_pose_zv +
                                                       log_delta_pix_h_rel_median_pose_zv + 
-                                                      mean_cadence_step_per_min_pose_zv + 
+                                                    #  mean_cadence_step_per_min_pose_zv + 
                                                       stride_width_median_cm_pose_zv + 
-                                                      stance_time_per_mean_pose_zv + 
-                                                      tot_dsupport_time_sec_std_pose_zv + 
-                                                      singlesupport_time_sec_std_pose_zv +
                                                       clean_Age +
                                                       demoEHR_DiseaseDuration + 
                                                       ms_dx_condensed +
@@ -1453,7 +1463,7 @@ bind_plot_multivar_results(t25fw_pws_multi_dem_results$df,
 ### Check outcome transforms 
 ```{r}
 y_outcome_cols <- c("clean_T25FW_Avg", "t25fw_log", "t25fw_inverse", "t25fw_sqrt") 
-plot_outcome_transforms_vs_predictors(zeno_fw_df, y_outcome_cols, 'FW', output_dir)
+#plot_outcome_transforms_vs_predictors(zeno_fw_df, y_outcome_cols, 'FW', output_dir)
 # log? 
 ```
 
@@ -1471,9 +1481,7 @@ zeno_fw_clean_df <- zeno_fw_df %>%
   drop_na(c("stride_time_median_sec_pose_zv", 
             "log_delta_pix_h_rel_median_pose_zv",
             "mean_cadence_step_per_min_pose_zv",
-            "stride_width_median_cm_pose_zv",
-            "swing_time_sec_std_pose_zv",
-            "stance_time_sec_std_pose_zv"
+            "stride_width_median_cm_pose_zv"
             ))
 
 nrow(zeno_fw_df)
@@ -1482,8 +1490,9 @@ nrow(zeno_fw_clean_df)
 
 ### Univariate Models 
 ```{r}
-run_save_univariate(zeno_fw_clean_df, fw_t25fw_outcome_col, 'FW', plot_x_adj = 0.5)
+run_save_univariate(zeno_fw_df, fw_t25fw_outcome_col, 'FW', plot_x_adj = 0.5)
 ```
+
 
 ### Model 1 - Multivariate Demographics and MS Info 
 ```{r}
@@ -1510,11 +1519,8 @@ performance(t25fw_fw_multi_dem_results$object)
 t25fw_fw_multi_metrics_formula <- as.formula(paste(fw_t25fw_outcome_col, "~ 
                                                       log_delta_pix_h_rel_median_pose_zv +
                                                       stride_time_median_sec_pose_zv +
-                                                      mean_cadence_step_per_min_pose_zv + 
-                                                      stride_width_median_cm_pose_zv + 
-                                                      stance_time_per_mean_pose_zv + 
-                                                      tot_dsupport_time_sec_std_pose_zv + 
-                                                      singlesupport_time_sec_std_pose_zv +
+                                                    #  mean_cadence_step_per_min_pose_zv + 
+                                                      stride_width_median_cm_pose_zv +
                                                       (1|bw_id)"))
 t25fw_fw_multi_metrics_formula
 
@@ -1537,11 +1543,8 @@ t25fw_fw_multi_vid_adj_formula <- as.formula(paste(fw_t25fw_outcome_col, "~ clea
                                                       ms_dx_condensed + 
                                                       log_delta_pix_h_rel_median_pose_zv +
                                                       stride_time_median_sec_pose_zv +
-                                                      mean_cadence_step_per_min_pose_zv + 
-                                                      stride_width_median_cm_pose_zv + 
-                                                      stance_time_per_mean_pose_zv + 
-                                                      tot_dsupport_time_sec_std_pose_zv + 
-                                                      singlesupport_time_sec_std_pose_zv +
+                                                  #    mean_cadence_step_per_min_pose_zv + 
+                                                      stride_width_median_cm_pose_zv +
                                                       (1|bw_id)"))
 t25fw_fw_multi_vid_adj_formula
 
@@ -1715,7 +1718,7 @@ ggsave(file.path(output_dir, fw_t25fw_outcome_col, 't25fw_log_model4_FW_residual
 ### Check outcome transforms  
 ```{r}
 y_outcome_cols <- c("clean_T25FW_Avg", "t25fw_log", "t25fw_inverse", "t25fw_sqrt") 
-plot_outcome_transforms_vs_predictors(home_df, y_outcome_cols, 'home', output_dir)
+#plot_outcome_transforms_vs_predictors(home_df, y_outcome_cols, 'home', output_dir)
 ```
 
 ### Set Outcome variable 
@@ -1732,16 +1735,15 @@ home_clean_df <- home_df %>%
   drop_na(c("stride_time_median_sec_pose_hv", 
             "log_delta_pix_h_rel_median_pose_hv",
             "mean_cadence_step_per_min_pose_hv",
-            "stride_width_median_cm_pose_hv", 
-            "stance_time_sec_std_pose_hv", 
-            "swing_time_sec_std_pose_hv"))
+            "stride_width_median_cm_pose_hv"))
 
 ```
 
 ### Univariate Models 
 ```{r}
-run_save_univariate(home_clean_df, home_t25fw_outcome_col, 'Home', plot_x_adj = 1)
+run_save_univariate(home_df, home_t25fw_outcome_col, 'Home', plot_x_adj = 1)
 ```
+
 
 ### Multivariate Demographics and MS Info 
 
@@ -1765,11 +1767,8 @@ summary(t25fw_home_multi_dem_results$object)
 ```{r}
 t25fw_home_multi_metrics_formula <- as.formula(paste(home_t25fw_outcome_col, "~ stride_time_median_sec_pose_hv +
                                                       log_delta_pix_h_rel_median_pose_hv + 
-                                                      mean_cadence_step_per_min_pose_hv + 
-                                                      stride_width_median_cm_pose_hv + 
-                                                      stance_time_per_mean_pose_hv + 
-                                                      tot_dsupport_time_sec_std_pose_hv + 
-                                                      singlesupport_time_sec_std_pose_hv +
+                                                #      mean_cadence_step_per_min_pose_hv + 
+                                                      stride_width_median_cm_pose_hv +
                                                       (1|bw_id)"))
 t25fw_home_multi_metrics_formula
 
@@ -1789,11 +1788,8 @@ summary(t25fw_home_multi_metrics_results$object)
 t25fw_home_multi_vid_adj_formula <- as.formula(paste(home_t25fw_outcome_col, 
                                                       "~ stride_time_median_sec_pose_hv +
                                                       log_delta_pix_h_rel_median_pose_hv + 
-                                                      mean_cadence_step_per_min_pose_hv + 
+                                                  #    mean_cadence_step_per_min_pose_hv + 
                                                       stride_width_median_cm_pose_hv + 
-                                                      stance_time_per_mean_pose_hv + 
-                                                      tot_dsupport_time_sec_std_pose_hv + 
-                                                      singlesupport_time_sec_std_pose_hv +
                                                       clean_Age +
                                                       demoEHR_DiseaseDuration + 
                                                       ms_dx_condensed +
@@ -1947,7 +1943,7 @@ for (i in seq_along(output_folders)){
 ### Check outcome transforms and select metrics 
 ```{r}
 y_outcome_cols <- c("PWS_velocitycmsecmean", "PWS_velocity_log", "PWS_velocity_inv", "PWS_velocity_sqrt") 
-plot_outcome_transforms_vs_predictors(zeno_pws_df, y_outcome_cols, 'pws', output_dir)
+#plot_outcome_transforms_vs_predictors(zeno_pws_df, y_outcome_cols, 'pws', output_dir)
 ```
 
 ### Set Outcome variable 
@@ -1957,7 +1953,7 @@ pws_pwsVel_outcome_col = "PWS_velocitycmsecmean"
 
 ### Univariate Models 
 ```{r}
-run_save_univariate(zeno_pws_clean_df, pws_pwsVel_outcome_col, 'PWS', plot_x_adj = 55)
+run_save_univariate(zeno_pws_df, pws_pwsVel_outcome_col, 'PWS', plot_x_adj = 55)
 ```
 
 ### Multivariate Demographics and MS Info
@@ -1982,11 +1978,8 @@ summary(pws_pwsVel_multi_dem_results$object)
 ```{r}
 pws_pwsVel_multi_metrics_formula <- as.formula(paste(pws_pwsVel_outcome_col, "~ stride_time_median_sec_pose_zv +
                                                       delta_pix_h_rel_median_pose_zv + 
-                                                      mean_cadence_step_per_min_pose_zv + 
-                                                      stride_width_median_cm_pose_zv + 
-                                                      stance_time_per_mean_pose_zv + 
-                                                      tot_dsupport_time_sec_std_pose_zv + 
-                                                      singlesupport_time_sec_std_pose_zv +
+                                                    #  mean_cadence_step_per_min_pose_zv + 
+                                                      stride_width_median_cm_pose_zv +
                                                       (1|bw_id)"))
 pws_pwsVel_multi_metrics_formula
 
@@ -2004,11 +1997,8 @@ summary(pws_pwsVel_multi_metrics_results$object)
 pws_pwsVel_multi_vid_adj_formula <- as.formula(paste(pws_pwsVel_outcome_col, 
                                                       "~ stride_time_median_sec_pose_zv +
                                                       delta_pix_h_rel_median_pose_zv + 
-                                                      mean_cadence_step_per_min_pose_zv + 
+                                                 #     mean_cadence_step_per_min_pose_zv + 
                                                       stride_width_median_cm_pose_zv + 
-                                                      stance_time_per_mean_pose_zv + 
-                                                      tot_dsupport_time_sec_std_pose_zv + 
-                                                      singlesupport_time_sec_std_pose_zv +
                                                       clean_Age +
                                                       demoEHR_DiseaseDuration + 
                                                       ms_dx_condensed +
@@ -2054,7 +2044,7 @@ bind_plot_multivar_results(pws_pwsVel_multi_dem_results$df,
 ### Check outcome transforms and select metrics 
 ```{r}
 y_outcome_cols <- c("FW_velocitycmsecmean", "FW_velocity_log", "FW_velocity_inv", "FW_velocity_sqrt") 
-plot_outcome_transforms_vs_predictors(zeno_fw_df, y_outcome_cols, 'FW', output_dir)
+#plot_outcome_transforms_vs_predictors(zeno_fw_df, y_outcome_cols, 'FW', output_dir)
 ```
 
 ### Set Outcome variable 
@@ -2065,7 +2055,7 @@ fw_fwVel_outcome_col = "FW_velocitycmsecmean"
 
 ### Univariate Models
 ```{r}
-run_save_univariate(zeno_fw_clean_df, fw_fwVel_outcome_col, 'FW', plot_x_adj = 50)
+run_save_univariate(zeno_fw_df, fw_fwVel_outcome_col, 'FW', plot_x_adj = 50)
 ```
 
 
@@ -2093,11 +2083,8 @@ summary(fw_fwVel_multi_dem_results$object)
 ```{r}
 fw_fwVel_multi_metrics_formula <- as.formula(paste(fw_fwVel_outcome_col, "~ stride_time_median_sec_pose_zv +
                                                       delta_pix_h_rel_median_pose_zv + 
-                                                      mean_cadence_step_per_min_pose_zv + 
+                                                   #   mean_cadence_step_per_min_pose_zv + 
                                                       stride_width_median_cm_pose_zv + 
-                                                      stance_time_per_mean_pose_zv + 
-                                                      tot_dsupport_time_sec_std_pose_zv + 
-                                                      singlesupport_time_sec_std_pose_zv + 
                                                       (1|bw_id)"))
 fw_fwVel_multi_metrics_formula
 
@@ -2115,11 +2102,8 @@ summary(fw_fwVel_multi_metrics_results$object)
 fw_fwVel_multi_vid_adj_formula <- as.formula(paste(fw_fwVel_outcome_col, 
                                                       "~ stride_time_median_sec_pose_zv +
                                                       delta_pix_h_rel_median_pose_zv + 
-                                                      mean_cadence_step_per_min_pose_zv + 
+                                                   #   mean_cadence_step_per_min_pose_zv + 
                                                       stride_width_median_cm_pose_zv + 
-                                                      stance_time_per_mean_pose_zv + 
-                                                      tot_dsupport_time_sec_std_pose_zv + 
-                                                      singlesupport_time_sec_std_pose_zv +
                                                       clean_Age +
                                                       demoEHR_DiseaseDuration + 
                                                       ms_dx_condensed +
@@ -2162,7 +2146,7 @@ bind_plot_multivar_results(fw_fwVel_multi_dem_results$df,
 ### Check outcome transforms and select metrics 
 ```{r}
 y_outcome_cols <- c("FW_velocitycmsecmean", "FW_velocity_log", "FW_velocity_inv", "FW_velocity_sqrt") 
-plot_outcome_transforms_vs_predictors(home_df, y_outcome_cols, 'home', output_dir)
+#plot_outcome_transforms_vs_predictors(home_df, y_outcome_cols, 'home', output_dir)
 ```
 
 ### Set outcome variable 
@@ -2173,7 +2157,7 @@ home_fwVel_outcome_col = "FW_velocitycmsecmean"
 
 ### Univariate Models 
 ```{r}
-run_save_univariate(home_clean_df, home_fwVel_outcome_col, 'Home', plot_x_adj = 30)
+run_save_univariate(home_df, home_fwVel_outcome_col, 'Home', plot_x_adj = 30)
 ```
 
 
@@ -2198,11 +2182,8 @@ summary(home_fwVel_multi_dem_results$object)
 ```{r}
 home_fwVel_multi_metrics_formula <- as.formula(paste(home_fwVel_outcome_col, "~ stride_time_median_sec_pose_hv +
                                                       delta_pix_h_rel_median_pose_hv + 
-                                                      mean_cadence_step_per_min_pose_hv + 
+                                                  #    mean_cadence_step_per_min_pose_hv + 
                                                       stride_width_median_cm_pose_hv + 
-                                                      stance_time_per_mean_pose_hv + 
-                                                      tot_dsupport_time_sec_std_pose_hv + 
-                                                      singlesupport_time_sec_std_pose_hv + 
                                                       (1|bw_id)"))
 home_fwVel_multi_metrics_formula
 
@@ -2218,11 +2199,8 @@ summary(home_fwVel_multi_metrics_results$object)
 home_fwVel_multi_vid_adj_formula <- as.formula(paste(home_fwVel_outcome_col, 
                                                       "~ stride_time_median_sec_pose_hv +
                                                       delta_pix_h_rel_median_pose_hv + 
-                                                      mean_cadence_step_per_min_pose_hv + 
+                                                  #    mean_cadence_step_per_min_pose_hv + 
                                                       stride_width_median_cm_pose_hv + 
-                                                      stance_time_per_mean_pose_hv + 
-                                                      tot_dsupport_time_sec_std_pose_hv + 
-                                                      singlesupport_time_sec_std_pose_hv +
                                                       clean_Age +
                                                       demoEHR_DiseaseDuration + 
                                                       ms_dx_condensed +
@@ -2266,7 +2244,7 @@ bind_plot_multivar_results(home_fwVel_multi_dem_results$df,
 ### Check outcome transforms and select metrics 
 ```{r}
 y_outcome_cols <- c("PWS_velocitycmsecmean", "PWS_velocity_log", "PWS_velocity_inv", "PWS_velocity_sqrt") 
-plot_outcome_transforms_vs_predictors(home_df, y_outcome_cols, 'home', output_dir)
+#plot_outcome_transforms_vs_predictors(home_df, y_outcome_cols, 'home', output_dir)
 ```
 
 ### Set outcome variable 
@@ -2276,7 +2254,7 @@ home_pwsVel_outcome_col = "PWS_velocitycmsecmean"
 
 ### Univariate Models 
 ```{r}
-run_save_univariate(home_clean_df, home_pwsVel_outcome_col, 'Home', plot_x_adj = 30)
+run_save_univariate(home_df, home_pwsVel_outcome_col, 'Home', plot_x_adj = 30)
 
 ```
 
@@ -2301,11 +2279,8 @@ summary(home_pwsVel_multi_dem_results$object)
 ```{r}
 home_pwsVel_multi_metrics_formula <- as.formula(paste(home_pwsVel_outcome_col, "~ stride_time_median_sec_pose_hv +
                                                       delta_pix_h_rel_median_pose_hv + 
-                                                      mean_cadence_step_per_min_pose_hv + 
+                                                     # mean_cadence_step_per_min_pose_hv + 
                                                       stride_width_median_cm_pose_hv + 
-                                                      stance_time_per_mean_pose_hv + 
-                                                      tot_dsupport_time_sec_std_pose_hv + 
-                                                      singlesupport_time_sec_std_pose_hv + 
                                                       (1|bw_id)"))
 home_pwsVel_multi_metrics_formula
 
@@ -2321,11 +2296,8 @@ summary(home_pwsVel_multi_metrics_results$object)
 home_pwsVel_multi_vid_adj_formula <- as.formula(paste(home_pwsVel_outcome_col, 
                                                       "~ stride_time_median_sec_pose_hv +
                                                       delta_pix_h_rel_median_pose_hv + 
-                                                      mean_cadence_step_per_min_pose_hv + 
+                                                     # mean_cadence_step_per_min_pose_hv + 
                                                       stride_width_median_cm_pose_hv + 
-                                                      stance_time_per_mean_pose_hv + 
-                                                      tot_dsupport_time_sec_std_pose_hv + 
-                                                      singlesupport_time_sec_std_pose_hv +
                                                       clean_Age +
                                                       demoEHR_DiseaseDuration + 
                                                       ms_dx_condensed +
