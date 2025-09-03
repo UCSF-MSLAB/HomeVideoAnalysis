@@ -10,26 +10,39 @@ from src.marigold_result_handler import MarigoldResultHandler as init_mari_hndl
 import imageio
 import torch
 import diffusers
+from diffusers.models.attention_processor import AttnProcessor2_0
 # from Marigold.marigold import MarigoldPipeline
 import logging
-# import torch
 # import itertools
 logger = logging.getLogger(__name__)
 
 # encounter errors when box includes image edge
 MARGIN = 0
-FPS = 30
+FPS = 15
 
 yolo_pipe = YOLO(os.getcwd() + '/models/yolov8m-pose.pt')
 mp_pipe = mp.solutions.pose.Pose(min_detection_confidence=0.5,
                                  min_tracking_confidence=0.5)
 
-marigold_pipe = diffusers.MarigoldDepthPipeline.from_pretrained("prs-eth/marigold-depth-lcm-v1-0",
-                                                                half_precision=True)
-marigold_pipe.vae = diffusers.AutoencoderTiny.from_pretrained("madebyollin/taesd")
+marigold_pipe = diffusers.MarigoldDepthPipeline \
+                         .from_pretrained("prs-eth/marigold-depth-v1-1")
+
+# optimizations from https://huggingface.co/docs/diffusers/using-diffusers/marigold_usage
+marigold_pipe.vae = diffusers.AutoencoderTiny \
+                             .from_pretrained("madebyollin/taesd")
+
+# marigold_pipe.vae.set_attn_processor(AttnProcessor2_0())
+marigold_pipe.unet.set_attn_processor(AttnProcessor2_0())
+# marigold_pipe.vae = torch.compile(marigold_pipe.vae, mode="reduce-overhead",
+#                                   fullgraph=True)
+# marigold_pipe.unet = torch.compile(marigold_pipe.unet, mode="reduce-overhead",
+#                                    fullgraph=True)
+
+
 # marigold_pipe = MarigoldPipeline \
 #     .from_pretrained("prs-eth/marigold-depth-lcm-v1-0")
-# , variant='fp16', torch_dtype=torch.float16
+#                      # variant='fp16', torch_dtype=torch.float16)
+
 marigold_pipe.set_progress_bar_config(disable=True)
 
 
@@ -45,13 +58,13 @@ def extract_pose_data(vid_in_path, run_depth):
     reader = imageio.get_reader(vid_in_path)
     size = reader.get_meta_data()['size']
 
-    # latent_common = torch.randn(
-    #     (1, 4,
-    #      768 * size[1] // (8 * max(size)),
-    #      768 * size[0] // (8 * max(size)))
-    # )
-    # last_frame_latent = None
-    # latents = latent_common
+    latent_common = torch.randn(
+        (1, 4,
+         768 * size[1] // (8 * max(size)),
+         768 * size[0] // (8 * max(size)))
+    )
+    last_frame_latent = None
+    latents = latent_common
 
     print(f"Processing {vid_in_path}...")
     frame_i = 0
@@ -61,11 +74,10 @@ def extract_pose_data(vid_in_path, run_depth):
         if not success:
             break
 
-        # if last_frame_latent is not None:
-        #     latents = .9 * latents + .1*last_frame_latent
+        if last_frame_latent is not None:
+            latents = .9 * latents + .1*last_frame_latent
 
-        handlers = run_pipes_on_frame(image, frame_i, run_depth, # latents
-                                      )
+        handlers = run_pipes_on_frame(image, frame_i, run_depth, latents)
         if handlers is not None:
 
             yolo_hndl, mp_p_hndl, mp_wrld_hndl, mari_hndl = handlers
@@ -73,8 +85,8 @@ def extract_pose_data(vid_in_path, run_depth):
             yolo_pose_data.append(yolo_hndl.dfs[0])
             mpipe_pose_data.append(mp_p_hndl.df)
             mpipe_world_data.append(mp_wrld_hndl.df)
-            mari_depth_data.append(mari_hndl.extract(mp_p_hndl.df))
-            # last_frame_latent = mari_hndl.get_latents()
+            mari_depth_data.append(mari_hndl.extract(yolo_hndl.dfs[0]))
+            last_frame_latent = mari_hndl.get_latents()
 
         frame_i += 1
 
@@ -84,7 +96,7 @@ def extract_pose_data(vid_in_path, run_depth):
     return [yolo_pose_data, mpipe_pose_data, mpipe_world_data, mari_depth_data]
 
 
-def run_pipes_on_frame(image, frame_i, run_depth, latents = None):
+def run_pipes_on_frame(image, frame_i, run_depth, latents=None):
 
     image.flags.writeable = False
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
@@ -100,14 +112,15 @@ def run_pipes_on_frame(image, frame_i, run_depth, latents = None):
                 extract_mpipe_pose_data(image,
                                         yolo_handler.box,
                                         frame_i,
-                                        False)
+                                        True)
             # perform depth estimation
             # since this takes so long, let's only do it 1x per second
             if frame_i % FPS == 0 and run_depth:
 
                 mari_output = marigold_pipe(Image.fromarray(image),
+                                            num_inference_steps=1,
                                             match_input_resolution=True,
-                                            # latents=latents,
+                                            latents=latents,
                                             output_latent=True)
             else:
                 mari_output = None

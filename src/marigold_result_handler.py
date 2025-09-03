@@ -28,14 +28,14 @@ class MarigoldResultHandler():
     def get_latents(self):
         return self.latent
 
-    def extract(self, mpipe_lndmrks):
+    def extract(self, lndmrks):
 
         if self.data is None:
             return self.EMPTY_DICT
 
         lndmrk_px_vals = []
 
-        for i, row in mpipe_lndmrks.iterrows():
+        for i, row in lndmrks.iterrows():
             if np.isinf(row.Y) or np.isinf(row.X):
                 continue
             else:
