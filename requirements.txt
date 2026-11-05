@@ -63,7 +63,7 @@ six==1.16.0
 sounddevice==0.4.6
 sympy==1.12
 thop==0.1.1.post2209072238
-torch==2.3.0
+torch==2.13.0
 torchvision==0.18.0
 tqdm==4.66.4
 triton==2.3.0
